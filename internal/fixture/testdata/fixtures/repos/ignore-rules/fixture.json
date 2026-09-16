@@ -1,0 +1,10 @@
+{
+  "name": "ignore-rules",
+  "description": "Scenario S12: config/local.yaml is tracked and matches a .gitignore rule; build/out.txt is an ignored untracked leftover. The candidate tree must keep the tracked file, exclude the leftover, and admit a permitted new file.",
+  "gitignore": "config/local.*\nbuild/\n",
+  "untracked": {
+    "build/out.txt": "leftover build output\n"
+  },
+  "expected_base_commit": "c2a0a4a616d454b36d79e5dcb964c0c7c519eb39",
+  "expected_base_tree": "4ca25940a2a30424c19e7e65726e1a97eecf0610"
+}

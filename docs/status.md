@@ -1,0 +1,59 @@
+# Implementation status
+
+Status values: **Required** (planned, not implemented), **Implemented** (code
+exists, reference given), **Verified** (a named test exercises it). Tests
+marked *integration* run under `-tags integration` against a real engine.
+
+## Milestone 0A
+
+| Control or capability | Status | Reference |
+|---|---|---|
+| Git runs with fixed argv, no shell, empty environment except PATH, global and system config disabled, hooks path isolated, submodule recursion off | Verified | `internal/gitx`, `TestEnv_IgnoresUserConfiguration`, `TestHooksDoNotRun` |
+| Commit identity from an explicit recipe: tree, parents, author, committer, dates, exact message bytes | Verified | `gitx.CommitRecipe`, `TestCommitTree_DeterministicAndByteExact`, `TestSetup_IgnoresAmbientGitIdentity` |
+| Fixtures embedded, generated into temporary Git repositories, ids pinned, drift detected | Verified | `internal/fixture`, `TestSetup_PinnedIDsAreReproducible`, `TestSetup_DriftIsDetected` |
+| Candidate index seeded from the base tree before staging the working tree | Verified | `snapshot.BuildCandidateTree`, `TestCandidateTree_IgnoreRules` |
+| Ignored files cannot enter or influence a candidate tree | Verified | `TestCandidateTree_IgnoredFileCannotAffectSnapshot` |
+| NUL-delimited tree listing with sizes; size-aware raw blob parsing | Verified | `TestLsTreeAndCatFileBatch_SizeAware` |
+| Materialization reproduces path, content, and mode from raw objects; no archive export | Verified | `TestMaterialize_ExportIgnoreIncluded`, `TestMaterialize_UnusualNamesModesAndContents` |
+| Symlink and submodule entries refused | Verified | `TestMaterialize_RefusesSymlinkAndSubmodule`, `TestRun_TrackedSymlinkIsUnsupported` |
+| Path rules, limits before any write, verification detects tampering, round trip to the same tree id | Verified | `TestCheck_PathRules`, `TestMaterialize_LimitsEnforcedBeforeWriting`, `TestVerify_DetectsTampering`, `TestMaterialize_FixtureRoundTrip` |
+
+## Milestone 0B
+
+| Control or capability | Status | Reference |
+|---|---|---|
+| File-based module proxy generated from embedded module sources; sums stable; fixture go.sum pinned and drift-checked | Verified | `internal/modproxy`, `TestBuild_LayoutAndDeterminism`, `TestFixtureGoSumsMatchProxy` |
+| Exclusive OS lock: held by a suspended process, released by a killed one, no takeover | Verified | `internal/lock`, `TestLock_SuspendedHolderBlocksSecondProcess`, `TestLock_KilledHolderReleases` |
+| One executing inspection per data directory (executor lock) | Verified | `TestRun_ExecutorLockIsExclusive` |
+| Toolchain image pinned by digest, selected from the go directive | Verified | `internal/toolchain`, `TestForGoDirective`, `TestInspect_PatchSafeColdCache` (integration) |
+| Sandbox configuration refuses direct proxy fallback and a disabled checksum database outside fixture mode | Verified | `TestConfigValidate` |
+| Execute profile: no network interface, GOPROXY off | Verified (integration) | `TestExecute_NoNetwork` |
+| Execute profile: source and module cache read-only, root filesystem read-only, tmp and build cache writable | Verified (integration) | `TestExecute_SourceAndCacheReadOnly` |
+| Acquire profile: module cache writable, source read-only, fixture proxy mounted, no network in fixture mode | Verified (integration) | `TestAcquire_CacheWritableAndProxyMounted` |
+| Container environment built from scratch; host variables absent; unprivileged user | Verified (integration) | `TestEnvironmentIsBuiltFromScratch` |
+| Timeout kills and removes the container; output capped with truncation flags | Verified (integration) | `TestTimeoutKillsAndRemoves`, `TestOutputCapMarksTruncation` |
+| Orphaned labelled containers reaped | Verified (integration) | `TestReapOrphans` |
+| Mount probe fails hard when the engine cannot see host directories | Verified (integration) | `TestProbe_DetectsUnsharedDirectory` |
+| Repository profile: module facts, refusals for workspace, submodules, vendoring, nested modules, cgo, local replace, unsupported go directive | Verified | `internal/repo`, `TestInspect_Refusals` |
+| Validation fail-closed: timeout, truncated output, unparsed nonzero exit, exit-zero diagnostics, missing package terminal, exit mismatch, non-JSON | Verified | `internal/validate`, `TestBaseline_FailClosed` |
+| Build, vet, and test findings with stable keys; manifest findings classified | Verified | `TestBaseline_BuildFailureParsed`, `TestBaseline_TestFailuresKeyed`, `TestBaseline_MissingGoSumIsManifestFinding` |
+| Candidate discovery in the acquire profile; per-version eligibility from policy; pre-release and pseudo-versions ineligible; named dependency | Verified | `internal/deps`, `TestDiscover`, `TestTargets_PolicyAndNamedDependency` |
+| Cold-cache inspect on fixtures: discovery, baseline clean and conclusive, evidence bound to tree and toolchain | Verified (integration) | `TestInspect_PatchSafeColdCache` |
+| export-ignore test file executes in validation (S11) | Verified (integration) | `TestInspect_ExportIgnoreTestRuns` |
+| Ignore rules honoured in the validated snapshot (S12) | Verified (integration) | `TestInspect_IgnoreRules` |
+| Refusals decided without an engine | Verified | `TestRun_ProfileRefusalStopsBeforeSandbox` |
+
+## Not claimed
+
+The sandbox reduces risk from untrusted build behaviour on operator-selected
+repositories. It does not claim container-escape resistance, OS-enforced
+egress control during acquisition against a real proxy, or protection of the
+per-run build cache from code under test. Credential handling, approvals,
+mutation tools, and publication are Required and arrive in later milestones
+with their own tests.
+
+## Known limitations
+
+- The Go module cache under the data directory is created read-only by the
+  toolchain. A `cache clean` command is Required.
+- Integration test packages must run serially against one engine.

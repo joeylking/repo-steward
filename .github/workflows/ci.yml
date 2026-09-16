@@ -1,0 +1,44 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: git --version
+      - run: go vet -tags integration ./...
+      - run: go test -race -count=1 ./...
+      - name: quick start smoke (no engine)
+        run: |
+          go run ./cmd/repo-steward fixture list
+          go run ./cmd/repo-steward fixture setup patch-safe -dest "$RUNNER_TEMP/patch-safe"
+          go run ./cmd/repo-steward fixture proxy -dest "$RUNNER_TEMP/proxy"
+          go run ./cmd/repo-steward snapshot build "$RUNNER_TEMP/patch-safe" -dest "$RUNNER_TEMP/patch-safe-snapshot"
+
+  # Container-backed tests. They share one engine, and the inspect workflow
+  # reaps every labelled container, so packages run serially (-p 1). The
+  # pinned image is pulled once here; the tests themselves never pull.
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: docker version
+      - name: pull pinned toolchain image
+        run: docker pull golang@sha256:3d699e4d15d0f8f13c9195c0632a16702b8cbdece2955af1c23b37ae5d55a253
+      - run: go test -tags "integration faultinject" -count=1 -p 1 ./...
+      - name: inspect a fixture end to end
+        run: |
+          go run ./cmd/repo-steward fixture setup patch-safe -dest "$RUNNER_TEMP/patch-safe"
+          go run ./cmd/repo-steward fixture proxy -dest "$RUNNER_TEMP/proxy"
+          go run ./cmd/repo-steward inspect "$RUNNER_TEMP/patch-safe" -data-dir "$RUNNER_TEMP/data" -fixture-proxy "$RUNNER_TEMP/proxy" | tee "$RUNNER_TEMP/report.json"
+          grep -q '"outcome": "ok"' "$RUNNER_TEMP/report.json"

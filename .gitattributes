@@ -1,0 +1,2 @@
+# Fixture content must reach every checkout byte for byte; pinned fixture ids depend on it.
+internal/fixture/testdata/** -text

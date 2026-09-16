@@ -1,0 +1,2 @@
+# Tracked even though .gitignore matches it: ignore rules only affect untracked files.
+mode: fixture

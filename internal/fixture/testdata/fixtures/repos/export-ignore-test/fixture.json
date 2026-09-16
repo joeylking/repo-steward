@@ -1,0 +1,7 @@
+{
+  "name": "export-ignore-test",
+  "description": "Scenario S11: main_test.go is tracked but carries the export-ignore attribute. Snapshot materialization must include it unchanged; git archive would omit it.",
+  "gitattributes": "main_test.go export-ignore\n",
+  "expected_base_commit": "2802a510c739907cfe3ea8cfe3e52949c4457df5",
+  "expected_base_tree": "7041209db8007c56b43333df58c91af0e005348e"
+}

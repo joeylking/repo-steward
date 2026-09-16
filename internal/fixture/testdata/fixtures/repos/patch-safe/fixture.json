@@ -1,0 +1,9 @@
+{
+  "name": "patch-safe",
+  "description": "Single-module Go application depending on example.com/lib v1.2.1. Scenario S1: a patch upgrade with no API changes.",
+  "executable": [
+    "scripts/check.sh"
+  ],
+  "expected_base_commit": "da6233d3962d3ed5ac3d3e6b24effd17e63de31b",
+  "expected_base_tree": "39087eee5c6019d5c92ab75248d87497878dbed7"
+}
