@@ -21,6 +21,7 @@ import (
 
 	agentrt "github.com/joeylking/agent-runtime"
 
+	"github.com/joeylking/repo-steward/internal/faultpoint"
 	"github.com/joeylking/repo-steward/internal/manifest"
 	"github.com/joeylking/repo-steward/internal/proposal"
 	"github.com/joeylking/repo-steward/internal/sandbox"
@@ -414,6 +415,7 @@ func (t *writeFileTool) Call(ctx context.Context, c agentrt.ToolCall) (agentrt.T
 		root.Remove(tmp)
 		return agentrt.ToolResult{}, err
 	}
+	faultpoint.Hit("tools.write_file.after_write")
 	cs, err := t.s.CurrentDiff(ctx)
 	if err != nil {
 		return agentrt.ToolResult{}, err

@@ -68,3 +68,13 @@ jobs:
           set -e
           test "$rc" = 4
           grep -q '"outcome": "blocked"' "$RUNNER_TEMP/s8.json"
+      - name: approval across processes
+        run: |
+          set +e
+          "$RUNNER_TEMP/repo-steward" maintain "$RUNNER_TEMP/breaking-minor" -mode scripted -scenario S10 -author "CI <ci@example.invalid>" -data-dir "$RUNNER_TEMP/data-s10" -fixture-proxy "$RUNNER_TEMP/proxy" -scope-files-soft 1 -scope-files-hard 3 > "$RUNNER_TEMP/s10.json"; rc=$?
+          set -e
+          test "$rc" = 5
+          RUN=$(python3 -c "import json;print(json.load(open('$RUNNER_TEMP/s10.json'))['run_id'])")
+          "$RUNNER_TEMP/repo-steward" approve "$RUN" -data-dir "$RUNNER_TEMP/data-s10" -note ci
+          "$RUNNER_TEMP/repo-steward" resume "$RUN" -data-dir "$RUNNER_TEMP/data-s10" -fixture-proxy "$RUNNER_TEMP/proxy" | tee "$RUNNER_TEMP/s10r.json"
+          grep -q '"outcome": "proposal_prepared"' "$RUNNER_TEMP/s10r.json"

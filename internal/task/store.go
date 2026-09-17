@@ -117,6 +117,9 @@ CREATE TABLE proposals (
 	updated_at TEXT NOT NULL
 );
 CREATE INDEX proposals_run ON proposals(run_id, created_at);
+`, `
+ALTER TABLE tasks ADD COLUMN options_json TEXT NOT NULL DEFAULT '{}';
+ALTER TABLE tasks ADD COLUMN candidates_json TEXT NOT NULL DEFAULT '[]';
 `}
 
 func (s *Store) migrate(ctx context.Context) error {
@@ -190,6 +193,58 @@ func (s *Store) FinishTask(ctx context.Context, runID, outcome string, detail an
 		return ErrNotFound
 	}
 	return nil
+}
+
+// SetTaskContext records the options the run started with and the
+// candidate facts it discovered, so a later process can resume it under
+// the same configuration and facts.
+func (s *Store) SetTaskContext(ctx context.Context, runID string, options, candidates any) error {
+	o, err := json.Marshal(options)
+	if err != nil {
+		return err
+	}
+	c, err := json.Marshal(candidates)
+	if err != nil {
+		return err
+	}
+	_, err = s.db.ExecContext(ctx, `UPDATE tasks SET options_json=?, candidates_json=? WHERE run_id=?`, string(o), string(c), runID)
+	return err
+}
+
+// TaskContext returns the persisted options and candidates.
+func (s *Store) TaskContext(ctx context.Context, runID string, options, candidates any) error {
+	var o, c string
+	err := s.db.QueryRowContext(ctx, `SELECT options_json, candidates_json FROM tasks WHERE run_id=?`, runID).Scan(&o, &c)
+	if errors.Is(err, sql.ErrNoRows) {
+		return ErrNotFound
+	}
+	if err != nil {
+		return err
+	}
+	if err := json.Unmarshal([]byte(o), options); err != nil {
+		return err
+	}
+	return json.Unmarshal([]byte(c), candidates)
+}
+
+// ListTasks returns every task, newest first.
+func (s *Store) ListTasks(ctx context.Context) ([]Task, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT run_id, mode, source_path, base_commit, base_tree, base_ref, module_path, workspace_dir, named_dependency, outcome, outcome_json, created_at, finished_at FROM tasks ORDER BY created_at DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Task
+	for rows.Next() {
+		var t Task
+		var detail string
+		if err := rows.Scan(&t.RunID, &t.Mode, &t.SourcePath, &t.BaseCommit, &t.BaseTree, &t.BaseRef, &t.ModulePath, &t.WorkspaceDir, &t.NamedDependency, &t.Outcome, &detail, &t.CreatedAt, &t.FinishedAt); err != nil {
+			return nil, err
+		}
+		t.OutcomeDetail = json.RawMessage(detail)
+		out = append(out, t)
+	}
+	return out, rows.Err()
 }
 
 // UpdateTaskModule records the module path once profiled.

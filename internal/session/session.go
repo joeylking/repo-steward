@@ -233,8 +233,8 @@ func (s *Session) CandidateSnapshot(ctx context.Context) (string, string, *sandb
 	if err != nil {
 		return "", "", nil, err
 	}
-	dir := filepath.Join(s.RunDir, "snapshots", tree)
-	if _, err := s.WS.Materialize(ctx, tree, dir, s.Limits); err != nil {
+	dir, _, err := s.WS.Materialize(ctx, tree, filepath.Join(s.RunDir, "snapshots", tree), s.Limits)
+	if err != nil {
 		return "", "", nil, err
 	}
 	sb := s.SB.WithSource(dir)

@@ -21,8 +21,11 @@ import (
 	"github.com/joeylking/repo-steward/internal/gitx"
 	"github.com/joeylking/repo-steward/internal/inspect"
 	"github.com/joeylking/repo-steward/internal/modproxy"
+	"github.com/joeylking/repo-steward/internal/proposal"
+	"github.com/joeylking/repo-steward/internal/session"
 	"github.com/joeylking/repo-steward/internal/snapshot"
 	"github.com/joeylking/repo-steward/internal/steward"
+	"github.com/joeylking/repo-steward/internal/task"
 )
 
 func main() {
@@ -33,7 +36,12 @@ func main() {
 }
 
 const usage = `usage:
-  repo-steward maintain <repo-path> -mode baseline|scripted [-scenario NAME] [-author "Name <email>"] [-data-dir DIR] [-fixture-proxy DIR] [-pull] [-allow-major] [-dependency MODULE] [-check-timeout DURATION]
+  repo-steward maintain <repo-path> -mode baseline|scripted [-scenario NAME] [-author "Name <email>"] [-data-dir DIR] [-fixture-proxy DIR] [-pull] [-allow-major] [-dependency MODULE] [-check-timeout DURATION] [-scope-files-soft N] [-scope-files-hard N] [-scope-lines-soft N] [-scope-lines-hard N] [-trace]
+  repo-steward resume <run-id> [-data-dir DIR] [-fixture-proxy DIR] [-trace]
+  repo-steward approve <run-id> [-approval ID] [-note TEXT] [-data-dir DIR]
+  repo-steward reject <run-id> [-approval ID] [-note TEXT] [-data-dir DIR]
+  repo-steward runs list [-data-dir DIR]
+  repo-steward runs show <run-id> [-events] [-data-dir DIR]
   repo-steward inspect <repo-path> [-data-dir DIR] [-fixture-proxy DIR] [-pull] [-allow-major] [-dependency MODULE] [-check-timeout DURATION]
   repo-steward fixture list
   repo-steward fixture setup <name> [-dest DIR]
@@ -52,6 +60,20 @@ func run(args []string) error {
 	}
 	if args[0] == "maintain" {
 		return runMaintain(ctx, args[1:])
+	}
+	switch args[0] {
+	case "resume":
+		return runResume(ctx, args[1:])
+	case "approve":
+		return runDecide(ctx, args[1:], true)
+	case "reject":
+		return runDecide(ctx, args[1:], false)
+	}
+	if args[0] == "runs" && args[1] == "list" {
+		return runsList(ctx, args[2:])
+	}
+	if args[0] == "runs" && args[1] == "show" {
+		return runsShow(ctx, args[2:])
 	}
 	switch args[0] + " " + args[1] {
 	case "fixture list":
@@ -221,6 +243,10 @@ func runMaintain(ctx context.Context, args []string) error {
 	allowMajor := fs.Bool("allow-major", false, "treat major upgrades as eligible")
 	dependency := fs.String("dependency", "", "restrict eligibility to one module")
 	checkTimeout := fs.Duration("check-timeout", 10*time.Minute, "timeout per validation check")
+	scopeFilesSoft := fs.Int("scope-files-soft", 0, "soft limit on changed source files (default 10); crossing it asks for one approval")
+	scopeFilesHard := fs.Int("scope-files-hard", 0, "hard limit on changed source files (default 20); crossing it ends the run")
+	scopeLinesSoft := fs.Int("scope-lines-soft", 0, "soft limit on changed source lines (default 200)")
+	scopeLinesHard := fs.Int("scope-lines-hard", 0, "hard limit on changed source lines (default 400)")
 	if err := fs.Parse(rest); err != nil {
 		return err
 	}
@@ -232,10 +258,28 @@ func runMaintain(ctx context.Context, args []string) error {
 	pol.AllowMajor = *allowMajor
 	pol.NamedDependency = *dependency
 	opts := steward.Options{SourcePath: repoPath, DataDir: *dataDir, FixtureProxyDir: *proxyDir, AllowPull: *pull, Policy: pol, Author: ident, CheckTimeout: *checkTimeout}
-	if *trace {
-		opts.Observer = func(e agentrt.Event) {
-			fmt.Fprintf(os.Stderr, "%s  %-22s %s\n", e.At.Local().Format("15:04:05.000"), e.Type, string(e.Payload))
+	if *scopeFilesSoft > 0 || *scopeFilesHard > 0 || *scopeLinesSoft > 0 || *scopeLinesHard > 0 {
+		sc := session.DefaultScope()
+		if *scopeFilesSoft > 0 {
+			sc.FilesSoft = *scopeFilesSoft
 		}
+		if *scopeFilesHard > 0 {
+			sc.FilesHard = *scopeFilesHard
+		}
+		if *scopeLinesSoft > 0 {
+			sc.LinesSoft = *scopeLinesSoft
+		}
+		if *scopeLinesHard > 0 {
+			sc.LinesHard = *scopeLinesHard
+		}
+		if sc.FilesSoft > sc.FilesHard || sc.LinesSoft > sc.LinesHard {
+			return fmt.Errorf("maintain: soft scope limits must not exceed hard limits")
+		}
+		opts.ScopeConfig = sc
+		opts.Scope = proposal.ScopeLimits{MaxFiles: sc.FilesHard, MaxLines: sc.LinesHard}
+	}
+	if *trace {
+		opts.Observer = traceObserver()
 	}
 	var res *steward.Result
 	switch *mode {
@@ -249,6 +293,13 @@ func runMaintain(ctx context.Context, args []string) error {
 	default:
 		return fmt.Errorf("maintain: unknown mode %q", *mode)
 	}
+	return report(res, err)
+}
+
+// report prints the result and exits with its outcome code: 0 proposal
+// prepared, 2 unsupported, 3 baseline problems, 5 awaiting approval, 4 any
+// other explained non-result.
+func report(res *steward.Result, err error) error {
 	if res != nil {
 		printJSON(res)
 	}
@@ -261,10 +312,232 @@ func runMaintain(ctx context.Context, args []string) error {
 		os.Exit(2)
 	case steward.OutcomeBaselineFailing, steward.OutcomeBaselineInconclusive:
 		os.Exit(3)
+	case steward.OutcomeAwaitingApproval:
+		os.Exit(5)
 	default:
 		os.Exit(4)
 	}
 	return nil
+}
+
+func traceObserver() agentrt.Observer {
+	return func(e agentrt.Event) {
+		fmt.Fprintf(os.Stderr, "%s  %-22s %s\n", e.At.Local().Format("15:04:05.000"), e.Type, string(e.Payload))
+	}
+}
+
+func runResume(ctx context.Context, args []string) error {
+	runID, rest, err := positional(args, "resume: expected a run id")
+	if err != nil {
+		return err
+	}
+	fs := flag.NewFlagSet("resume", flag.ContinueOnError)
+	dataDir := fs.String("data-dir", "", "data directory")
+	proxyDir := fs.String("fixture-proxy", "", "file-based module proxy directory used when the run started")
+	pull := fs.Bool("pull", false, "pull the pinned toolchain image if absent")
+	trace := fs.Bool("trace", false, "print runtime events to stderr")
+	if err := fs.Parse(rest); err != nil {
+		return err
+	}
+	ro := steward.ResumeOptions{RunID: runID, DataDir: *dataDir, FixtureProxyDir: *proxyDir, AllowPull: *pull}
+	if *trace {
+		ro.Observer = traceObserver()
+	}
+	res, err := steward.Resume(ctx, ro)
+	return report(res, err)
+}
+
+func runDecide(ctx context.Context, args []string, approve bool) error {
+	verb := "reject"
+	if approve {
+		verb = "approve"
+	}
+	runID, rest, err := positional(args, verb+": expected a run id")
+	if err != nil {
+		return err
+	}
+	fs := flag.NewFlagSet(verb, flag.ContinueOnError)
+	dataDir := fs.String("data-dir", "", "data directory")
+	approvalID := fs.String("approval", "", "approval id (default: the run's single pending approval)")
+	note := fs.String("note", "", "note recorded with the decision")
+	by := fs.String("by", "", "who decided (default: the current user)")
+	if err := fs.Parse(rest); err != nil {
+		return err
+	}
+	if *dataDir == "" {
+		if *dataDir, err = defaultDataDir(); err != nil {
+			return err
+		}
+	}
+	if *by == "" {
+		*by = os.Getenv("USER")
+	}
+	rt, err := agentrt.OpenStore(filepath.Join(*dataDir, "steward.db"))
+	if err != nil {
+		return err
+	}
+	defer rt.Close()
+	if *approvalID == "" {
+		approvals, err := rt.ListApprovals(ctx, runID)
+		if err != nil {
+			return err
+		}
+		var pending []agentrt.Approval
+		for _, a := range approvals {
+			if a.Status == agentrt.ApprovalPending {
+				pending = append(pending, a)
+			}
+		}
+		if len(pending) != 1 {
+			return fmt.Errorf("%s: run %s has %d pending approvals; pass -approval", verb, runID, len(pending))
+		}
+		*approvalID = pending[0].ID
+	}
+	if approve {
+		err = agentrt.Approve(ctx, rt, nil, runID, *approvalID, *by, *note)
+	} else {
+		err = agentrt.Reject(ctx, rt, nil, runID, *approvalID, *by, *note)
+		if err == nil {
+			ts, terr := task.Open(filepath.Join(*dataDir, "steward.db"))
+			if terr == nil {
+				ts.FinishTask(ctx, runID, steward.OutcomeApprovalRejected, map[string]any{"note": *note})
+				ts.Close()
+			}
+		}
+	}
+	if err != nil {
+		return err
+	}
+	a, _ := rt.GetApproval(ctx, runID, *approvalID)
+	return printJSON(map[string]any{"run_id": runID, "approval": a})
+}
+
+func runsList(ctx context.Context, args []string) error {
+	fs := flag.NewFlagSet("runs list", flag.ContinueOnError)
+	dataDir := fs.String("data-dir", "", "data directory")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *dataDir == "" {
+		var err error
+		if *dataDir, err = defaultDataDir(); err != nil {
+			return err
+		}
+	}
+	ts, err := task.Open(filepath.Join(*dataDir, "steward.db"))
+	if err != nil {
+		return err
+	}
+	defer ts.Close()
+	rt, err := agentrt.OpenStore(filepath.Join(*dataDir, "steward.db"))
+	if err != nil {
+		return err
+	}
+	defer rt.Close()
+	tasks, err := ts.ListTasks(ctx)
+	if err != nil {
+		return err
+	}
+	type row struct {
+		RunID      string `json:"run_id"`
+		Mode       string `json:"mode"`
+		Source     string `json:"source"`
+		Outcome    string `json:"outcome"`
+		RunStatus  string `json:"run_status,omitempty"`
+		Steps      int    `json:"steps,omitempty"`
+		CreatedAt  string `json:"created_at"`
+		FinishedAt string `json:"finished_at,omitempty"`
+	}
+	var rows []row
+	for _, t := range tasks {
+		r := row{RunID: t.RunID, Mode: t.Mode, Source: t.SourcePath, Outcome: t.Outcome, CreatedAt: t.CreatedAt, FinishedAt: t.FinishedAt}
+		if run, err := rt.GetRun(ctx, t.RunID); err == nil {
+			r.RunStatus, r.Steps = string(run.Status), run.StepCount
+		}
+		rows = append(rows, r)
+	}
+	return printJSON(rows)
+}
+
+func runsShow(ctx context.Context, args []string) error {
+	runID, rest, err := positional(args, "runs show: expected a run id")
+	if err != nil {
+		return err
+	}
+	fs := flag.NewFlagSet("runs show", flag.ContinueOnError)
+	dataDir := fs.String("data-dir", "", "data directory")
+	events := fs.Bool("events", false, "include the event log")
+	if err := fs.Parse(rest); err != nil {
+		return err
+	}
+	if *dataDir == "" {
+		if *dataDir, err = defaultDataDir(); err != nil {
+			return err
+		}
+	}
+	ts, err := task.Open(filepath.Join(*dataDir, "steward.db"))
+	if err != nil {
+		return err
+	}
+	defer ts.Close()
+	rt, err := agentrt.OpenStore(filepath.Join(*dataDir, "steward.db"))
+	if err != nil {
+		return err
+	}
+	defer rt.Close()
+	tk, err := ts.GetTask(ctx, runID)
+	if err != nil {
+		return err
+	}
+	out := map[string]any{"task": tk}
+	if run, err := rt.GetRun(ctx, runID); err == nil {
+		out["run"] = run
+		steps, _ := rt.ListSteps(ctx, runID)
+		type stepRow struct {
+			Index   int    `json:"index"`
+			ID      string `json:"id"`
+			Tool    string `json:"tool,omitempty"`
+			Kind    string `json:"kind"`
+			Status  string `json:"status"`
+			Policy  string `json:"policy,omitempty"`
+			Summary string `json:"summary,omitempty"`
+		}
+		var srows []stepRow
+		for _, st := range steps {
+			r := stepRow{Index: st.Index, ID: st.ID, Status: string(st.Status)}
+			if st.Decision != nil {
+				r.Tool, r.Kind = st.Decision.Tool, string(st.Decision.Kind)
+			}
+			if st.Policy != nil {
+				r.Policy = string(st.Policy.Outcome)
+			}
+			if st.Observation != nil {
+				r.Summary = st.Observation.Summary
+			}
+			srows = append(srows, r)
+		}
+		out["steps"] = srows
+		out["approvals"], _ = rt.ListApprovals(ctx, runID)
+		if *events {
+			out["events"], _ = rt.ListEvents(ctx, runID)
+		}
+	}
+	props, _ := ts.ListProposals(ctx, runID)
+	out["proposals"] = props
+	proms, _ := ts.ListPromotions(ctx, runID)
+	out["promotions"] = proms
+	return printJSON(out)
+}
+
+func defaultDataDir() (string, error) {
+	if x := os.Getenv("XDG_DATA_HOME"); x != "" {
+		return filepath.Join(x, "repo-steward"), nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(home, ".local", "share", "repo-steward"), nil
 }
 
 // resolveAuthor parses "Name <email>" or reads the operator's identity from

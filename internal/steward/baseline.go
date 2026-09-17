@@ -17,6 +17,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -214,8 +215,8 @@ func (r *run) prelude(ctx context.Context, mode string) (string, error) {
 		}
 		return "", err
 	}
-	baseSnap := r.snapshotDir(ws.BaseTree)
-	if _, err := ws.Materialize(ctx, ws.BaseTree, baseSnap, r.opts.Limits); err != nil {
+	baseSnap, _, err := ws.Materialize(ctx, ws.BaseTree, r.snapshotDir(ws.BaseTree), r.opts.Limits)
+	if err != nil {
 		return "", err
 	}
 	prof, err := repo.Inspect(baseSnap, entries)
@@ -240,10 +241,12 @@ func (r *run) prelude(ctx context.Context, mode string) (string, error) {
 	}
 	r.modCacheDir = filepath.Join(r.dataDir, "cache", "mod", filepath.FromSlash(key))
 	cfg := sandbox.Config{
-		Image:         prof.Toolchain.Ref(),
-		SourceDir:     baseSnap,
-		CacheDir:      r.modCacheDir,
-		BuildCacheDir: filepath.Join(r.runDir, "gocache"),
+		Image:     prof.Toolchain.Ref(),
+		SourceDir: baseSnap,
+		CacheDir:  r.modCacheDir,
+		// Unique per invocation: a deleted and recreated path can stay
+		// invisible to a VM-backed engine.
+		BuildCacheDir: filepath.Join(r.runDir, "gocache-"+strconv.FormatInt(time.Now().UnixNano(), 36)),
 	}
 	if r.opts.FixtureProxyDir != "" {
 		if cfg.ProxyDir, err = filepath.Abs(r.opts.FixtureProxyDir); err != nil {
@@ -451,8 +454,8 @@ func (r *run) candidateSnapshot(ctx context.Context) (string, string, error) {
 	if err != nil {
 		return "", "", err
 	}
-	dir := r.snapshotDir(tree)
-	if _, err := r.ws.Materialize(ctx, tree, dir, r.opts.Limits); err != nil {
+	dir, _, err := r.ws.Materialize(ctx, tree, r.snapshotDir(tree), r.opts.Limits)
+	if err != nil {
 		return "", "", err
 	}
 	return tree, dir, nil

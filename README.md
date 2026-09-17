@@ -18,6 +18,17 @@ scenarios through the whole control path. No model calls, no GitHub. See
 [docs/status.md](docs/status.md) for what is implemented and which test
 verifies it.
 
+## Data directory layout
+
+Everything a run needs to be inspected or resumed lives under the data
+directory: `steward.db` holds the runtime's runs, steps, approvals, and
+events alongside the tasks, promotions, validation records, and proposals;
+`runs/<id>/` holds the scratch clone, snapshots, and staging; `cache/mod/`
+holds the module cache per module path. A run's options and candidate
+facts are persisted at start so `resume` reconstructs the session under
+the same configuration. Directories are never deleted and recreated at the
+same path within a run, because VM-backed engines cache path lookups.
+
 ## Requirements
 
 - Go 1.27 or later and Git.
@@ -66,8 +77,28 @@ go run ./cmd/repo-steward maintain ~/tmp/breaking-minor -mode scripted -scenario
 ```
 
 `maintain` exits 0 when a proposal was prepared, 2 when unsupported, 3 on
-baseline problems, and 4 for any other explained non-result such as a
-regression introduced by the upgrade or a run that reported itself blocked. The proposal commit lives under
+baseline problems, 5 when the run paused for an approval, and 4 for any
+other explained non-result such as a regression introduced by the upgrade
+or a run that reported itself blocked.
+
+```sh
+# A paused run is decided and continued in separate processes. The
+# approval is bound by hash to exactly the request that was shown.
+go run ./cmd/repo-steward runs list
+go run ./cmd/repo-steward runs show <run-id>
+go run ./cmd/repo-steward approve <run-id> -note "small file"
+go run ./cmd/repo-steward resume <run-id> -fixture-proxy ~/tmp/proxy
+
+# A run whose process died mid-step is continued the same way: the
+# interrupted step is recorded, journaled operations are reconciled, and
+# the agent proceeds. No side effect is re-executed.
+go run ./cmd/repo-steward resume <run-id> -fixture-proxy ~/tmp/proxy
+```
+
+Scope limits are flags on `maintain`: `-scope-files-soft`, `-scope-files-hard`,
+`-scope-lines-soft`, `-scope-lines-hard`. Crossing a soft limit pauses the
+run for one expansion approval, which raises the soft limits to the hard
+ones; crossing a hard limit ends the run. The proposal commit lives under
 `refs/repo-steward/proposals/<id>` in the scratch clone recorded in the
 output; the scratch checkout's HEAD is never moved. Against a real repository omit `-fixture-proxy`; dependency
 acquisition then reaches the public module proxy and checksum database, and

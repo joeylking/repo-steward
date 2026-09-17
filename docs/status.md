@@ -85,10 +85,23 @@ marked *integration* run under `-tags integration` against a real engine.
 | S8 protected change: write denied by policy, run reports blocked, no proposal | Verified (integration) | `TestScripted_S8_ProtectedChangeBlocked` |
 | Interrupted run reconciliation hook runs promotion and freeze recovery | Implemented | `steward.runAgent` `Reconcile` |
 
-Required for batch 1C: `runs list`, `runs show`, `approve`, `reject`, and
-`resume` commands with session reconstruction, an end-to-end
-scope-expansion scenario, and an interrupted-run resume test through the
-CLI.
+## Milestone 1, batch 1C
+
+| Control or capability | Status | Reference |
+|---|---|---|
+| Run options and candidate facts persisted at start; resume reconstructs the session under the same configuration hash | Verified (integration) | `task.SetTaskContext`, `steward.Resume`, `TestCLI_ScopeExpansionAcrossProcesses` |
+| Resume refuses a run started with a fixture proxy unless the proxy is supplied again, and refuses a finished run | Verified (integration) | `TestCLI_ScopeExpansionAcrossProcesses`, `TestCLI_RejectCancels` |
+| `approve` and `reject` decide the single pending approval from a separate process; a second decision is refused | Verified (integration) | `agentrt.Approve`, `agentrt.Reject`, `TestCLI_ScopeExpansionAcrossProcesses` |
+| Soft scope limit pauses the run with a `scope_expansion` approval whose presentation names the write; after approval and resume the write lands and the proposal includes it | Verified (integration) | `TestCLI_ScopeExpansionAcrossProcesses` |
+| Hard scope limit ends the run without asking | Verified (integration) | `TestCLI_HardScopeLimitAborts` |
+| Reject cancels the run, records the outcome, and the pending write never lands | Verified (integration) | `TestCLI_RejectCancels` |
+| A process killed inside a tool leaves the run RUNNING with an executing step; resume records the step as interrupted, reconciles, and continues to a proposal | Verified (integration, fault-injected binary) | `TestCLI_InterruptedRunResumes` |
+| `runs list` and `runs show` expose task, run, steps, approvals, proposals, and promotions | Verified (integration) | `TestCLI_*` |
+| Paths are never deleted and recreated within a run; probe markers carry a nonce | Verified (integration) | `workspace.Materialize`, `sandbox.Probe`, `TestCLI_ScopeExpansionAcrossProcesses` |
+
+Milestone 1 is complete. Required for Milestone 2: the model
+proof-of-capability harness, the model interface with usage and cost
+accounting in agent-runtime, and the real agent.
 
 ## Not claimed
 
@@ -104,5 +117,6 @@ with their own tests.
 - The Go module cache under the data directory is created read-only by the
   toolchain. A `cache clean` command is Required.
 - Integration test packages must run serially against one engine.
-- Readiness for source-file edits (scope and protected paths) is implemented
-  but only exercised on manifest-only diffs until batch 1B adds source edits.
+- VM-backed engines cache path lookups. The code never deletes and
+  recreates a directory at the same path during a run and probe markers
+  are unique, but any new mount path added later must follow the same rule.

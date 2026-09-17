@@ -1,0 +1,71 @@
+{
+  "name": "S10",
+  "fixture": "breaking-minor",
+  "description": "Scope expansion: with a soft limit of one source file, the second write pauses the run for approval; after approval and resume the proposal is prepared. With a hard limit of one file the same write aborts the run.",
+  "expected": "proposal_prepared",
+  "steps": [
+    {
+      "tool": "list_candidates"
+    },
+    {
+      "tool": "apply_upgrade",
+      "args": {
+        "module": "example.com/lib",
+        "version": "v1.3.0"
+      }
+    },
+    {
+      "tool": "run_validation",
+      "reason": "Find out what broke."
+    },
+    {
+      "tool": "read_file",
+      "args": {
+        "path": "main.go"
+      },
+      "reason": "Inspect the failing call site."
+    },
+    {
+      "tool": "read_dependency_source",
+      "args": {
+        "module": "example.com/lib",
+        "version": "v1.3.0",
+        "path": "lib.go"
+      },
+      "reason": "Read the new signature."
+    },
+    {
+      "tool": "write_file",
+      "args": {
+        "path": "main.go",
+        "content": "package main\n\nimport (\n\t\"context\"\n\t\"fmt\"\n\n\t\"example.com/lib\"\n)\n\n// greeting wraps the library call so tests do not depend on its signature.\nfunc greeting(name string) string {\n\treturn lib.Greet(context.Background(), name)\n}\n\nfunc main() {\n\tfmt.Println(greeting(\"steward\"))\n}\n"
+      },
+      "reason": "Pass a context to Greet."
+    },
+    {
+      "tool": "write_file",
+      "args": {
+        "path": "notes.go",
+        "content": "package main\n\n// Notes on the example.com/lib v1.3.0 upgrade: Greet now takes a context.\nvar upgradeNotes = \"lib v1.3.0: Greet(ctx, name)\"\n"
+      },
+      "reason": "A second source file; with a soft limit of one file this needs a scope expansion."
+    },
+    {
+      "tool": "run_validation",
+      "reason": "Confirm the repair."
+    },
+    {
+      "tool": "normalize_manifests"
+    },
+    {
+      "tool": "run_validation"
+    },
+    {
+      "tool": "prepare_proposal",
+      "args": {
+        "title": "Upgrade example.com/lib to v1.3.0",
+        "summary": "Greet now takes a context. Updated main.go and added notes.go."
+      }
+    }
+  ]
+}

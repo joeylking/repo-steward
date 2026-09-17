@@ -143,8 +143,8 @@ func Run(ctx context.Context, opts Options) (*Report, error) {
 		}
 		return nil, err
 	}
-	snapDir := filepath.Join(opts.DataDir, "snapshots", rep.TreeHash)
-	if err := ensureSnapshot(ctx, g, rep.TreeHash, snapDir, entries, opts.Limits); err != nil {
+	snapDir, err := ensureSnapshot(ctx, g, rep.TreeHash, filepath.Join(opts.DataDir, "snapshots", rep.TreeHash), entries, opts.Limits)
+	if err != nil {
 		return nil, err
 	}
 	var total int64
@@ -251,26 +251,25 @@ func removeAll(dir string) {
 }
 
 // ensureSnapshot materializes tree into dir, reusing a directory that still
-// verifies and replacing one that does not.
-func ensureSnapshot(ctx context.Context, g *gitx.Git, tree, dir string, entries []snapshot.Entry, limits snapshot.Limits) error {
+// verifies. One that does not verify is left alone and a fresh directory
+// with a unique suffix is used, because a deleted and recreated path can
+// stay invisible to a VM-backed container engine. The directory used is
+// returned.
+func ensureSnapshot(ctx context.Context, g *gitx.Git, tree, dir string, entries []snapshot.Entry, limits snapshot.Limits) (string, error) {
 	if _, err := os.Stat(dir); err == nil {
 		if snapshot.Verify(dir, entries) == nil {
-			return nil
+			return dir, nil
 		}
-		if err := os.RemoveAll(dir); err != nil {
-			return err
-		}
+		dir = fmt.Sprintf("%s-%d", dir, time.Now().UnixNano())
 	} else if !errors.Is(err, os.ErrNotExist) {
-		return err
+		return "", err
 	}
 	m, err := snapshot.Materialize(ctx, g, tree, dir, limits)
 	if err != nil {
-		os.RemoveAll(dir)
-		return err
+		return "", err
 	}
 	if !m.Verified {
-		os.RemoveAll(dir)
-		return snapshot.ErrVerify
+		return "", snapshot.ErrVerify
 	}
-	return nil
+	return dir, nil
 }

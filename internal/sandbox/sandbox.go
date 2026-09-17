@@ -213,8 +213,12 @@ var ErrMountUnavailable = errors.New("sandbox: host directories are not visible 
 // with the engine and that the container user can write to the caches. It
 // runs one short execute-profile and one acquire-profile container.
 func (d *Docker) Probe(ctx context.Context) error {
+	// Marker names carry a nonce: VM-backed engines cache directory
+	// lookups, and a name that was recently absent can stay invisible for
+	// a while even after the host creates it.
 	nonce := strconv.FormatInt(time.Now().UnixNano(), 36)
-	marker := filepath.Join(d.cfg.CacheDir, ".repo-steward-probe")
+	markerName := ".repo-steward-probe-" + nonce
+	marker := filepath.Join(d.cfg.CacheDir, markerName)
 	if err := os.WriteFile(marker, []byte(nonce), 0o644); err != nil {
 		return err
 	}
@@ -228,7 +232,8 @@ func (d *Docker) Probe(ctx context.Context) error {
 		first = e.Name()
 		break
 	}
-	script := "cat /cache/.repo-steward-probe && echo && test -e /work/" + shellQuote(first) + " && echo SRC_OK && echo ok > /gocache/.repo-steward-probe && echo GOCACHE_OK"
+	gocacheMarker := ".repo-steward-probe-" + nonce
+	script := "cat /cache/" + markerName + " && echo && test -e /work/" + shellQuote(first) + " && echo SRC_OK && echo ok > /gocache/" + gocacheMarker + " && echo GOCACHE_OK"
 	res, err := d.Run(ctx, probeSpec(Execute, script))
 	if err != nil {
 		return err
@@ -243,12 +248,13 @@ func (d *Docker) Probe(ctx context.Context) error {
 	if !strings.Contains(out, "GOCACHE_OK") {
 		return fmt.Errorf("sandbox: build cache %s is not writable by the container user: %s", d.cfg.BuildCacheDir, strings.TrimSpace(string(res.Stderr)))
 	}
-	os.Remove(filepath.Join(d.cfg.BuildCacheDir, ".repo-steward-probe"))
-	res, err = d.Run(ctx, probeSpec(Acquire, "echo ok > /cache/.repo-steward-probe-w && echo CACHE_OK"))
+	os.Remove(filepath.Join(d.cfg.BuildCacheDir, gocacheMarker))
+	cacheMarker := ".repo-steward-probe-w-" + nonce
+	res, err = d.Run(ctx, probeSpec(Acquire, "echo ok > /cache/"+cacheMarker+" && echo CACHE_OK"))
 	if err != nil {
 		return err
 	}
-	os.Remove(filepath.Join(d.cfg.CacheDir, ".repo-steward-probe-w"))
+	os.Remove(filepath.Join(d.cfg.CacheDir, cacheMarker))
 	if !strings.Contains(string(res.Stdout), "CACHE_OK") {
 		return fmt.Errorf("sandbox: module cache %s is not writable by the container user: %s", d.cfg.CacheDir, strings.TrimSpace(string(res.Stderr)))
 	}

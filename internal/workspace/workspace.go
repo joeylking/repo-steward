@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/joeylking/repo-steward/internal/gitx"
 	"github.com/joeylking/repo-steward/internal/snapshot"
@@ -105,30 +106,31 @@ func (w *Workspace) CandidateTree(ctx context.Context) (string, error) {
 	return snapshot.BuildCandidateTree(ctx, w.git, w.BaseTree)
 }
 
-// Materialize writes tree into dir exactly, reusing a verified directory.
-func (w *Workspace) Materialize(ctx context.Context, tree, dir string, limits snapshot.Limits) ([]snapshot.Entry, error) {
+// Materialize writes tree exactly into dir, reusing it when it already
+// verifies. A directory that exists but does not verify is moved aside and
+// a fresh directory with a unique suffix is used instead, so a path is
+// never deleted and recreated: VM-backed container engines cache path
+// lookups and can keep serving the deleted directory. The directory used
+// is returned.
+func (w *Workspace) Materialize(ctx context.Context, tree, dir string, limits snapshot.Limits) (string, []snapshot.Entry, error) {
 	entries, err := snapshot.List(ctx, w.git, tree, limits)
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
 	if _, err := os.Stat(dir); err == nil {
 		if snapshot.Verify(dir, entries) == nil {
-			return entries, nil
+			return dir, entries, nil
 		}
-		if err := os.RemoveAll(dir); err != nil {
-			return nil, err
-		}
+		dir = fmt.Sprintf("%s-%d", dir, time.Now().UnixNano())
 	}
 	m, err := snapshot.Materialize(ctx, w.git, tree, dir, limits)
 	if err != nil {
-		os.RemoveAll(dir)
-		return nil, err
+		return "", nil, err
 	}
 	if !m.Verified {
-		os.RemoveAll(dir)
-		return nil, snapshot.ErrVerify
+		return "", nil, snapshot.ErrVerify
 	}
-	return entries, nil
+	return dir, entries, nil
 }
 
 // FileChange is one changed path between two trees.

@@ -2,22 +2,33 @@ package steward
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
+	"golang.org/x/mod/module"
+
 	agentrt "github.com/joeylking/agent-runtime"
 
+	"github.com/joeylking/repo-steward/internal/deps"
+	"github.com/joeylking/repo-steward/internal/gitx"
 	"github.com/joeylking/repo-steward/internal/lock"
 	"github.com/joeylking/repo-steward/internal/manifest"
 	"github.com/joeylking/repo-steward/internal/policy"
 	"github.com/joeylking/repo-steward/internal/proposal"
+	"github.com/joeylking/repo-steward/internal/repo"
+	"github.com/joeylking/repo-steward/internal/sandbox"
 	"github.com/joeylking/repo-steward/internal/scenario"
 	"github.com/joeylking/repo-steward/internal/session"
+	"github.com/joeylking/repo-steward/internal/snapshot"
 	"github.com/joeylking/repo-steward/internal/task"
 	"github.com/joeylking/repo-steward/internal/tools"
+	"github.com/joeylking/repo-steward/internal/validate"
+	"github.com/joeylking/repo-steward/internal/workspace"
 )
 
 // Agent-mode outcomes in addition to the baseline ones.
@@ -52,6 +63,24 @@ func RunScripted(ctx context.Context, opts Options, scenarioName string) (*Resul
 		return nil, err
 	}
 	return runAgent(ctx, opts, "scripted:"+scenarioName, &scenario.Agent{Scenario: sc})
+}
+
+// persistedOptions is the subset of Options a resumed run must reuse so
+// that its configuration hash, policy, and limits are unchanged.
+type persistedOptions struct {
+	Policy        deps.Policy          `json:"policy"`
+	Author        gitx.Identity        `json:"author"`
+	CheckTimeout  time.Duration        `json:"check_timeout"`
+	Limits        snapshot.Limits      `json:"limits"`
+	Scope         proposal.ScopeLimits `json:"scope"`
+	ScopeConfig   session.ScopeConfig  `json:"scope_config"`
+	Budgets       session.Budgets      `json:"budgets"`
+	RuntimeLimits agentrt.Limits       `json:"runtime_limits"`
+	FixtureProxy  bool                 `json:"fixture_proxy"`
+}
+
+func persist(o Options) persistedOptions {
+	return persistedOptions{Policy: o.Policy, Author: o.Author, CheckTimeout: o.CheckTimeout, Limits: o.Limits, Scope: o.Scope, ScopeConfig: o.ScopeConfig, Budgets: o.Budgets, RuntimeLimits: o.RuntimeLimits, FixtureProxy: o.FixtureProxyDir != ""}
 }
 
 func runAgent(ctx context.Context, opts Options, mode string, agent agentrt.Agent) (*Result, error) {
@@ -89,12 +118,35 @@ func runAgent(ctx context.Context, opts Options, mode string, agent agentrt.Agen
 		return r.res, r.store.FinishTask(ctx, r.id, outcome, r.res.Detail)
 	}
 	defer removeAll(r.buildCache)
+	if err := r.store.SetTaskContext(ctx, r.id, persist(opts), r.cands); err != nil {
+		return nil, err
+	}
 
 	rt, err := agentrt.OpenStore(dbPath)
 	if err != nil {
 		return nil, err
 	}
 	defer rt.Close()
+	sess, drv, err := r.driver(rt, agent)
+	if err != nil {
+		return nil, err
+	}
+	// The runtime run id is the task id so that steps, approvals, and
+	// events line up with the task's own tables.
+	t := time.Now()
+	rr, err := drv.StartWithID(ctx, r.id, goalFor(sess), opts.RuntimeLimits)
+	if err != nil {
+		r.store.FinishTask(ctx, r.id, OutcomeFailed, map[string]any{"error": err.Error()})
+		return r.res, err
+	}
+	r.mark("agent", t)
+	return r.finalize(ctx, rt, sess, rr)
+}
+
+// driver builds the session, tools, policy, and runtime driver for a run
+// whose prelude state is loaded.
+func (r *run) driver(rt *agentrt.Store, agent agentrt.Agent) (*session.Session, *agentrt.Driver, error) {
+	opts := r.opts
 	sess := &session.Session{
 		RunID: r.id, Store: r.store, Runtime: rt, WS: r.ws, SB: r.sb, Profile: r.profile, Candidates: r.cands, Policy: opts.Policy,
 		Baseline: r.baseRun, BaselineID: r.baseID, ConfigHash: r.configHash, RunDir: r.runDir, StagingRoot: r.stagingRoot,
@@ -114,17 +166,14 @@ func runAgent(ctx context.Context, opts Options, mode string, agent agentrt.Agen
 		NewID: func() string { return session.NewID() },
 	})
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	// The runtime run id is the task id so that steps, approvals, and
-	// events line up with the task's own tables.
-	t := time.Now()
-	rr, err := drv.StartWithID(ctx, r.id, goalFor(sess), opts.RuntimeLimits)
-	if err != nil {
-		r.store.FinishTask(ctx, r.id, OutcomeFailed, map[string]any{"error": err.Error()})
-		return r.res, err
-	}
-	r.mark("agent", t)
+	return sess, drv, nil
+}
+
+// finalize maps the runtime result to a maintenance outcome and records it
+// when the run is terminal.
+func (r *run) finalize(ctx context.Context, rt *agentrt.Store, sess *session.Session, rr agentrt.Run) (*Result, error) {
 	r.res.Run = describeRun(ctx, rt, rr)
 	r.res.Outcome, r.res.Detail = outcomeOf(rr, sess)
 	if sess.Outcome != nil && sess.Outcome.Code == "proposal_prepared" {
@@ -141,6 +190,189 @@ func runAgent(ctx context.Context, opts Options, mode string, agent agentrt.Agen
 		return r.res, r.store.FinishTask(ctx, r.id, r.res.Outcome, r.res.Detail)
 	}
 	return r.res, nil
+}
+
+// ResumeOptions identify a run to continue. Configuration is reloaded from
+// the task; only values that cannot be persisted are supplied.
+type ResumeOptions struct {
+	RunID           string
+	DataDir         string
+	FixtureProxyDir string
+	Socket          string
+	AllowPull       bool
+	Observer        agentrt.Observer
+}
+
+// Resume continues a run that is waiting for an approved approval or was
+// interrupted. The session is rebuilt from the persisted task, workspace,
+// options, candidate facts, and baseline evidence; the agent is chosen
+// from the task's mode.
+func Resume(ctx context.Context, ro ResumeOptions) (*Result, error) {
+	if ro.DataDir == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return nil, err
+		}
+		ro.DataDir = filepath.Join(home, ".local", "share", "repo-steward")
+	}
+	if err := lock.CheckLocal(ro.DataDir); err != nil {
+		return nil, err
+	}
+	exec, err := lock.Acquire(filepath.Join(ro.DataDir, "executor.lock"))
+	if err != nil {
+		return nil, err
+	}
+	defer exec.Release()
+	runDir := filepath.Join(ro.DataDir, "runs", ro.RunID)
+	runLock, err := lock.Acquire(filepath.Join(runDir, "run.lock"))
+	if err != nil {
+		return nil, err
+	}
+	defer runLock.Release()
+
+	dbPath := filepath.Join(ro.DataDir, "steward.db")
+	store, err := task.Open(dbPath)
+	if err != nil {
+		return nil, err
+	}
+	defer store.Close()
+	tk, err := store.GetTask(ctx, ro.RunID)
+	if err != nil {
+		return nil, err
+	}
+	if tk.Outcome != "" {
+		return nil, fmt.Errorf("steward: run %s already ended with outcome %s", ro.RunID, tk.Outcome)
+	}
+	var po persistedOptions
+	var cands []deps.Candidate
+	if err := store.TaskContext(ctx, ro.RunID, &po, &cands); err != nil {
+		return nil, err
+	}
+	if po.FixtureProxy && ro.FixtureProxyDir == "" {
+		return nil, fmt.Errorf("steward: run %s started with a fixture proxy; pass -fixture-proxy again", ro.RunID)
+	}
+	if !po.FixtureProxy && ro.FixtureProxyDir != "" {
+		return nil, fmt.Errorf("steward: run %s did not use a fixture proxy", ro.RunID)
+	}
+	opts := Options{SourcePath: tk.SourcePath, DataDir: ro.DataDir, FixtureProxyDir: ro.FixtureProxyDir, AllowPull: ro.AllowPull, Socket: ro.Socket,
+		Policy: po.Policy, Author: po.Author, CheckTimeout: po.CheckTimeout, Limits: po.Limits, Scope: po.Scope, ScopeConfig: po.ScopeConfig,
+		Budgets: po.Budgets, RuntimeLimits: po.RuntimeLimits, Observer: ro.Observer}
+	if err := applyDefaults(&opts); err != nil {
+		return nil, err
+	}
+	var agent agentrt.Agent
+	switch {
+	case strings.HasPrefix(tk.Mode, "scripted:"):
+		sc, err := scenario.Load(strings.TrimPrefix(tk.Mode, "scripted:"))
+		if err != nil {
+			return nil, err
+		}
+		agent = &scenario.Agent{Scenario: sc}
+	default:
+		return nil, fmt.Errorf("steward: run %s has mode %q, which cannot be resumed", ro.RunID, tk.Mode)
+	}
+
+	r := &run{opts: opts, id: ro.RunID, dataDir: ro.DataDir, runDir: runDir, store: store, start: time.Now(), cands: cands}
+	r.res = &Result{RunID: r.id, Mode: tk.Mode, Timings: map[string]int64{}}
+	if err := r.reattach(ctx, tk); err != nil {
+		return nil, err
+	}
+	defer removeAll(r.buildCache)
+	rt, err := agentrt.OpenStore(dbPath)
+	if err != nil {
+		return nil, err
+	}
+	defer rt.Close()
+	sess, drv, err := r.driver(rt, agent)
+	if err != nil {
+		return nil, err
+	}
+	t := time.Now()
+	rr, err := drv.Resume(ctx, r.id)
+	if err != nil {
+		return r.res, err
+	}
+	r.mark("agent", t)
+	return r.finalize(ctx, rt, sess, rr)
+}
+
+// reattach rebuilds workspace, profile, sandbox, and baseline evidence for
+// an existing run without re-running discovery or validation.
+func (r *run) reattach(ctx context.Context, tk task.Task) error {
+	ws, err := workspace.Open(ctx, tk.WorkspaceDir)
+	if err != nil {
+		return err
+	}
+	if ws.BaseCommit != tk.BaseCommit {
+		return fmt.Errorf("steward: workspace HEAD %s differs from the task's base commit %s", ws.BaseCommit, tk.BaseCommit)
+	}
+	ws.BaseRef, ws.SourcePath = tk.BaseRef, tk.SourcePath
+	r.ws = ws
+	r.res.Workspace = ws
+	entries, err := snapshot.List(ctx, ws.Git(), ws.BaseTree, r.opts.Limits)
+	if err != nil {
+		return err
+	}
+	baseSnap, _, err := ws.Materialize(ctx, ws.BaseTree, r.snapshotDir(ws.BaseTree), r.opts.Limits)
+	if err != nil {
+		return err
+	}
+	prof, err := repo.Inspect(baseSnap, entries)
+	if err != nil {
+		return err
+	}
+	if !prof.Supported() {
+		return fmt.Errorf("steward: repository no longer supported: %v", prof.Refusals)
+	}
+	r.profile = prof
+	r.res.Profile = prof
+	r.configHash = configHash(r.opts, prof)
+	key, err := module.EscapePath(prof.ModulePath)
+	if err != nil {
+		return err
+	}
+	r.modCacheDir = filepath.Join(r.dataDir, "cache", "mod", filepath.FromSlash(key))
+	cfg := sandbox.Config{Image: prof.Toolchain.Ref(), SourceDir: baseSnap, CacheDir: r.modCacheDir, BuildCacheDir: filepath.Join(r.runDir, "gocache-"+strconv.FormatInt(time.Now().UnixNano(), 36))}
+	if r.opts.FixtureProxyDir != "" {
+		if cfg.ProxyDir, err = filepath.Abs(r.opts.FixtureProxyDir); err != nil {
+			return err
+		}
+	}
+	sb, err := sandbox.NewDocker(cfg, r.opts.Socket)
+	if err != nil {
+		return err
+	}
+	if err := sb.EnsureImage(ctx, r.opts.AllowPull); err != nil {
+		return err
+	}
+	if _, err := sb.ReapOrphans(ctx); err != nil {
+		return err
+	}
+	if err := sb.Probe(ctx); err != nil {
+		return err
+	}
+	r.sb, r.buildCache, r.stagingRoot = sb, cfg.BuildCacheDir, filepath.Join(r.runDir, "staging")
+	// Baseline evidence: the accepted baseline record under the same configuration.
+	vals, err := r.store.ListValidations(ctx, r.id)
+	if err != nil {
+		return err
+	}
+	for _, v := range vals {
+		if v.Kind == "baseline" && v.Accepted && v.ConfigHash == r.configHash {
+			var run validate.Run
+			if err := json.Unmarshal(v.Run, &run); err != nil {
+				return err
+			}
+			r.baseRun, r.baseID = &run, v.ID
+			break
+		}
+	}
+	if r.baseRun == nil {
+		return fmt.Errorf("steward: no baseline evidence for run %s under the current configuration", r.id)
+	}
+	r.res.Baseline = summarize(r.baseID, r.baseRun)
+	r.res.Candidates = r.cands
+	return nil
 }
 
 func goalFor(s *session.Session) string {
