@@ -36,7 +36,7 @@ func main() {
 }
 
 const usage = `usage:
-  repo-steward maintain <repo-path> -mode baseline|scripted [-scenario NAME] [-author "Name <email>"] [-data-dir DIR] [-fixture-proxy DIR] [-pull] [-allow-major] [-dependency MODULE] [-check-timeout DURATION] [-scope-files-soft N] [-scope-files-hard N] [-scope-lines-soft N] [-scope-lines-hard N] [-trace]
+  repo-steward maintain <repo-path> -mode baseline|scripted|model [-scenario NAME] [-model provider:name] [-record DIR] [-replay DIR] [-max-model-calls N] [-author "Name <email>"] [-data-dir DIR] [-fixture-proxy DIR] [-pull] [-allow-major] [-dependency MODULE] [-check-timeout DURATION] [-scope-files-soft N] [-scope-files-hard N] [-scope-lines-soft N] [-scope-lines-hard N] [-trace]
   repo-steward resume <run-id> [-data-dir DIR] [-fixture-proxy DIR] [-trace]
   repo-steward approve <run-id> [-approval ID] [-note TEXT] [-data-dir DIR]
   repo-steward reject <run-id> [-approval ID] [-note TEXT] [-data-dir DIR]
@@ -233,8 +233,12 @@ func runMaintain(ctx context.Context, args []string) error {
 		return err
 	}
 	fs := flag.NewFlagSet("maintain", flag.ContinueOnError)
-	mode := fs.String("mode", "baseline", "baseline (deterministic, no model) or scripted (replay an embedded scenario)")
+	mode := fs.String("mode", "baseline", "baseline (deterministic, no model), scripted (replay an embedded scenario), or model (a model decides)")
 	scenarioName := fs.String("scenario", "", "scenario name for -mode scripted")
+	modelName := fs.String("model", "ollama:qwen3:30b-a3b", "model as provider:name for -mode model")
+	recordDir := fs.String("record", "", "record every model response into this directory")
+	replayDir := fs.String("replay", "", "serve model responses from this directory and never call the provider")
+	maxModelCalls := fs.Int("max-model-calls", 0, "cap on model calls for -mode model (default 80)")
 	trace := fs.Bool("trace", false, "print runtime events to stderr as they happen")
 	author := fs.String("author", "", `proposal commit author as "Name <email>" (default: the source repository's git user)`)
 	dataDir := fs.String("data-dir", "", "data directory (default: ~/.local/share/repo-steward)")
@@ -290,6 +294,17 @@ func runMaintain(ctx context.Context, args []string) error {
 			return fmt.Errorf("maintain: -mode scripted requires -scenario")
 		}
 		res, err = steward.RunScripted(ctx, opts, *scenarioName)
+	case "model":
+		spec, perr := steward.ParseModelSpec(*modelName)
+		if perr != nil {
+			return perr
+		}
+		spec.RecordDir, spec.ReplayDir = *recordDir, *replayDir
+		if *maxModelCalls > 0 {
+			opts.RuntimeLimits = steward.DefaultModelLimits()
+			opts.RuntimeLimits.MaxModelCalls = *maxModelCalls
+		}
+		res, err = steward.RunModel(ctx, opts, spec)
 	default:
 		return fmt.Errorf("maintain: unknown mode %q", *mode)
 	}

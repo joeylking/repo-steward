@@ -8,15 +8,15 @@ anything leaves the machine.
 
 ## Status
 
-Milestone 0 and Milestone 1 batches 1A and 1B: fixtures, exact snapshots,
-container sandbox, fail-closed validation, candidate discovery, the no-model
-`inspect` command, the deterministic `maintain -mode baseline` pipeline, and
-the agent path on [agent-runtime](https://github.com/joeylking/agent-runtime):
-scoped tools with containment, a policy with phases, protected paths, scope
-limits, and repair budgets, and a scripted agent that replays embedded
-scenarios through the whole control path. No model calls, no GitHub. See
-[docs/status.md](docs/status.md) for what is implemented and which test
-verifies it.
+Milestones 0 and 1 and the first batch of Milestone 2: fixtures, exact
+snapshots, container sandbox, fail-closed validation, candidate discovery,
+the no-model `inspect` command, the deterministic `maintain -mode baseline`
+pipeline, the agent path on
+[agent-runtime](https://github.com/joeylking/agent-runtime) with scoped
+tools, policy, approvals, and resume, a scripted agent for deterministic
+tests, and a model-driven agent that runs against a local Ollama model. No
+paid model calls anywhere; no GitHub yet. See [docs/status.md](docs/status.md)
+for what is implemented and which test verifies it.
 
 ## Data directory layout
 
@@ -95,6 +95,17 @@ go run ./cmd/repo-steward resume <run-id> -fixture-proxy ~/tmp/proxy
 go run ./cmd/repo-steward resume <run-id> -fixture-proxy ~/tmp/proxy
 ```
 
+```sh
+# Model mode: a local model decides. Requires an Ollama server with a
+# tool-calling model pulled. Every call is recorded with usage and latency;
+# -record captures responses for later replay with -replay.
+ollama serve &
+ollama pull qwen3:30b-a3b
+go run ./cmd/repo-steward maintain ~/tmp/breaking-minor -mode model \
+  -model ollama:qwen3:30b-a3b -author "Your Name <you@example.com>" \
+  -fixture-proxy ~/tmp/proxy -record ~/tmp/recordings -trace
+```
+
 Scope limits are flags on `maintain`: `-scope-files-soft`, `-scope-files-hard`,
 `-scope-lines-soft`, `-scope-lines-hard`. Crossing a soft limit pauses the
 run for one expansion approval, which raises the soft limits to the hard
@@ -166,6 +177,17 @@ and aborts when the validation budget or the no-progress budget is spent.
 The scripted agent in `-mode scripted` replays a fixed decision list. It
 proves the orchestration and control behaviour deterministically and says
 nothing about a real model's repair quality, which is measured separately.
+
+The model agent in `-mode model` is stateless between steps: each decision
+renders the recorded steps into a message list, asks the model through the
+runtime's accounting caller, and maps the first tool call to a decision.
+The system prompt is fixed and never contains repository content; files and
+command output reach the model only inside tool results, labelled as data.
+The runtime enforces call, token, and cost limits before every request and
+records every attempt. Local models through Ollama are the development
+provider precisely because they cost nothing to iterate against; a paid
+provider, when one is added, is used only for an explicit, budgeted
+measurement and never in tests or CI.
 
 ## Integration tests
 

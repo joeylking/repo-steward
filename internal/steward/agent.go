@@ -77,10 +77,11 @@ type persistedOptions struct {
 	Budgets       session.Budgets      `json:"budgets"`
 	RuntimeLimits agentrt.Limits       `json:"runtime_limits"`
 	FixtureProxy  bool                 `json:"fixture_proxy"`
+	Model         *ModelSpec           `json:"model,omitempty"`
 }
 
 func persist(o Options) persistedOptions {
-	return persistedOptions{Policy: o.Policy, Author: o.Author, CheckTimeout: o.CheckTimeout, Limits: o.Limits, Scope: o.Scope, ScopeConfig: o.ScopeConfig, Budgets: o.Budgets, RuntimeLimits: o.RuntimeLimits, FixtureProxy: o.FixtureProxyDir != ""}
+	return persistedOptions{Policy: o.Policy, Author: o.Author, CheckTimeout: o.CheckTimeout, Limits: o.Limits, Scope: o.Scope, ScopeConfig: o.ScopeConfig, Budgets: o.Budgets, RuntimeLimits: o.RuntimeLimits, FixtureProxy: o.FixtureProxyDir != "", Model: o.Model}
 }
 
 func runAgent(ctx context.Context, opts Options, mode string, agent agentrt.Agent) (*Result, error) {
@@ -153,8 +154,18 @@ func (r *run) driver(rt *agentrt.Store, agent agentrt.Agent) (*session.Session, 
 		ModCacheDir: r.modCacheDir, Limits: opts.Limits, Scope: opts.ScopeConfig, Budgets: opts.Budgets, Author: opts.Author,
 		CheckTimeout: opts.CheckTimeout, BaseRef: r.ws.BaseRef,
 	}
+	mc, modelAgent, err := r.modelConfig()
+	if err != nil {
+		return nil, nil, err
+	}
+	if agent == nil {
+		if modelAgent == nil {
+			return nil, nil, fmt.Errorf("steward: no agent and no model configured")
+		}
+		agent = modelAgent
+	}
 	drv, err := agentrt.NewDriver(agentrt.Config{
-		Store: rt, Agent: agent, Policy: policy.New(policy.SessionFacts{S: sess}), Tools: tools.All(sess),
+		Store: rt, Agent: agent, Policy: policy.New(policy.SessionFacts{S: sess}), Tools: tools.All(sess), Model: mc,
 		Observer: opts.Observer,
 		Reconcile: func(ctx context.Context, _ agentrt.RunView) error {
 			if _, err := manifest.Recover(ctx, r.store, r.ws, r.id); err != nil {
@@ -201,6 +212,7 @@ type ResumeOptions struct {
 	Socket          string
 	AllowPull       bool
 	Observer        agentrt.Observer
+	Prices          agentrt.PriceTable
 }
 
 // Resume continues a run that is waiting for an approved approval or was
@@ -256,7 +268,7 @@ func Resume(ctx context.Context, ro ResumeOptions) (*Result, error) {
 	}
 	opts := Options{SourcePath: tk.SourcePath, DataDir: ro.DataDir, FixtureProxyDir: ro.FixtureProxyDir, AllowPull: ro.AllowPull, Socket: ro.Socket,
 		Policy: po.Policy, Author: po.Author, CheckTimeout: po.CheckTimeout, Limits: po.Limits, Scope: po.Scope, ScopeConfig: po.ScopeConfig,
-		Budgets: po.Budgets, RuntimeLimits: po.RuntimeLimits, Observer: ro.Observer}
+		Budgets: po.Budgets, RuntimeLimits: po.RuntimeLimits, Observer: ro.Observer, Model: po.Model, Prices: ro.Prices}
 	if err := applyDefaults(&opts); err != nil {
 		return nil, err
 	}
@@ -268,6 +280,11 @@ func Resume(ctx context.Context, ro ResumeOptions) (*Result, error) {
 			return nil, err
 		}
 		agent = &scenario.Agent{Scenario: sc}
+	case strings.HasPrefix(tk.Mode, "model:"):
+		if po.Model == nil {
+			return nil, fmt.Errorf("steward: run %s has no persisted model spec", ro.RunID)
+		}
+		agent = nil // built from the model spec by driver()
 	default:
 		return nil, fmt.Errorf("steward: run %s has mode %q, which cannot be resumed", ro.RunID, tk.Mode)
 	}

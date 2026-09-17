@@ -60,6 +60,9 @@ type Options struct {
 	Budgets       session.Budgets
 	RuntimeLimits agentrt.Limits
 	Observer      agentrt.Observer
+	// Model and Prices apply to model mode.
+	Model  *ModelSpec
+	Prices agentrt.PriceTable
 }
 
 func defaultSnapshotLimits() snapshot.Limits { return snapshot.DefaultLimits() }

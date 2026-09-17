@@ -14,6 +14,8 @@ github.com/joeylking/agent-runtime v0.0.0-20260917161407-62c63c1e3347 h1:pslANZI
 github.com/joeylking/agent-runtime v0.0.0-20260917161407-62c63c1e3347/go.mod h1:L/0hF9ThiRsJ2N/jU8M0I2y8qjemXb97mEupd/olGAE=
 github.com/joeylking/agent-runtime v0.0.0-20260917170135-715604fb8097 h1:WXox+Xrr1fMlDbStzJsuktJihE6zSxdlHhenU5Gq/Tc=
 github.com/joeylking/agent-runtime v0.0.0-20260917170135-715604fb8097/go.mod h1:L/0hF9ThiRsJ2N/jU8M0I2y8qjemXb97mEupd/olGAE=
+github.com/joeylking/agent-runtime v0.0.0-20260917233117-db6687390c38 h1:E4be3v06SW5OKE4wrGCbLWB/vyZh1uiZu1m2G449DAc=
+github.com/joeylking/agent-runtime v0.0.0-20260917233117-db6687390c38/go.mod h1:L/0hF9ThiRsJ2N/jU8M0I2y8qjemXb97mEupd/olGAE=
 github.com/mattn/go-isatty v0.0.24 h1:tGZZoVgT/KiqK1c8ocVLeDS8BSWMRd47J3Lbz7vsReI=
 github.com/mattn/go-isatty v0.0.24/go.mod h1:nMCL3Zebbrt45jsMDgnfIwz6ydEQApk5oEI3HqDio6A=
 github.com/ncruces/go-strftime v1.0.0 h1:HMFp8mLCTPp341M/ZnA4qaf7ZlsbTc+miZjCLOFAw7w=

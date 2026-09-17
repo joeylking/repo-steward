@@ -99,9 +99,22 @@ marked *integration* run under `-tags integration` against a real engine.
 | `runs list` and `runs show` expose task, run, steps, approvals, proposals, and promotions | Verified (integration) | `TestCLI_*` |
 | Paths are never deleted and recreated within a run; probe markers carry a nonce | Verified (integration) | `workspace.Materialize`, `sandbox.Probe`, `TestCLI_ScopeExpansionAcrossProcesses` |
 
-Milestone 1 is complete. Required for Milestone 2: the model
-proof-of-capability harness, the model interface with usage and cost
-accounting in agent-runtime, and the real agent.
+Milestone 1 is complete.
+
+## Milestone 2, batch 2A
+
+| Control or capability | Status | Reference |
+|---|---|---|
+| Ollama adapter over the native chat API: system, tool_use, and tool_result mapping, tool_calls parsed, usage reported, 5xx and connection failures transient, 4xx and body errors plain | Verified | `internal/model/ollama`, `TestGenerate_MapsRequestAndToolCalls`, `TestGenerate_ErrorsClassified` |
+| Model agent: fixed system prompt with no repository content; steps rendered as tool_use and tool_result pairs; older results elided; first tool use mapped to a decision; one nudge on text-only replies then a fail decision; limit errors propagated | Verified | `internal/agent`, `TestRender_StepsBecomeToolUseAndResultPairs`, `TestDecide_MapsFirstToolUse`, `TestDecide_NudgesOnceThenFails`, `TestDecide_PropagatesLimitErrors` |
+| `-mode model` with persisted model spec so `resume` rebuilds the same agent; `-record` and `-replay` through the runtime's replay package | Implemented | `internal/steward/model.go` |
+| Live local-model runs: patch-safe selects v1.2.4 and freezes a manifest-only proposal; breaking-minor reads the new signature, rewrites the call site, and freezes a proposal with main.go | Observed on 2026-09-17 with qwen3:30b-a3b, not a gated test | see README |
+
+Required for batch 2B: replayable model-mode tests, which need
+deterministic tool outputs (validation record ids and timings currently
+vary between runs); a proof-of-capability harness that runs S1 through S8
+against a chosen model under a call cap and records outcomes as data; a
+second local model for comparison.
 
 ## Not claimed
 
@@ -117,6 +130,8 @@ with their own tests.
 - The Go module cache under the data directory is created read-only by the
   toolchain. A `cache clean` command is Required.
 - Integration test packages must run serially against one engine.
+- Model-mode runs are not replayable yet because tool results embed
+  run-specific identifiers; recordings from one run do not match the next.
 - VM-backed engines cache path lookups. The code never deletes and
   recreates a directory at the same path during a run and probe markers
   are unique, but any new mount path added later must follow the same rule.
