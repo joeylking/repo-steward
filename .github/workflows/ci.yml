@@ -46,12 +46,15 @@ jobs:
           go run ./cmd/repo-steward inspect "$RUNNER_TEMP/patch-safe" -data-dir "$RUNNER_TEMP/data" -fixture-proxy "$RUNNER_TEMP/proxy" | tee "$RUNNER_TEMP/report.json"
           grep -q '"outcome": "ok"' "$RUNNER_TEMP/report.json"
       - name: baseline maintain on fixtures
+        # A built binary is used so the program's own exit status is
+        # observable; go run reports every non-zero exit as 1.
         run: |
-          go run ./cmd/repo-steward maintain "$RUNNER_TEMP/patch-safe" -mode baseline -author "CI <ci@example.invalid>" -data-dir "$RUNNER_TEMP/data-ps" -fixture-proxy "$RUNNER_TEMP/proxy" | tee "$RUNNER_TEMP/ps.json"
+          go build -o "$RUNNER_TEMP/repo-steward" ./cmd/repo-steward
+          "$RUNNER_TEMP/repo-steward" maintain "$RUNNER_TEMP/patch-safe" -mode baseline -author "CI <ci@example.invalid>" -data-dir "$RUNNER_TEMP/data-ps" -fixture-proxy "$RUNNER_TEMP/proxy" | tee "$RUNNER_TEMP/ps.json"
           grep -q '"outcome": "proposal_prepared"' "$RUNNER_TEMP/ps.json"
-          go run ./cmd/repo-steward fixture setup breaking-minor -dest "$RUNNER_TEMP/breaking-minor"
+          "$RUNNER_TEMP/repo-steward" fixture setup breaking-minor -dest "$RUNNER_TEMP/breaking-minor"
           set +e
-          go run ./cmd/repo-steward maintain "$RUNNER_TEMP/breaking-minor" -mode baseline -author "CI <ci@example.invalid>" -data-dir "$RUNNER_TEMP/data-bm" -fixture-proxy "$RUNNER_TEMP/proxy" > "$RUNNER_TEMP/bm.json"; rc=$?
+          "$RUNNER_TEMP/repo-steward" maintain "$RUNNER_TEMP/breaking-minor" -mode baseline -author "CI <ci@example.invalid>" -data-dir "$RUNNER_TEMP/data-bm" -fixture-proxy "$RUNNER_TEMP/proxy" > "$RUNNER_TEMP/bm.json"; rc=$?
           set -e
           test "$rc" = 4
           grep -q '"outcome": "regressed"' "$RUNNER_TEMP/bm.json"
