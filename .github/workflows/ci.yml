@@ -14,7 +14,10 @@ jobs:
           go-version-file: go.mod
       - run: git --version
       - run: go vet -tags integration ./...
+      - run: go vet -tags faultinject ./...
       - run: go test -race -count=1 ./...
+      - name: crash recovery (fault injection)
+        run: go test -tags faultinject -count=1 ./internal/manifest/ ./internal/proposal/
       - name: quick start smoke (no engine)
         run: |
           go run ./cmd/repo-steward fixture list
@@ -35,10 +38,20 @@ jobs:
       - run: docker version
       - name: pull pinned toolchain image
         run: docker pull golang@sha256:3d699e4d15d0f8f13c9195c0632a16702b8cbdece2955af1c23b37ae5d55a253
-      - run: go test -tags "integration faultinject" -count=1 -p 1 ./...
+      - run: go test -tags integration -count=1 -p 1 ./...
       - name: inspect a fixture end to end
         run: |
           go run ./cmd/repo-steward fixture setup patch-safe -dest "$RUNNER_TEMP/patch-safe"
           go run ./cmd/repo-steward fixture proxy -dest "$RUNNER_TEMP/proxy"
           go run ./cmd/repo-steward inspect "$RUNNER_TEMP/patch-safe" -data-dir "$RUNNER_TEMP/data" -fixture-proxy "$RUNNER_TEMP/proxy" | tee "$RUNNER_TEMP/report.json"
           grep -q '"outcome": "ok"' "$RUNNER_TEMP/report.json"
+      - name: baseline maintain on fixtures
+        run: |
+          go run ./cmd/repo-steward maintain "$RUNNER_TEMP/patch-safe" -mode baseline -author "CI <ci@example.invalid>" -data-dir "$RUNNER_TEMP/data-ps" -fixture-proxy "$RUNNER_TEMP/proxy" | tee "$RUNNER_TEMP/ps.json"
+          grep -q '"outcome": "proposal_prepared"' "$RUNNER_TEMP/ps.json"
+          go run ./cmd/repo-steward fixture setup breaking-minor -dest "$RUNNER_TEMP/breaking-minor"
+          set +e
+          go run ./cmd/repo-steward maintain "$RUNNER_TEMP/breaking-minor" -mode baseline -author "CI <ci@example.invalid>" -data-dir "$RUNNER_TEMP/data-bm" -fixture-proxy "$RUNNER_TEMP/proxy" > "$RUNNER_TEMP/bm.json"; rc=$?
+          set -e
+          test "$rc" = 4
+          grep -q '"outcome": "regressed"' "$RUNNER_TEMP/bm.json"

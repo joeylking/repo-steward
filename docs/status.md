@@ -43,6 +43,34 @@ marked *integration* run under `-tags integration` against a real engine.
 | Ignore rules honoured in the validated snapshot (S12) | Verified (integration) | `TestInspect_IgnoreRules` |
 | Refusals decided without an engine | Verified | `TestRun_ProfileRefusalStopsBeforeSandbox` |
 
+## Milestone 1, batch 1A
+
+| Control or capability | Status | Reference |
+|---|---|---|
+| Scratch workspace: dirty source refused, separate Git directory, source never written, candidate tree and diff | Verified | `internal/workspace`, `TestCreate_SeparateGitDirAndBase`, `TestCreate_RefusesDirtySource`, `TestBaseline_*` (integration) |
+| Workspace reads refuse symlink components and traversal | Verified | `TestReadFile_RefusesSymlinkComponents` |
+| Protected-path matching | Verified | `repo.IsProtected`, `TestIsProtected` |
+| Mutate profile: staging mounted read-write, source read-only, no network in fixture mode | Verified | `TestConfigValidate`, `TestBaseline_PatchSafeProducesVerifiedProposal` (integration) |
+| Manifests changed only by the toolchain through `-modfile` staging | Verified (integration) | `manifest.Stage`, `TestBaseline_PatchSafeProducesVerifiedProposal` |
+| Gate A rules: exact target, no reversion, closure-bounded increases, no direct add or remove, replace, exclude, retract, go, toolchain, module path unchanged | Verified | `TestVerifyAdmission_Rules`, `TestVerifyAdmission_PermittedTransitives`, `TestClosureFromGraph` |
+| Gate B: Gate A plus direct dependency preserved, tidy idempotence, cache verification, target resolution | Verified | `TestVerifyNormalized_DirectBecameIndirect`, `proposal.Evaluate` via `TestBaseline_PatchSafeProducesVerifiedProposal` (integration) |
+| Promotion journal with before and after hashes; recovery finishes, aborts, or conflicts from journal and files alone; staging not required | Verified | `TestPromotion_Interruptions` (faultinject, five points), `TestPromotion_UnexpectedStateConflicts` |
+| Selection closed once an upgrade promotion is in flight | Verified | `TestPromotion_InFlightClosesSelection` |
+| Validation evidence bound to tree, configuration hash, and toolchain digest; only accepted records count | Verified | `proposal.Evaluate`, `TestBaseline_PatchSafeProducesVerifiedProposal` (integration) |
+| Regression refused: introduced findings block the proposal | Verified (integration) | `TestBaseline_BreakingMinorIsRegressedNotProposed` |
+| Readiness evaluates every check and lists all failures | Implemented | `proposal.Evaluate` |
+| Proposal commit from a persisted recipe: deterministic id, ambient Git identity ignored, ref updated, row frozen with hash; HEAD never moved | Verified | `TestFreeze_Interruptions` (faultinject, four points), `TestRecover_RefMovedIsInvalidated`, `TestVerify_DetectsTamperedBody` |
+| Baseline selection order | Verified | `TestSelect` |
+| Policy restricts selection; no mutation without a candidate | Verified (integration) | `TestBaseline_PolicyRestrictsSelection` |
+| `requires_newer_toolchain` detection from toolchain output | Verified | `TestOpError_RequiresNewerToolchain` |
+| Task, promotion, validation, and proposal persistence | Implemented | `internal/task` |
+
+Required for batch 1B: runtime approvals and resume, terminal tools and
+abort, agent-facing file tools with containment and protected-path denial,
+`apply_upgrade`, `normalize_manifests`, `run_validation`, and
+`prepare_proposal` as tools, phase and scope policy, repair budgets, the
+scripted agent, and the `moved-package` and protected-change fixtures.
+
 ## Not claimed
 
 The sandbox reduces risk from untrusted build behaviour on operator-selected
@@ -57,3 +85,5 @@ with their own tests.
 - The Go module cache under the data directory is created read-only by the
   toolchain. A `cache clean` command is Required.
 - Integration test packages must run serially against one engine.
+- Readiness for source-file edits (scope and protected paths) is implemented
+  but only exercised on manifest-only diffs until batch 1B adds source edits.

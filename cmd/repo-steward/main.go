@@ -9,7 +9,9 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/joeylking/repo-steward/internal/deps"
@@ -18,6 +20,7 @@ import (
 	"github.com/joeylking/repo-steward/internal/inspect"
 	"github.com/joeylking/repo-steward/internal/modproxy"
 	"github.com/joeylking/repo-steward/internal/snapshot"
+	"github.com/joeylking/repo-steward/internal/steward"
 )
 
 func main() {
@@ -28,6 +31,7 @@ func main() {
 }
 
 const usage = `usage:
+  repo-steward maintain <repo-path> -mode baseline [-author "Name <email>"] [-data-dir DIR] [-fixture-proxy DIR] [-pull] [-allow-major] [-dependency MODULE] [-check-timeout DURATION]
   repo-steward inspect <repo-path> [-data-dir DIR] [-fixture-proxy DIR] [-pull] [-allow-major] [-dependency MODULE] [-check-timeout DURATION]
   repo-steward fixture list
   repo-steward fixture setup <name> [-dest DIR]
@@ -43,6 +47,9 @@ func run(args []string) error {
 	ctx := context.Background()
 	if args[0] == "inspect" {
 		return runInspect(ctx, args[1:])
+	}
+	if args[0] == "maintain" {
+		return runMaintain(ctx, args[1:])
 	}
 	switch args[0] + " " + args[1] {
 	case "fixture list":
@@ -191,6 +198,74 @@ func runInspect(ctx context.Context, args []string) error {
 		os.Exit(3)
 	}
 	return nil
+}
+
+// runMaintain performs one maintenance run. Exit status 0 means a proposal
+// was prepared, 2 unsupported, 3 baseline problems, 4 an explained
+// non-result after the upgrade was attempted.
+func runMaintain(ctx context.Context, args []string) error {
+	repoPath, rest, err := positional(args, "maintain: expected a repository path")
+	if err != nil {
+		return err
+	}
+	fs := flag.NewFlagSet("maintain", flag.ContinueOnError)
+	mode := fs.String("mode", "baseline", "baseline (deterministic, no model)")
+	author := fs.String("author", "", `proposal commit author as "Name <email>" (default: the source repository's git user)`)
+	dataDir := fs.String("data-dir", "", "data directory (default: ~/.local/share/repo-steward)")
+	proxyDir := fs.String("fixture-proxy", "", "file-based module proxy directory; disables network and checksum database (fixtures only)")
+	pull := fs.Bool("pull", false, "pull the pinned toolchain image if absent")
+	allowMajor := fs.Bool("allow-major", false, "treat major upgrades as eligible")
+	dependency := fs.String("dependency", "", "restrict eligibility to one module")
+	checkTimeout := fs.Duration("check-timeout", 10*time.Minute, "timeout per validation check")
+	if err := fs.Parse(rest); err != nil {
+		return err
+	}
+	if *mode != "baseline" {
+		return fmt.Errorf("maintain: mode %q is not available yet; only baseline is implemented", *mode)
+	}
+	ident, err := resolveAuthor(*author, repoPath)
+	if err != nil {
+		return err
+	}
+	pol := deps.DefaultPolicy()
+	pol.AllowMajor = *allowMajor
+	pol.NamedDependency = *dependency
+	res, err := steward.RunBaseline(ctx, steward.Options{SourcePath: repoPath, DataDir: *dataDir, FixtureProxyDir: *proxyDir, AllowPull: *pull, Policy: pol, Author: ident, CheckTimeout: *checkTimeout})
+	if res != nil {
+		printJSON(res)
+	}
+	if err != nil {
+		return err
+	}
+	switch res.Outcome {
+	case steward.OutcomeProposalPrepared:
+	case steward.OutcomeUnsupported:
+		os.Exit(2)
+	case steward.OutcomeBaselineFailing, steward.OutcomeBaselineInconclusive:
+		os.Exit(3)
+	default:
+		os.Exit(4)
+	}
+	return nil
+}
+
+// resolveAuthor parses "Name <email>" or reads the operator's identity from
+// the source repository's configuration. Reading configuration executes no
+// repository code.
+func resolveAuthor(flagValue, repoPath string) (gitx.Identity, error) {
+	if flagValue != "" {
+		i := strings.LastIndex(flagValue, "<")
+		if i <= 0 || !strings.HasSuffix(flagValue, ">") {
+			return gitx.Identity{}, fmt.Errorf(`-author must look like "Name <email>"`)
+		}
+		return gitx.Identity{Name: strings.TrimSpace(flagValue[:i]), Email: strings.TrimSuffix(flagValue[i+1:], ">")}, nil
+	}
+	name, err1 := exec.Command("git", "-C", repoPath, "config", "--get", "user.name").Output()
+	email, err2 := exec.Command("git", "-C", repoPath, "config", "--get", "user.email").Output()
+	if err1 != nil || err2 != nil || strings.TrimSpace(string(name)) == "" || strings.TrimSpace(string(email)) == "" {
+		return gitx.Identity{}, fmt.Errorf("maintain: no git user configured for %s; pass -author \"Name <email>\"", repoPath)
+	}
+	return gitx.Identity{Name: strings.TrimSpace(string(name)), Email: strings.TrimSpace(string(email))}, nil
 }
 
 // positional takes the first argument as a positional value and returns the

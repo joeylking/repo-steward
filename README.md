@@ -8,10 +8,13 @@ anything leaves the machine.
 
 ## Status
 
-Milestone 0 (0A and 0B): fixtures, exact snapshots, container sandbox,
-fail-closed validation, candidate discovery, and the no-model `inspect`
-command. No model calls, no GitHub. See [docs/status.md](docs/status.md) for
-what is implemented and which test verifies it.
+Milestone 0 and batch 1A: fixtures, exact snapshots, container sandbox,
+fail-closed validation, candidate discovery, the no-model `inspect` command,
+and the deterministic `maintain -mode baseline` pipeline that stages an
+upgrade through manifest gates, validates the exact candidate tree, and
+freezes a proposal commit. No model calls, no GitHub. See
+[docs/status.md](docs/status.md) for what is implemented and which test
+verifies it.
 
 ## Requirements
 
@@ -43,7 +46,21 @@ go run ./cmd/repo-steward inspect ~/tmp/patch-safe -fixture-proxy ~/tmp/proxy
 
 `inspect` prints a JSON report and exits 0 when the baseline is clean, 2 when
 the repository is unsupported, and 3 when the baseline fails or is
-inconclusive. Against a real repository omit `-fixture-proxy`; dependency
+inconclusive.
+
+```sh
+# Baseline maintenance: pick the smallest eligible upgrade, apply it under
+# the manifest gates, validate the exact result, and freeze a proposal
+# commit in a scratch clone. Nothing is pushed and the source is untouched.
+go run ./cmd/repo-steward maintain ~/tmp/patch-safe -mode baseline \
+  -author "Your Name <you@example.com>" -fixture-proxy ~/tmp/proxy
+```
+
+`maintain` exits 0 when a proposal was prepared, 2 when unsupported, 3 on
+baseline problems, and 4 for any other explained non-result such as a
+regression introduced by the upgrade. The proposal commit lives under
+`refs/repo-steward/proposals/<id>` in the scratch clone recorded in the
+output; the scratch checkout's HEAD is never moved. Against a real repository omit `-fixture-proxy`; dependency
 acquisition then reaches the public module proxy and checksum database, and
 everything that executes repository code still runs with no network.
 
@@ -60,11 +77,35 @@ everything that executes repository code still runs with no network.
 6. Runs build, vet, and test with no network, read-only source and cache,
    and reports each check as pass, fail, or inconclusive (execute profile).
 
+## What maintain does in baseline mode
+
+1. Refuses a dirty source checkout, then clones it into a scratch workspace
+   with a separate Git directory.
+2. Profiles and validates the base tree exactly as `inspect` does.
+3. Selects the smallest eligible upgrade: patch before minor before major,
+   then the highest version in that class, then alphabetical module.
+4. Runs `go get` against a staging copy of the manifests through `-modfile`
+   in the mutate profile, checks Gate A (exact target, no reversions, no
+   replace, exclude, go, or toolchain changes, transitive increases only
+   within the target's requirement closure), and promotes the staging
+   result under a journal that recovery can finish or abort.
+5. Runs `go mod tidy` the same way and checks Gate B (Gate A plus tidy
+   idempotence and no direct dependency removed).
+6. Validates the exact candidate tree, compares findings with the baseline,
+   and refuses on any introduced finding.
+7. Evaluates readiness: bound validation, manifest rules including cache
+   verification and target resolution, protected paths, scope limits.
+8. Freezes the proposal from a persisted commit recipe and points a
+   proposal ref at it.
+
 ## Integration tests
 
 ```sh
 go test -tags integration -p 1 ./...
+go test -tags faultinject ./internal/manifest/ ./internal/proposal/
 ```
 
-They need the engine and the pinned image and never pull. Packages run
-serially because `inspect` reaps every container carrying the sandbox label.
+Integration tests need the engine and the pinned image and never pull.
+Packages run serially because `inspect` reaps every container carrying the
+sandbox label. The fault-injection tests crash a child process at each
+journaled point and recover in the parent; they need no engine.

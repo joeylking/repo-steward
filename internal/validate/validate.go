@@ -212,7 +212,8 @@ func parseDiagnostics(check string) func(res sandbox.ExecResult, packages []stri
 				pkg = strings.TrimSuffix(strings.TrimPrefix(m[1], "["), "]")
 				continue
 			}
-			if m := diagLine.FindStringSubmatch(strings.TrimSpace(line)); m != nil {
+			// go vet prefixes type-check errors with "vet: ".
+			if m := diagLine.FindStringSubmatch(strings.TrimPrefix(strings.TrimSpace(line), "vet: ")); m != nil {
 				lineNo := 0
 				fmt.Sscanf(m[2], "%d", &lineNo)
 				msg := m[4]
@@ -224,7 +225,7 @@ func parseDiagnostics(check string) func(res sandbox.ExecResult, packages []stri
 				att.Findings = append(att.Findings, Finding{Check: check, Key: check + ":" + key, Message: m[1]})
 				continue
 			}
-			if strings.HasPrefix(line, "\t") || strings.HasPrefix(line, "vet: ") || strings.HasPrefix(line, "note: ") || strings.HasPrefix(line, "ok ") {
+			if strings.HasPrefix(line, "\t") || strings.HasPrefix(line, "note: ") || strings.HasPrefix(line, "ok ") {
 				continue // continuation and informational lines
 			}
 			unparsed++

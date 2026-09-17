@@ -7,6 +7,9 @@
 //	acquire  go mod download and module metadata. Source read-only, module
 //	         cache writable, network on (or off with a file proxy). Executes
 //	         no repository code.
+//	mutate   go get and go mod tidy against a staging copy of the manifests
+//	         via -modfile. Source read-only, staging and module cache
+//	         writable, network as for acquire. Executes no repository code.
 //	execute  build, vet, test, and offline go list. Source and module cache
 //	         read-only, no network, build cache writable, tmpfs /tmp.
 package sandbox
@@ -29,6 +32,7 @@ type Profile string
 
 const (
 	Acquire Profile = "acquire"
+	Mutate  Profile = "mutate"
 	Execute Profile = "execute"
 )
 
@@ -79,6 +83,9 @@ type Config struct {
 	// BuildCacheDir holds the Go build cache; writable in every profile and
 	// discarded by the caller at the end of a run.
 	BuildCacheDir string
+	// StagingDir, when set, is mounted read-write at /staging in the mutate
+	// profile. It holds the go.mod and go.sum copies that -modfile targets.
+	StagingDir string
 	// ProxyDir, when set, is a file-based module proxy mounted read-only at
 	// /proxy. The acquire profile then runs with no network and no checksum
 	// database. Fixture use only.
@@ -175,6 +182,22 @@ func NewDocker(cfg Config, socket string) (*Docker, error) {
 		socket = s
 	}
 	return &Docker{cfg: cfg, client: dockerapi.New(socket)}, nil
+}
+
+// WithSource returns a sandbox bound to a different source directory and
+// sharing everything else. The pipeline uses it to validate each candidate
+// snapshot; tools never call it.
+func (d *Docker) WithSource(dir string) *Docker {
+	c := d.cfg
+	c.SourceDir = dir
+	return &Docker{cfg: c, client: d.client}
+}
+
+// WithStaging returns a sandbox whose mutate profile mounts dir at /staging.
+func (d *Docker) WithStaging(dir string) *Docker {
+	c := d.cfg
+	c.StagingDir = dir
+	return &Docker{cfg: c, client: d.client}
 }
 
 // Client exposes the engine client for tests and reaping.
@@ -297,7 +320,7 @@ func (d *Docker) env(p Profile) []string {
 		"GIT_TERMINAL_PROMPT=0",
 	}
 	switch p {
-	case Acquire:
+	case Acquire, Mutate:
 		env = append(env, "GOFLAGS=-mod=mod")
 		if d.cfg.ProxyDir != "" {
 			env = append(env, "GOPROXY=file:///proxy", "GOSUMDB=off")
@@ -326,11 +349,17 @@ func (d *Docker) hostConfig(p Profile) (dockerapi.HostConfig, error) {
 		Init:           &initTrue,
 	}
 	switch p {
-	case Acquire:
+	case Acquire, Mutate:
 		hc.Binds = []string{
 			d.cfg.SourceDir + ":/work:ro",
 			d.cfg.CacheDir + ":/cache:rw",
 			d.cfg.BuildCacheDir + ":/gocache:rw",
+		}
+		if p == Mutate {
+			if d.cfg.StagingDir == "" {
+				return hc, errors.New("sandbox: mutate profile requires a staging directory")
+			}
+			hc.Binds = append(hc.Binds, d.cfg.StagingDir+":/staging:rw")
 		}
 		if d.cfg.ProxyDir != "" {
 			hc.Binds = append(hc.Binds, d.cfg.ProxyDir+":/proxy:ro")

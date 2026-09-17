@@ -86,6 +86,18 @@ func TestBaseline_BuildFailureParsed(t *testing.T) {
 	}
 }
 
+func TestBaseline_VetTypeErrorParsed(t *testing.T) {
+	run, _ := baseline(t, map[string]sandbox.ExecResult{
+		"list": ok(pkgs),
+		"vet":  {ExitCode: 1, Stderr: []byte("# example.com/app\n# [example.com/app]\nvet: ./main.go:10:33: not enough arguments in call to lib.Greet\n\thave (string)\n\twant (context.Context, string)\n")},
+		"test": ok(testJSON(`{"Action":"pass","Package":"example.com/app"}`, `{"Action":"skip","Package":"example.com/app/internal/x"}`)),
+	})
+	v := run.Checks["vet"]
+	if !v.Conclusive || v.Status != validate.Fail || len(v.Findings) != 1 || v.Findings[0].Package != "example.com/app" || v.Findings[0].Line != 10 {
+		t.Fatalf("vet = %+v", v)
+	}
+}
+
 func TestBaseline_MissingGoSumIsManifestFinding(t *testing.T) {
 	run, _ := baseline(t, map[string]sandbox.ExecResult{
 		"list":  ok(pkgs),

@@ -17,7 +17,7 @@ func TestNames(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []string{"export-ignore-test", "ignore-rules", "patch-safe"}
+	want := []string{"breaking-minor", "export-ignore-test", "ignore-rules", "patch-safe"}
 	if strings.Join(names, ",") != strings.Join(want, ",") {
 		t.Fatalf("names = %v, want %v", names, want)
 	}

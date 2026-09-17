@@ -53,10 +53,10 @@ func TestInspect_PatchSafeColdCache(t *testing.T) {
 		t.Fatalf("candidates = %+v", rep.Candidates)
 	}
 	c := rep.Candidates[0]
-	if c.Module != "example.com/lib" || c.Current != "v1.2.1" || c.Latest != "v1.2.4" || c.Delta != "patch" {
+	if c.Module != "example.com/lib" || c.Current != "v1.2.1" || c.Latest != "v1.3.0" || c.Delta != "minor" {
 		t.Fatalf("candidate = %+v", c)
 	}
-	if el := c.EligibleTargets(); len(el) != 1 || el[0].Version != "v1.2.4" {
+	if el := c.EligibleTargets(); len(el) != 2 || el[0].Version != "v1.2.4" || el[1].Version != "v1.3.0" {
 		t.Fatalf("eligible targets = %+v", c.Targets)
 	}
 	b := rep.Baseline

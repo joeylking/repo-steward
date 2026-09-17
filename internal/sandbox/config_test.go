@@ -52,6 +52,17 @@ func TestConfigValidate(t *testing.T) {
 	if !strings.Contains(hc.Tmpfs["/tmp"], "exec") || !strings.Contains(hc.Tmpfs["/tmp"], "nosuid") {
 		t.Fatalf("tmpfs options = %q", hc.Tmpfs["/tmp"])
 	}
+	if _, err := d.hostConfig(Mutate); err == nil {
+		t.Fatal("mutate without staging must fail")
+	}
+	dm := d.WithStaging("/st").WithSource("/snap")
+	hc, err := dm.hostConfig(Mutate)
+	if err != nil || strings.Join(hc.Binds, " ") != "/snap:/work:ro /c:/cache:rw /b:/gocache:rw /st:/staging:rw /p:/proxy:ro" || hc.NetworkMode != "none" {
+		t.Fatalf("mutate host config = %+v, %v", hc, err)
+	}
+	if d.cfg.SourceDir != "/s" {
+		t.Fatal("WithSource mutated the original")
+	}
 	env = strings.Join(d.env(Execute), " ")
 	if !strings.Contains(env, "GOPROXY=off") || !strings.Contains(env, "GOFLAGS=-mod=readonly") {
 		t.Fatalf("execute env = %s", env)
