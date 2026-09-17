@@ -8,11 +8,13 @@ anything leaves the machine.
 
 ## Status
 
-Milestone 0 and batch 1A: fixtures, exact snapshots, container sandbox,
-fail-closed validation, candidate discovery, the no-model `inspect` command,
-and the deterministic `maintain -mode baseline` pipeline that stages an
-upgrade through manifest gates, validates the exact candidate tree, and
-freezes a proposal commit. No model calls, no GitHub. See
+Milestone 0 and Milestone 1 batches 1A and 1B: fixtures, exact snapshots,
+container sandbox, fail-closed validation, candidate discovery, the no-model
+`inspect` command, the deterministic `maintain -mode baseline` pipeline, and
+the agent path on [agent-runtime](https://github.com/joeylking/agent-runtime):
+scoped tools with containment, a policy with phases, protected paths, scope
+limits, and repair budgets, and a scripted agent that replays embedded
+scenarios through the whole control path. No model calls, no GitHub. See
 [docs/status.md](docs/status.md) for what is implemented and which test
 verifies it.
 
@@ -56,9 +58,16 @@ go run ./cmd/repo-steward maintain ~/tmp/patch-safe -mode baseline \
   -author "Your Name <you@example.com>" -fixture-proxy ~/tmp/proxy
 ```
 
+```sh
+# Scripted agent mode: replay an embedded scenario through the runtime,
+# the full tool set, and the policy. -trace prints every runtime event.
+go run ./cmd/repo-steward maintain ~/tmp/breaking-minor -mode scripted -scenario S2 \
+  -author "Your Name <you@example.com>" -fixture-proxy ~/tmp/proxy -trace
+```
+
 `maintain` exits 0 when a proposal was prepared, 2 when unsupported, 3 on
 baseline problems, and 4 for any other explained non-result such as a
-regression introduced by the upgrade. The proposal commit lives under
+regression introduced by the upgrade or a run that reported itself blocked. The proposal commit lives under
 `refs/repo-steward/proposals/<id>` in the scratch clone recorded in the
 output; the scratch checkout's HEAD is never moved. Against a real repository omit `-fixture-proxy`; dependency
 acquisition then reaches the public module proxy and checksum database, and
@@ -97,6 +106,35 @@ everything that executes repository code still runs with no network.
    verification and target resolution, protected paths, scope limits.
 8. Freezes the proposal from a persisted commit recipe and points a
    proposal ref at it.
+
+## The agent path
+
+In agent modes the runtime drives a decision loop. Each decision is a
+tool call that the runtime schema-validates and passes to the policy
+before anything executes. The tools are the only capabilities the agent
+has; none can reach the network, the operator's checkout, or a protected
+file:
+
+| Tool | Class | Notes |
+|---|---|---|
+| `get_repository_profile`, `list_candidates` | read | Facts computed by deterministic code. |
+| `read_file`, `list_directory`, `search_files`, `git_diff` | read | Working tree only; symlink components and traversal refused. |
+| `read_dependency_source` | read | Files of a module version from the module cache. |
+| `apply_upgrade` | local | Exact eligible target only, once per run, through manifest staging and Gate A. |
+| `write_file` | local | Regular source files only; tests, CI, security, and manifest paths denied; ignored paths refused; scope checked on the projected diff before the write. |
+| `normalize_manifests` | local | `go mod tidy` through staging and Gate B. |
+| `run_validation` | read | Build, vet, test on the exact candidate tree; introduced findings relative to the baseline. |
+| `prepare_proposal` | local, terminal | Readiness, then a frozen proposal commit. |
+| `report_blocked` | terminal | Ends the run with an explained non-result. |
+
+The policy denies tools outside the current phase, checks eligibility on
+the exact module and version, denies protected and ignored writes, aborts
+on hard scope limits, asks for one scope expansion approval on soft limits,
+and aborts when the validation budget or the no-progress budget is spent.
+
+The scripted agent in `-mode scripted` replays a fixed decision list. It
+proves the orchestration and control behaviour deterministically and says
+nothing about a real model's repair quality, which is measured separately.
 
 ## Integration tests
 

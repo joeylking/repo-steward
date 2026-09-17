@@ -65,11 +65,30 @@ marked *integration* run under `-tags integration` against a real engine.
 | `requires_newer_toolchain` detection from toolchain output | Verified | `TestOpError_RequiresNewerToolchain` |
 | Task, promotion, validation, and proposal persistence | Implemented | `internal/task` |
 
-Required for batch 1B: runtime approvals and resume, terminal tools and
-abort, agent-facing file tools with containment and protected-path denial,
-`apply_upgrade`, `normalize_manifests`, `run_validation`, and
-`prepare_proposal` as tools, phase and scope policy, repair budgets, the
-scripted agent, and the `moved-package` and protected-change fixtures.
+## Milestone 1, batch 1B
+
+| Control or capability | Status | Reference |
+|---|---|---|
+| Runtime run keyed by the task id; steps, approvals, and events line up with the task tables | Verified (integration) | `steward.RunScripted`, `TestScripted_S1_PatchUpgrade` |
+| Read tools contained: traversal, absolute paths, `.git`, and symlink components refused | Verified | `TestReadTools_Containment` |
+| `write_file` denies protected, ignored, symlinked, traversing, and non-regular targets; writes atomically | Verified | `TestWriteFile_Rules` |
+| Repository and dependency content returned with an untrusted-data notice | Implemented | `internal/tools` |
+| Terminal tools: `prepare_proposal` and `report_blocked`; no remote or destructive tools exist | Verified | `TestSpecs_AreCompleteAndTerminalToolsMarked` |
+| Phase derived from the promotion journal; tools gated by phase | Verified | `TestPhaseAndTarget_FromJournal`, `TestPhaseGating` |
+| `apply_upgrade` allowed only for the exact eligible module and version, once per run | Verified | `TestApplyUpgrade_ExactEligibility`, `TestPhaseGating` |
+| Scope computed on the projected diff before a write: hard limit aborts, soft limit asks once, expansion raises soft to hard, a second ask aborts, other approval kinds do not count | Verified | `TestWrite_ScopeBeforeApply`, `TestWrite_SingleExpansion`, `TestProjectedScope_CountsProposedWrite` |
+| Repair budgets: validation cycles and no-progress detection on introduced findings | Verified | `TestValidate_Budgets` |
+| Validation evidence produced by a tool is admissible only when its runtime step is done | Verified (integration) | `proposal.Inputs.StepDone`, `verifyProposal` in `scripted_integration_test.go` |
+| S1 patch upgrade through the agent path | Verified (integration) | `TestScripted_S1_PatchUpgrade` |
+| S2 breaking minor repaired in one source file; protected test unchanged | Verified (integration) | `TestScripted_S2_BreakingMinorRepaired` |
+| S3 moved package repaired by import fix | Verified (integration) | `TestScripted_S3_MovedPackageRepaired` |
+| S8 protected change: write denied by policy, run reports blocked, no proposal | Verified (integration) | `TestScripted_S8_ProtectedChangeBlocked` |
+| Interrupted run reconciliation hook runs promotion and freeze recovery | Implemented | `steward.runAgent` `Reconcile` |
+
+Required for batch 1C: `runs list`, `runs show`, `approve`, `reject`, and
+`resume` commands with session reconstruction, an end-to-end
+scope-expansion scenario, and an interrupted-run resume test through the
+CLI.
 
 ## Not claimed
 

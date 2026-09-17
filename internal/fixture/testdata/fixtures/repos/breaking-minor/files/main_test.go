@@ -1,13 +1,9 @@
 package main
 
-import (
-	"testing"
+import "testing"
 
-	"example.com/lib"
-)
-
-func TestGreet(t *testing.T) {
-	if got := lib.Greet("x"); got == "" {
-		t.Fatal("empty greeting")
+func TestGreeting(t *testing.T) {
+	if got := greeting("x"); got != "hello, x" {
+		t.Fatalf("greeting = %q", got)
 	}
 }

@@ -14,6 +14,8 @@ import (
 	"strings"
 	"time"
 
+	agentrt "github.com/joeylking/agent-runtime"
+
 	"github.com/joeylking/repo-steward/internal/deps"
 	"github.com/joeylking/repo-steward/internal/fixture"
 	"github.com/joeylking/repo-steward/internal/gitx"
@@ -31,7 +33,7 @@ func main() {
 }
 
 const usage = `usage:
-  repo-steward maintain <repo-path> -mode baseline [-author "Name <email>"] [-data-dir DIR] [-fixture-proxy DIR] [-pull] [-allow-major] [-dependency MODULE] [-check-timeout DURATION]
+  repo-steward maintain <repo-path> -mode baseline|scripted [-scenario NAME] [-author "Name <email>"] [-data-dir DIR] [-fixture-proxy DIR] [-pull] [-allow-major] [-dependency MODULE] [-check-timeout DURATION]
   repo-steward inspect <repo-path> [-data-dir DIR] [-fixture-proxy DIR] [-pull] [-allow-major] [-dependency MODULE] [-check-timeout DURATION]
   repo-steward fixture list
   repo-steward fixture setup <name> [-dest DIR]
@@ -209,7 +211,9 @@ func runMaintain(ctx context.Context, args []string) error {
 		return err
 	}
 	fs := flag.NewFlagSet("maintain", flag.ContinueOnError)
-	mode := fs.String("mode", "baseline", "baseline (deterministic, no model)")
+	mode := fs.String("mode", "baseline", "baseline (deterministic, no model) or scripted (replay an embedded scenario)")
+	scenarioName := fs.String("scenario", "", "scenario name for -mode scripted")
+	trace := fs.Bool("trace", false, "print runtime events to stderr as they happen")
 	author := fs.String("author", "", `proposal commit author as "Name <email>" (default: the source repository's git user)`)
 	dataDir := fs.String("data-dir", "", "data directory (default: ~/.local/share/repo-steward)")
 	proxyDir := fs.String("fixture-proxy", "", "file-based module proxy directory; disables network and checksum database (fixtures only)")
@@ -220,9 +224,6 @@ func runMaintain(ctx context.Context, args []string) error {
 	if err := fs.Parse(rest); err != nil {
 		return err
 	}
-	if *mode != "baseline" {
-		return fmt.Errorf("maintain: mode %q is not available yet; only baseline is implemented", *mode)
-	}
 	ident, err := resolveAuthor(*author, repoPath)
 	if err != nil {
 		return err
@@ -230,7 +231,24 @@ func runMaintain(ctx context.Context, args []string) error {
 	pol := deps.DefaultPolicy()
 	pol.AllowMajor = *allowMajor
 	pol.NamedDependency = *dependency
-	res, err := steward.RunBaseline(ctx, steward.Options{SourcePath: repoPath, DataDir: *dataDir, FixtureProxyDir: *proxyDir, AllowPull: *pull, Policy: pol, Author: ident, CheckTimeout: *checkTimeout})
+	opts := steward.Options{SourcePath: repoPath, DataDir: *dataDir, FixtureProxyDir: *proxyDir, AllowPull: *pull, Policy: pol, Author: ident, CheckTimeout: *checkTimeout}
+	if *trace {
+		opts.Observer = func(e agentrt.Event) {
+			fmt.Fprintf(os.Stderr, "%s  %-22s %s\n", e.At.Local().Format("15:04:05.000"), e.Type, string(e.Payload))
+		}
+	}
+	var res *steward.Result
+	switch *mode {
+	case "baseline":
+		res, err = steward.RunBaseline(ctx, opts)
+	case "scripted":
+		if *scenarioName == "" {
+			return fmt.Errorf("maintain: -mode scripted requires -scenario")
+		}
+		res, err = steward.RunScripted(ctx, opts, *scenarioName)
+	default:
+		return fmt.Errorf("maintain: unknown mode %q", *mode)
+	}
 	if res != nil {
 		printJSON(res)
 	}

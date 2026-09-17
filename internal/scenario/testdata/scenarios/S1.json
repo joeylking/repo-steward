@@ -1,0 +1,39 @@
+{
+  "name": "S1",
+  "fixture": "patch-safe",
+  "description": "Patch upgrade with no API change: apply, normalize, validate, prepare.",
+  "expected": "proposal_prepared",
+  "steps": [
+    {
+      "tool": "list_candidates",
+      "reason": "See what is outdated and eligible."
+    },
+    {
+      "tool": "apply_upgrade",
+      "args": {
+        "module": "example.com/lib",
+        "version": "v1.2.4"
+      },
+      "reason": "Smallest eligible upgrade."
+    },
+    {
+      "tool": "run_validation",
+      "reason": "Confirm the upgraded tree builds and tests pass."
+    },
+    {
+      "tool": "normalize_manifests",
+      "reason": "Tidy before proposing."
+    },
+    {
+      "tool": "run_validation",
+      "reason": "Validate the final tree."
+    },
+    {
+      "tool": "prepare_proposal",
+      "args": {
+        "title": "Upgrade example.com/lib to v1.2.4",
+        "summary": "Patch upgrade. No source changes were needed; build, vet, and tests pass."
+      }
+    }
+  ]
+}

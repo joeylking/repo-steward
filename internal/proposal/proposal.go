@@ -72,6 +72,9 @@ type Inputs struct {
 	Scope           ScopeLimits
 	ProtectedGlobs  []string
 	StagingRoot     string
+	// StepDone reports whether the runtime step that produced a validation
+	// record completed. Records flagged Accepted need no step.
+	StepDone func(ctx context.Context, stepID string) bool
 }
 
 // Failure codes.
@@ -104,7 +107,8 @@ func Evaluate(ctx context.Context, in Inputs) (*Readiness, error) {
 	}
 	var post *validate.Run
 	for _, rec := range records {
-		if rec.Kind == "post" && rec.Accepted && rec.TreeHash == tree && rec.ConfigHash == in.ConfigHash && rec.ToolchainDigest == in.ToolchainDigest {
+		accepted := rec.Accepted || (in.StepDone != nil && rec.StepID != "" && in.StepDone(ctx, rec.StepID))
+		if rec.Kind == "post" && accepted && rec.TreeHash == tree && rec.ConfigHash == in.ConfigHash && rec.ToolchainDigest == in.ToolchainDigest {
 			var run validate.Run
 			if err := json.Unmarshal(rec.Run, &run); err != nil {
 				return nil, err

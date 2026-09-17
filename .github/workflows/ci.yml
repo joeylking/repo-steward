@@ -58,3 +58,13 @@ jobs:
           set -e
           test "$rc" = 4
           grep -q '"outcome": "regressed"' "$RUNNER_TEMP/bm.json"
+      - name: scripted agent scenarios
+        run: |
+          "$RUNNER_TEMP/repo-steward" maintain "$RUNNER_TEMP/breaking-minor" -mode scripted -scenario S2 -author "CI <ci@example.invalid>" -data-dir "$RUNNER_TEMP/data-s2" -fixture-proxy "$RUNNER_TEMP/proxy" | tee "$RUNNER_TEMP/s2.json"
+          grep -q '"outcome": "proposal_prepared"' "$RUNNER_TEMP/s2.json"
+          "$RUNNER_TEMP/repo-steward" fixture setup test-uses-old-api -dest "$RUNNER_TEMP/s8"
+          set +e
+          "$RUNNER_TEMP/repo-steward" maintain "$RUNNER_TEMP/s8" -mode scripted -scenario S8 -author "CI <ci@example.invalid>" -data-dir "$RUNNER_TEMP/data-s8" -fixture-proxy "$RUNNER_TEMP/proxy" > "$RUNNER_TEMP/s8.json"; rc=$?
+          set -e
+          test "$rc" = 4
+          grep -q '"outcome": "blocked"' "$RUNNER_TEMP/s8.json"

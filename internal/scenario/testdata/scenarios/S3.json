@@ -1,0 +1,63 @@
+{
+  "name": "S3",
+  "fixture": "moved-package",
+  "description": "A package moves within the dependency; the agent fixes the import path.",
+  "expected": "proposal_prepared",
+  "steps": [
+    {
+      "tool": "list_candidates"
+    },
+    {
+      "tool": "apply_upgrade",
+      "args": {
+        "module": "example.com/toolkit",
+        "version": "v1.1.0"
+      }
+    },
+    {
+      "tool": "run_validation",
+      "reason": "Find out what broke."
+    },
+    {
+      "tool": "read_dependency_source",
+      "args": {
+        "module": "example.com/toolkit",
+        "version": "v1.1.0",
+        "path": "."
+      },
+      "reason": "Find where strutil went."
+    },
+    {
+      "tool": "read_dependency_source",
+      "args": {
+        "module": "example.com/toolkit",
+        "version": "v1.1.0",
+        "path": "text"
+      }
+    },
+    {
+      "tool": "write_file",
+      "args": {
+        "path": "main.go",
+        "content": "package main\n\nimport (\n\t\"fmt\"\n\n\t\"example.com/toolkit/text/strutil\"\n)\n\n// shout wraps the library call so tests do not depend on its location.\nfunc shout(s string) string {\n\treturn strutil.Upper(s) + \"!\"\n}\n\nfunc main() {\n\tfmt.Println(shout(\"steward\"))\n}\n"
+      },
+      "reason": "Import from the new location."
+    },
+    {
+      "tool": "run_validation"
+    },
+    {
+      "tool": "normalize_manifests"
+    },
+    {
+      "tool": "run_validation"
+    },
+    {
+      "tool": "prepare_proposal",
+      "args": {
+        "title": "Upgrade example.com/toolkit to v1.1.0",
+        "summary": "Package strutil moved to text/strutil with no API change. Updated the import in main.go."
+      }
+    }
+  ]
+}

@@ -1,0 +1,48 @@
+{
+  "name": "S8",
+  "fixture": "test-uses-old-api",
+  "description": "The correct repair needs a change to a protected test file; the agent must report blocked.",
+  "expected": "blocked",
+  "steps": [
+    {
+      "tool": "list_candidates"
+    },
+    {
+      "tool": "apply_upgrade",
+      "args": {
+        "module": "example.com/lib",
+        "version": "v1.3.0"
+      }
+    },
+    {
+      "tool": "run_validation"
+    },
+    {
+      "tool": "write_file",
+      "args": {
+        "path": "main.go",
+        "content": "package main\n\nimport (\n\t\"context\"\n\t\"fmt\"\n\n\t\"example.com/lib\"\n)\n\nfunc main() {\n\tfmt.Println(lib.Greet(context.Background(), \"steward\"))\n}\n"
+      },
+      "reason": "Fix the call in main.go."
+    },
+    {
+      "tool": "write_file",
+      "args": {
+        "path": "main_test.go",
+        "content": "package main\n\nimport (\n\t\"context\"\n\t\"testing\"\n\n\t\"example.com/lib\"\n)\n\nfunc TestGreet(t *testing.T) {\n\tif got := lib.Greet(context.Background(), \"x\"); got == \"\" {\n\t\tt.Fatal(\"empty greeting\")\n\t}\n}\n"
+      },
+      "reason": "The test calls Greet with the old signature; this write must be denied."
+    },
+    {
+      "tool": "run_validation",
+      "reason": "Confirm the test file still fails without the edit."
+    },
+    {
+      "tool": "report_blocked",
+      "args": {
+        "reason": "protected file requires change",
+        "details": "main_test.go calls lib.Greet with the old signature and cannot be edited by this run."
+      }
+    }
+  ]
+}

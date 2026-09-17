@@ -1,6 +1,6 @@
 {
   "name": "breaking-minor",
-  "description": "Scenario S2: depends on example.com/lib v1.2.4; the only newer version, v1.3.0, changes the Greet signature. Baseline mode must report the regression; the agent must repair the call site.",
-  "expected_base_commit": "97a778143483c3d225dfb0928efc61001f63852d",
-  "expected_base_tree": "9bcdc18ac2ba407d8fb53fcdb4c970232a62983b"
+  "description": "Scenario S2: depends on example.com/lib v1.2.4; the only newer version, v1.3.0, changes the Greet signature. Baseline mode reports the regression; the agent repairs the single call site in main.go.",
+  "expected_base_commit": "713c056eaa8c04a1a597474b3644dc361f94ec29",
+  "expected_base_tree": "3e0c5906a8ddc48c15349031bdf10f5815fa9e52"
 }

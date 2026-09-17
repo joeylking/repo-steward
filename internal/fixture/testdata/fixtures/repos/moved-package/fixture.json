@@ -1,0 +1,6 @@
+{
+  "name": "moved-package",
+  "description": "Scenario S3: depends on example.com/toolkit v1.0.0. v1.1.0 relocates package strutil to text/strutil with no API change. The upgrade admits, the build fails on the old import, and a one-line repair fixes it.",
+  "expected_base_commit": "69223bd5ba5c20590d413026fa3cac42d5f0eb5b",
+  "expected_base_tree": "770a2f2482b9ad4ae6cf2225c8f75ca3246244d8"
+}

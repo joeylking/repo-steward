@@ -23,6 +23,8 @@ import (
 	"golang.org/x/mod/module"
 	"golang.org/x/mod/semver"
 
+	agentrt "github.com/joeylking/agent-runtime"
+
 	"github.com/joeylking/repo-steward/internal/deps"
 	"github.com/joeylking/repo-steward/internal/gitx"
 	"github.com/joeylking/repo-steward/internal/lock"
@@ -30,7 +32,9 @@ import (
 	"github.com/joeylking/repo-steward/internal/proposal"
 	"github.com/joeylking/repo-steward/internal/repo"
 	"github.com/joeylking/repo-steward/internal/sandbox"
+	"github.com/joeylking/repo-steward/internal/session"
 	"github.com/joeylking/repo-steward/internal/snapshot"
+	"github.com/joeylking/repo-steward/internal/steward/names"
 	"github.com/joeylking/repo-steward/internal/task"
 	"github.com/joeylking/repo-steward/internal/validate"
 	"github.com/joeylking/repo-steward/internal/workspace"
@@ -48,8 +52,16 @@ type Options struct {
 	Author       gitx.Identity
 	CheckTimeout time.Duration
 	Limits       snapshot.Limits
-	Scope        proposal.ScopeLimits
+	// Scope holds the hard limits readiness enforces in every mode.
+	Scope proposal.ScopeLimits
+	// ScopeConfig, Budgets, RuntimeLimits, and Observer apply to agent modes.
+	ScopeConfig   session.ScopeConfig
+	Budgets       session.Budgets
+	RuntimeLimits agentrt.Limits
+	Observer      agentrt.Observer
 }
+
+func defaultSnapshotLimits() snapshot.Limits { return snapshot.DefaultLimits() }
 
 // Outcomes of a run. Only proposal_prepared is a success; every other
 // outcome is an explained non-result.
@@ -84,6 +96,7 @@ type Result struct {
 	Introduced    []validate.Finding     `json:"introduced,omitempty"`
 	Readiness     *proposal.Readiness    `json:"readiness,omitempty"`
 	Proposal      *proposal.Proposal     `json:"proposal,omitempty"`
+	Run           *RunInfo               `json:"run,omitempty"`
 	Timings       map[string]int64       `json:"timings_ms"`
 }
 
@@ -113,17 +126,23 @@ func summarize(id string, r *validate.Run) *ValidationSummary {
 
 // run holds the state shared by pipeline stages.
 type run struct {
-	opts       Options
-	id         string
-	dataDir    string
-	runDir     string
-	store      *task.Store
-	ws         *workspace.Workspace
-	sb         *sandbox.Docker
-	profile    *repo.Profile
-	configHash string
-	res        *Result
-	start      time.Time
+	opts        Options
+	id          string
+	dataDir     string
+	runDir      string
+	store       *task.Store
+	ws          *workspace.Workspace
+	sb          *sandbox.Docker
+	profile     *repo.Profile
+	configHash  string
+	res         *Result
+	start       time.Time
+	modCacheDir string
+	buildCache  string
+	stagingRoot string
+	baseRun     *validate.Run
+	baseID      string
+	cands       []deps.Candidate
 }
 
 func (r *run) mark(name string, since time.Time) {
@@ -132,26 +151,7 @@ func (r *run) mark(name string, since time.Time) {
 
 // RunBaseline executes the deterministic pipeline.
 func RunBaseline(ctx context.Context, opts Options) (*Result, error) {
-	if opts.Author.Name == "" || opts.Author.Email == "" {
-		return nil, errors.New("steward: proposal author name and email are required")
-	}
-	if opts.CheckTimeout <= 0 {
-		opts.CheckTimeout = 10 * time.Minute
-	}
-	if opts.Limits == (snapshot.Limits{}) {
-		opts.Limits = snapshot.DefaultLimits()
-	}
-	if opts.Scope == (proposal.ScopeLimits{}) {
-		opts.Scope = proposal.DefaultScopeLimits()
-	}
-	if opts.DataDir == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return nil, err
-		}
-		opts.DataDir = filepath.Join(home, ".local", "share", "repo-steward")
-	}
-	if err := lock.CheckLocal(opts.DataDir); err != nil {
+	if err := applyDefaults(&opts); err != nil {
 		return nil, err
 	}
 	exec, err := lock.Acquire(filepath.Join(opts.DataDir, "executor.lock"))
@@ -186,7 +186,11 @@ func RunBaseline(ctx context.Context, opts Options) (*Result, error) {
 	return r.res, nil
 }
 
-func (r *run) pipeline(ctx context.Context) (string, error) {
+// prelude performs everything that precedes selection in every mode:
+// workspace, profile, sandbox, cache population, baseline validation, and
+// candidate discovery. It returns a non-empty outcome when the run cannot
+// proceed to an upgrade.
+func (r *run) prelude(ctx context.Context, mode string) (string, error) {
 	res := r.res
 	t := time.Now()
 	ws, err := workspace.Create(ctx, r.opts.SourcePath, r.runDir)
@@ -195,7 +199,7 @@ func (r *run) pipeline(ctx context.Context) (string, error) {
 	}
 	r.ws = ws
 	res.Workspace = ws
-	if err := r.store.CreateTask(ctx, task.Task{RunID: r.id, Mode: "baseline", SourcePath: ws.SourcePath, BaseCommit: ws.BaseCommit, BaseTree: ws.BaseTree, BaseRef: ws.BaseRef, WorkspaceDir: ws.Dir, NamedDependency: r.opts.Policy.NamedDependency}); err != nil {
+	if err := r.store.CreateTask(ctx, task.Task{RunID: r.id, Mode: mode, SourcePath: ws.SourcePath, BaseCommit: ws.BaseCommit, BaseTree: ws.BaseTree, BaseRef: ws.BaseRef, WorkspaceDir: ws.Dir, NamedDependency: r.opts.Policy.NamedDependency}); err != nil {
 		return "", err
 	}
 	r.mark("workspace", t)
@@ -234,10 +238,11 @@ func (r *run) pipeline(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	r.modCacheDir = filepath.Join(r.dataDir, "cache", "mod", filepath.FromSlash(key))
 	cfg := sandbox.Config{
 		Image:         prof.Toolchain.Ref(),
 		SourceDir:     baseSnap,
-		CacheDir:      filepath.Join(r.dataDir, "cache", "mod", filepath.FromSlash(key)),
+		CacheDir:      r.modCacheDir,
 		BuildCacheDir: filepath.Join(r.runDir, "gocache"),
 	}
 	if r.opts.FixtureProxyDir != "" {
@@ -259,7 +264,7 @@ func (r *run) pipeline(ctx context.Context) (string, error) {
 	if err := sb.Probe(ctx); err != nil {
 		return "", err
 	}
-	defer removeAll(cfg.BuildCacheDir)
+	r.buildCache = cfg.BuildCacheDir
 	r.mark("sandbox", t)
 
 	// Baseline validation and candidate discovery on the base tree.
@@ -271,6 +276,7 @@ func (r *run) pipeline(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	r.baseRun, r.baseID = baseRun, baseID
 	res.Baseline = summarize(baseID, baseRun)
 	r.mark("baseline", t)
 	if !baseRun.Conclusive {
@@ -285,17 +291,29 @@ func (r *run) pipeline(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	r.cands = cands
 	res.Candidates = cands
-	target, ok := Select(cands)
+	r.mark("discover", t)
+	r.stagingRoot = filepath.Join(r.runDir, "staging")
+	return "", nil
+}
+
+func (r *run) pipeline(ctx context.Context) (string, error) {
+	res := r.res
+	if outcome, err := r.prelude(ctx, "baseline"); err != nil || outcome != "" {
+		return outcome, err
+	}
+	defer removeAll(r.buildCache)
+	ws, sb, prof, baseRun, baseID := r.ws, r.sb, r.profile, r.baseRun, r.baseID
+	target, ok := Select(r.cands)
 	if !ok {
 		return OutcomeNoCandidate, nil
 	}
 	res.Selected = &target
-	r.mark("discover", t)
+	stagingRoot := r.stagingRoot
 
 	// Gate A: stage the upgrade against the base snapshot.
-	t = time.Now()
-	stagingRoot := filepath.Join(r.runDir, "staging")
+	t := time.Now()
 	st, err := manifest.Stage(ctx, sb, ws, stagingRoot, manifest.Op{Kind: "upgrade", Target: target})
 	if err != nil {
 		var oe *manifest.OpError
@@ -487,13 +505,7 @@ func Select(cands []deps.Candidate) (manifest.Target, bool) {
 }
 
 // HeadRef names the branch a proposal for target would be pushed to.
-func HeadRef(t manifest.Target) string {
-	last := t.Module
-	if i := strings.LastIndex(last, "/"); i >= 0 {
-		last = last[i+1:]
-	}
-	return "repo-steward/" + last + "-" + t.Version
-}
+func HeadRef(t manifest.Target) string { return names.HeadRef(t) }
 
 func currentVersion(base *manifest.Facts, mod string) (string, bool) {
 	r, ok := base.Require[mod]
