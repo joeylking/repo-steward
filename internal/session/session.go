@@ -21,6 +21,7 @@ import (
 	"github.com/joeylking/repo-steward/internal/deps"
 	"github.com/joeylking/repo-steward/internal/gitx"
 	"github.com/joeylking/repo-steward/internal/manifest"
+	"github.com/joeylking/repo-steward/internal/proposal"
 	"github.com/joeylking/repo-steward/internal/repo"
 	"github.com/joeylking/repo-steward/internal/sandbox"
 	"github.com/joeylking/repo-steward/internal/snapshot"
@@ -81,18 +82,64 @@ type Session struct {
 	CheckTimeout time.Duration
 	BaseRef      string
 
+	// Publish is non-nil when the run may publish; tools consult it.
+	Publish *Publication
+
 	// Outcome is set by terminal tools.
 	Outcome *Outcome
 }
 
-// Phases of a run, derived from the promotion journal.
+// Publication is the publication configuration of a run.
+type Publication struct {
+	Publisher Publisher
+}
+
+// Publisher is what the publish tool needs; the publish package satisfies it.
+type Publisher interface {
+	Publish(ctx context.Context, runID, stepID string, prop *proposal.Proposal) (*PublishResult, error)
+}
+
+// PublishResult mirrors publish.Result without importing it.
+type PublishResult struct {
+	ProposalID string `json:"proposal_id"`
+	Branch     string `json:"branch"`
+	HeadCommit string `json:"head_commit"`
+	PRNumber   int    `json:"pr_number"`
+	PRURL      string `json:"pr_url"`
+	BaseMoved  bool   `json:"base_moved"`
+}
+
+// CurrentProposal returns the run's frozen proposal whose producing step
+// completed, if any. Phase "proposal" exists only when one does.
+func (s *Session) CurrentProposal(ctx context.Context) (*task.ProposalRecord, bool, error) {
+	rows, err := s.Store.ListProposals(ctx, s.RunID)
+	if err != nil {
+		return nil, false, err
+	}
+	for i := len(rows) - 1; i >= 0; i-- {
+		rec := rows[i]
+		if rec.Status == task.ProposalFrozen && (rec.StepID == "" || s.StepDone(ctx, rec.StepID)) {
+			return &rec, true, nil
+		}
+	}
+	return nil, false, nil
+}
+
+// Phases of a run, derived from the promotion journal and proposal rows.
 const (
-	PhaseSelect = "select"
-	PhaseRepair = "repair"
+	PhaseSelect   = "select"
+	PhaseRepair   = "repair"
+	PhaseProposal = "proposal"
 )
 
-// Phase reports whether an upgrade has been admitted.
+// Phase reports where the run is: select until an upgrade is admitted,
+// repair until a frozen proposal exists, then proposal.
 func (s *Session) Phase(ctx context.Context) (string, error) {
+	if _, ok, err := s.CurrentProposal(ctx); err != nil {
+		return "", err
+	} else if ok {
+		return PhaseProposal, nil
+	}
 	proms, err := s.Store.ListPromotions(ctx, s.RunID)
 	if err != nil {
 		return "", err

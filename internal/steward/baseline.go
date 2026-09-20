@@ -31,6 +31,7 @@ import (
 	"github.com/joeylking/repo-steward/internal/lock"
 	"github.com/joeylking/repo-steward/internal/manifest"
 	"github.com/joeylking/repo-steward/internal/proposal"
+	"github.com/joeylking/repo-steward/internal/publish"
 	"github.com/joeylking/repo-steward/internal/repo"
 	"github.com/joeylking/repo-steward/internal/sandbox"
 	"github.com/joeylking/repo-steward/internal/session"
@@ -63,6 +64,13 @@ type Options struct {
 	// Model and Prices apply to model mode.
 	Model  *ModelSpec
 	Prices agentrt.PriceTable
+	// Publish enables the publication path. Destination is captured from
+	// the source's remote unless given, and verified before the run.
+	Publish     bool
+	Destination *publish.Destination
+	// GitHubToken is read from the environment by the command line and
+	// used for API calls and the push. It is never persisted.
+	GitHubToken string
 }
 
 func defaultSnapshotLimits() snapshot.Limits { return snapshot.DefaultLimits() }
@@ -101,6 +109,7 @@ type Result struct {
 	Readiness     *proposal.Readiness    `json:"readiness,omitempty"`
 	Proposal      *proposal.Proposal     `json:"proposal,omitempty"`
 	Run           *RunInfo               `json:"run,omitempty"`
+	Destination   *publish.Destination   `json:"destination,omitempty"`
 	// Accounting and control counters, filled from the runtime run.
 	ModelCalls    int              `json:"model_calls,omitempty"`
 	InputTokens   int              `json:"input_tokens,omitempty"`

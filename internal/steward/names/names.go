@@ -24,6 +24,7 @@ const (
 	Validate     = "run_validation"
 	Prepare      = "prepare_proposal"
 	Blocked      = "report_blocked"
+	Publish      = "publish_proposal"
 )
 
 // ReadOnly lists the tools that never change anything.

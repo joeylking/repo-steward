@@ -15,11 +15,13 @@ import (
 	agentrt "github.com/joeylking/agent-runtime"
 
 	"github.com/joeylking/repo-steward/internal/deps"
+	"github.com/joeylking/repo-steward/internal/github"
 	"github.com/joeylking/repo-steward/internal/gitx"
 	"github.com/joeylking/repo-steward/internal/lock"
 	"github.com/joeylking/repo-steward/internal/manifest"
 	"github.com/joeylking/repo-steward/internal/policy"
 	"github.com/joeylking/repo-steward/internal/proposal"
+	"github.com/joeylking/repo-steward/internal/publish"
 	"github.com/joeylking/repo-steward/internal/repo"
 	"github.com/joeylking/repo-steward/internal/sandbox"
 	"github.com/joeylking/repo-steward/internal/scenario"
@@ -33,6 +35,8 @@ import (
 
 // Agent-mode outcomes in addition to the baseline ones.
 const (
+	OutcomeProposalPublished    = "proposal_published"
+	OutcomePublicationConflict  = "publication_conflict"
 	OutcomeBlocked              = "blocked"
 	OutcomeAwaitingApproval     = "awaiting_approval"
 	OutcomeScopeExceeded        = "scope_exceeded"
@@ -78,10 +82,11 @@ type persistedOptions struct {
 	RuntimeLimits agentrt.Limits       `json:"runtime_limits"`
 	FixtureProxy  bool                 `json:"fixture_proxy"`
 	Model         *ModelSpec           `json:"model,omitempty"`
+	Destination   *publish.Destination `json:"destination,omitempty"`
 }
 
 func persist(o Options) persistedOptions {
-	return persistedOptions{Policy: o.Policy, Author: o.Author, CheckTimeout: o.CheckTimeout, Limits: o.Limits, Scope: o.Scope, ScopeConfig: o.ScopeConfig, Budgets: o.Budgets, RuntimeLimits: o.RuntimeLimits, FixtureProxy: o.FixtureProxyDir != "", Model: o.Model}
+	return persistedOptions{Policy: o.Policy, Author: o.Author, CheckTimeout: o.CheckTimeout, Limits: o.Limits, Scope: o.Scope, ScopeConfig: o.ScopeConfig, Budgets: o.Budgets, RuntimeLimits: o.RuntimeLimits, FixtureProxy: o.FixtureProxyDir != "", Model: o.Model, Destination: o.Destination}
 }
 
 func runAgent(ctx context.Context, opts Options, mode string, agent agentrt.Agent) (*Result, error) {
@@ -97,6 +102,13 @@ func runAgent(ctx context.Context, opts Options, mode string, agent agentrt.Agen
 	r := &run{opts: opts, id: newID(), dataDir: opts.DataDir, start: time.Now()}
 	r.runDir = filepath.Join(opts.DataDir, "runs", r.id)
 	r.res = &Result{RunID: r.id, Mode: mode, Timings: map[string]int64{}}
+	// Publication is verified before anything is created on disk, so a
+	// refused destination leaves no run behind.
+	if opts.Publish {
+		if err := r.captureDestination(ctx, opts.SourcePath); err != nil {
+			return nil, err
+		}
+	}
 	runLock, err := lock.Acquire(filepath.Join(r.runDir, "run.lock"))
 	if err != nil {
 		return nil, err
@@ -154,6 +166,14 @@ func (r *run) driver(rt *agentrt.Store, agent agentrt.Agent) (*session.Session, 
 		ModCacheDir: r.modCacheDir, Limits: opts.Limits, Scope: opts.ScopeConfig, Budgets: opts.Budgets, Author: opts.Author,
 		CheckTimeout: opts.CheckTimeout, BaseRef: r.ws.BaseRef,
 	}
+	var pub *publish.Publisher
+	if r.opts.Publish {
+		if r.opts.Destination == nil {
+			return nil, nil, fmt.Errorf("steward: publication enabled without a destination")
+		}
+		pub = &publish.Publisher{Store: r.store, WS: r.ws, Client: github.New(r.opts.Destination.APIBase, r.opts.GitHubToken), Dest: *r.opts.Destination, Token: r.opts.GitHubToken}
+		sess.Publish = &session.Publication{Publisher: publisherAdapter{pub}}
+	}
 	mc, modelAgent, err := r.modelConfig()
 	if err != nil {
 		return nil, nil, err
@@ -167,12 +187,31 @@ func (r *run) driver(rt *agentrt.Store, agent agentrt.Agent) (*session.Session, 
 	drv, err := agentrt.NewDriver(agentrt.Config{
 		Store: rt, Agent: agent, Policy: policy.New(policy.SessionFacts{S: sess}), Tools: tools.All(sess), Model: mc,
 		Observer: opts.Observer,
-		Reconcile: func(ctx context.Context, _ agentrt.RunView) error {
+		Reconcile: func(ctx context.Context, _ agentrt.RunView) (agentrt.Reconciliation, error) {
 			if _, err := manifest.Recover(ctx, r.store, r.ws, r.id); err != nil {
-				return err
+				return agentrt.Reconciliation{}, err
 			}
-			_, err := proposal.Recover(ctx, r.store, r.ws, r.id)
-			return err
+			if _, err := proposal.Recover(ctx, r.store, r.ws, r.id); err != nil {
+				return agentrt.Reconciliation{}, err
+			}
+			if pub == nil {
+				return agentrt.Reconciliation{Outcome: agentrt.ReconcileContinue}, nil
+			}
+			rec, err := pub.Reconcile(ctx, r.id)
+			if err != nil {
+				return agentrt.Reconciliation{}, err
+			}
+			switch rec.Outcome {
+			case "completed":
+				sess.Outcome = &session.Outcome{Code: OutcomeProposalPublished, Detail: map[string]any{"proposal_id": rec.Result.ProposalID, "pr_number": rec.Result.PRNumber, "pr_url": rec.Result.PRURL, "branch": rec.Result.Branch, "head_commit": rec.Result.HeadCommit, "recovered": true, "actions": rec.Actions}}
+				r.store.SetProposalStatus(ctx, rec.Result.ProposalID, task.ProposalPublished)
+				b, _ := json.Marshal(rec.Result)
+				return agentrt.Reconciliation{Outcome: agentrt.ReconcileCompleted, Result: b, Detail: rec.Detail}, nil
+			case "conflict":
+				sess.Outcome = &session.Outcome{Code: OutcomePublicationConflict, Detail: map[string]any{"detail": rec.Detail, "actions": rec.Actions}}
+				return agentrt.Reconciliation{Outcome: agentrt.ReconcileConflict, Detail: rec.Detail}, nil
+			}
+			return agentrt.Reconciliation{Outcome: agentrt.ReconcileContinue, Detail: rec.Detail}, nil
 		},
 		NewID: func() string { return session.NewID() },
 	})
@@ -180,6 +219,17 @@ func (r *run) driver(rt *agentrt.Store, agent agentrt.Agent) (*session.Session, 
 		return nil, nil, err
 	}
 	return sess, drv, nil
+}
+
+// publisherAdapter satisfies session.Publisher with the publish package.
+type publisherAdapter struct{ p *publish.Publisher }
+
+func (a publisherAdapter) Publish(ctx context.Context, runID, stepID string, prop *proposal.Proposal) (*session.PublishResult, error) {
+	res, err := a.p.Publish(ctx, runID, stepID, prop)
+	if err != nil {
+		return nil, err
+	}
+	return &session.PublishResult{ProposalID: res.ProposalID, Branch: res.Branch, HeadCommit: res.HeadCommit, PRNumber: res.PRNumber, PRURL: res.PRURL, BaseMoved: res.BaseMoved}, nil
 }
 
 // finalize maps the runtime result to a maintenance outcome and records it
@@ -227,6 +277,8 @@ type ResumeOptions struct {
 	AllowPull       bool
 	Observer        agentrt.Observer
 	Prices          agentrt.PriceTable
+	// GitHubToken is supplied again on resume; it is never persisted.
+	GitHubToken string
 }
 
 // Resume continues a run that is waiting for an approved approval or was
@@ -282,7 +334,8 @@ func Resume(ctx context.Context, ro ResumeOptions) (*Result, error) {
 	}
 	opts := Options{SourcePath: tk.SourcePath, DataDir: ro.DataDir, FixtureProxyDir: ro.FixtureProxyDir, AllowPull: ro.AllowPull, Socket: ro.Socket,
 		Policy: po.Policy, Author: po.Author, CheckTimeout: po.CheckTimeout, Limits: po.Limits, Scope: po.Scope, ScopeConfig: po.ScopeConfig,
-		Budgets: po.Budgets, RuntimeLimits: po.RuntimeLimits, Observer: ro.Observer, Model: po.Model, Prices: ro.Prices}
+		Budgets: po.Budgets, RuntimeLimits: po.RuntimeLimits, Observer: ro.Observer, Model: po.Model, Prices: ro.Prices,
+		Publish: po.Destination != nil, Destination: po.Destination, GitHubToken: ro.GitHubToken}
 	if err := applyDefaults(&opts); err != nil {
 		return nil, err
 	}
@@ -456,6 +509,12 @@ func outcomeOf(rr agentrt.Run, s *session.Session) (string, map[string]any) {
 			return OutcomeLimitExhausted, detail
 		case agentrt.ReasonLoopDetected:
 			return OutcomeLoopDetected, detail
+		case agentrt.ReasonReconcileConflict:
+			return OutcomePublicationConflict, detail
+		case agentrt.ReasonToolAbort:
+			if strings.Contains(rr.ReasonDetail, "proposal invalidated") {
+				return "proposal_invalidated", detail
+			}
 		}
 		return OutcomeFailed, detail
 	}
@@ -494,3 +553,44 @@ func applyDefaults(opts *Options) error {
 	}
 	return lock.CheckLocal(opts.DataDir)
 }
+
+// captureDestination records where a proposal would be published and
+// verifies it before any credential is used for anything else: the host
+// is supported, the repository and base branch exist, and the base branch
+// head is exactly the local base commit.
+func (r *run) captureDestination(ctx context.Context, sourcePath string) error {
+	sg := gitx.New(sourcePath)
+	baseCommit, err := sg.RevParse(ctx, "HEAD")
+	if err != nil {
+		return fmt.Errorf("steward: %s has no HEAD commit: %w", sourcePath, err)
+	}
+	baseRef := ""
+	if out, err := sg.Run(ctx, "symbolic-ref", "--short", "-q", "HEAD"); err == nil {
+		baseRef = strings.TrimSpace(string(out))
+	}
+	d := r.opts.Destination
+	if d == nil {
+		out, err := sg.Run(ctx, "remote", "get-url", "origin")
+		if err != nil {
+			return fmt.Errorf("steward: no destination given and the source has no origin remote: %w", err)
+		}
+		parsed, err := publish.ParseRemote(string(out))
+		if err != nil {
+			return err
+		}
+		d = &parsed
+	}
+	client := github.New(d.APIBase, r.opts.GitHubToken)
+	if err := publish.Verify(ctx, client, d, baseRef, baseCommit); err != nil {
+		return err
+	}
+	if r.opts.GitHubToken == "" && !strings.HasPrefix(d.PushURL, "file://") {
+		return fmt.Errorf("steward: publication to %s needs a token in GITHUB_TOKEN", d.PushURL)
+	}
+	r.opts.Destination = d
+	r.res.Destination = d
+	return nil
+}
+
+// Publication in baseline mode is not offered: the baseline pipeline ends
+// at a frozen proposal by design.

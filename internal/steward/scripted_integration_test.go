@@ -208,7 +208,7 @@ func TestScenarios_ReferToRealFixtures(t *testing.T) {
 		if _, err := fixture.Load(sc.Fixture); err != nil {
 			t.Errorf("%s: %v", n, err)
 		}
-		if sc.Expected != steward.OutcomeProposalPrepared && sc.Expected != steward.OutcomeBlocked {
+		if sc.Expected != steward.OutcomeProposalPrepared && sc.Expected != steward.OutcomeBlocked && sc.Expected != steward.OutcomeProposalPublished {
 			t.Errorf("%s: unexpected expected outcome %q", n, sc.Expected)
 		}
 	}

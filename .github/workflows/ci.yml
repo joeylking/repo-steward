@@ -72,6 +72,8 @@ jobs:
         run: |
           OLLAMA_HOST=127.0.0.1:1 "$RUNNER_TEMP/repo-steward" maintain "$RUNNER_TEMP/breaking-minor" -mode model -model ollama:qwen3:30b-a3b -author "CI <ci@example.invalid>" -data-dir "$RUNNER_TEMP/data-replay" -fixture-proxy "$RUNNER_TEMP/proxy" -replay internal/steward/testdata/recordings/qwen3-30b-a3b/breaking-minor | tee "$RUNNER_TEMP/replay.json"
           grep -q '"outcome": "proposal_prepared"' "$RUNNER_TEMP/replay.json"
+      - name: publication tests (fake API, bare repository, fault-injected binary)
+        run: go test -tags integration -count=1 -p 1 -run 'TestCLI_Publication|TestPublish|TestReconcile' ./internal/steward/ ./internal/publish/
       - name: approval across processes
         run: |
           set +e

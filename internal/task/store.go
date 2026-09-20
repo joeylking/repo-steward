@@ -120,6 +120,26 @@ CREATE INDEX proposals_run ON proposals(run_id, created_at);
 `, `
 ALTER TABLE tasks ADD COLUMN options_json TEXT NOT NULL DEFAULT '{}';
 ALTER TABLE tasks ADD COLUMN candidates_json TEXT NOT NULL DEFAULT '[]';
+`, `
+CREATE TABLE publication_ops (
+	id TEXT PRIMARY KEY,
+	run_id TEXT NOT NULL REFERENCES tasks(run_id),
+	proposal_id TEXT NOT NULL,
+	step_id TEXT NOT NULL DEFAULT '',
+	kind TEXT NOT NULL,
+	status TEXT NOT NULL,
+	marker TEXT NOT NULL,
+	remote_ref TEXT NOT NULL DEFAULT '',
+	pr_number INTEGER NOT NULL DEFAULT 0,
+	pr_url TEXT NOT NULL DEFAULT '',
+	base_head_at_publish TEXT NOT NULL DEFAULT '',
+	detail TEXT NOT NULL DEFAULT '',
+	dispatched_at TEXT NOT NULL DEFAULT '',
+	completed_at TEXT NOT NULL DEFAULT '',
+	created_at TEXT NOT NULL,
+	updated_at TEXT NOT NULL
+);
+CREATE INDEX publication_ops_run ON publication_ops(run_id, created_at);
 `}
 
 func (s *Store) migrate(ctx context.Context) error {
@@ -465,6 +485,79 @@ func (s *Store) ListProposals(ctx context.Context, runID string) ([]ProposalReco
 	}
 	return out, rows.Err()
 }
+
+// OpStatus is the journal state of a publication operation.
+type OpStatus string
+
+const (
+	OpPending    OpStatus = "pending"
+	OpDispatched OpStatus = "dispatched"
+	OpDone       OpStatus = "done"
+	OpFailed     OpStatus = "failed"
+	OpConflict   OpStatus = "conflict"
+)
+
+// PublicationOp is one externally observable publication step.
+type PublicationOp struct {
+	ID                string   `json:"id"`
+	RunID             string   `json:"run_id"`
+	ProposalID        string   `json:"proposal_id"`
+	StepID            string   `json:"step_id,omitempty"`
+	Kind              string   `json:"kind"` // push create_pr
+	Status            OpStatus `json:"status"`
+	Marker            string   `json:"marker"`
+	RemoteRef         string   `json:"remote_ref,omitempty"`
+	PRNumber          int      `json:"pr_number,omitempty"`
+	PRURL             string   `json:"pr_url,omitempty"`
+	BaseHeadAtPublish string   `json:"base_head_at_publish,omitempty"`
+	Detail            string   `json:"detail,omitempty"`
+	DispatchedAt      string   `json:"dispatched_at,omitempty"`
+	CompletedAt       string   `json:"completed_at,omitempty"`
+	CreatedAt         string   `json:"created_at"`
+	UpdatedAt         string   `json:"updated_at"`
+}
+
+// InsertPublicationOp journals an operation before it is dispatched.
+func (s *Store) InsertPublicationOp(ctx context.Context, op PublicationOp) error {
+	ts := now()
+	_, err := s.db.ExecContext(ctx, `INSERT INTO publication_ops (id, run_id, proposal_id, step_id, kind, status, marker, remote_ref, pr_number, pr_url, base_head_at_publish, detail, dispatched_at, completed_at, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		op.ID, op.RunID, op.ProposalID, op.StepID, op.Kind, op.Status, op.Marker, op.RemoteRef, op.PRNumber, op.PRURL, op.BaseHeadAtPublish, op.Detail, op.DispatchedAt, op.CompletedAt, ts, ts)
+	return err
+}
+
+// UpdatePublicationOp records progress.
+func (s *Store) UpdatePublicationOp(ctx context.Context, op PublicationOp) error {
+	res, err := s.db.ExecContext(ctx, `UPDATE publication_ops SET status=?, remote_ref=?, pr_number=?, pr_url=?, base_head_at_publish=?, detail=?, dispatched_at=?, completed_at=?, updated_at=? WHERE id=?`,
+		op.Status, op.RemoteRef, op.PRNumber, op.PRURL, op.BaseHeadAtPublish, op.Detail, op.DispatchedAt, op.CompletedAt, now(), op.ID)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n != 1 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// ListPublicationOps returns a run's operations in creation order.
+func (s *Store) ListPublicationOps(ctx context.Context, runID string) ([]PublicationOp, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT id, run_id, proposal_id, step_id, kind, status, marker, remote_ref, pr_number, pr_url, base_head_at_publish, detail, dispatched_at, completed_at, created_at, updated_at FROM publication_ops WHERE run_id=? ORDER BY created_at, id`, runID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []PublicationOp
+	for rows.Next() {
+		var op PublicationOp
+		if err := rows.Scan(&op.ID, &op.RunID, &op.ProposalID, &op.StepID, &op.Kind, &op.Status, &op.Marker, &op.RemoteRef, &op.PRNumber, &op.PRURL, &op.BaseHeadAtPublish, &op.Detail, &op.DispatchedAt, &op.CompletedAt, &op.CreatedAt, &op.UpdatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, op)
+	}
+	return out, rows.Err()
+}
+
+// Now exposes the store's timestamp format for journal fields.
+func Now() string { return now() }
 
 func rawOr(r json.RawMessage) string {
 	if len(r) == 0 {

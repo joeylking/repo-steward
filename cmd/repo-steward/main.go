@@ -23,6 +23,7 @@ import (
 	"github.com/joeylking/repo-steward/internal/inspect"
 	"github.com/joeylking/repo-steward/internal/modproxy"
 	"github.com/joeylking/repo-steward/internal/proposal"
+	"github.com/joeylking/repo-steward/internal/publish"
 	"github.com/joeylking/repo-steward/internal/session"
 	"github.com/joeylking/repo-steward/internal/snapshot"
 	"github.com/joeylking/repo-steward/internal/steward"
@@ -37,7 +38,7 @@ func main() {
 }
 
 const usage = `usage:
-  repo-steward maintain <repo-path> -mode baseline|scripted|model [-scenario NAME] [-model provider:name] [-record DIR] [-replay DIR] [-max-model-calls N] [-author "Name <email>"] [-data-dir DIR] [-fixture-proxy DIR] [-pull] [-allow-major] [-dependency MODULE] [-check-timeout DURATION] [-scope-files-soft N] [-scope-files-hard N] [-scope-lines-soft N] [-scope-lines-hard N] [-trace]
+  repo-steward maintain <repo-path> -mode baseline|scripted|model [-scenario NAME] [-model provider:name] [-record DIR] [-replay DIR] [-max-model-calls N] [-publish [-destination owner/repo] [-github-api URL] [-push-url URL]] [-author "Name <email>"] [-data-dir DIR] [-fixture-proxy DIR] [-pull] [-allow-major] [-dependency MODULE] [-check-timeout DURATION] [-scope-files-soft N] [-scope-files-hard N] [-scope-lines-soft N] [-scope-lines-hard N] [-trace]
   repo-steward resume <run-id> [-data-dir DIR] [-fixture-proxy DIR] [-trace]
   repo-steward approve <run-id> [-approval ID] [-note TEXT] [-data-dir DIR]
   repo-steward reject <run-id> [-approval ID] [-note TEXT] [-data-dir DIR]
@@ -244,6 +245,10 @@ func runMaintain(ctx context.Context, args []string) error {
 	recordDir := fs.String("record", "", "record every model response into this directory")
 	replayDir := fs.String("replay", "", "serve model responses from this directory and never call the provider")
 	maxModelCalls := fs.Int("max-model-calls", 0, "cap on model calls for -mode model (default 80)")
+	publishFlag := fs.Bool("publish", false, "enable publication: verify the destination now, and let the run push and open a pull request after approval (token from GITHUB_TOKEN)")
+	destination := fs.String("destination", "", "owner/repo on github.com (default: parsed from the source's origin remote)")
+	githubAPI := fs.String("github-api", "", "API base URL override (tests)")
+	pushURL := fs.String("push-url", "", "push URL override (tests)")
 	trace := fs.Bool("trace", false, "print runtime events to stderr as they happen")
 	author := fs.String("author", "", `proposal commit author as "Name <email>" (default: the source repository's git user)`)
 	dataDir := fs.String("data-dir", "", "data directory (default: ~/.local/share/repo-steward)")
@@ -290,6 +295,32 @@ func runMaintain(ctx context.Context, args []string) error {
 	if *trace {
 		opts.Observer = traceObserver()
 	}
+	if *publishFlag {
+		opts.Publish = true
+		opts.GitHubToken = os.Getenv("GITHUB_TOKEN")
+		if *destination != "" {
+			parts := strings.SplitN(*destination, "/", 2)
+			if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+				return fmt.Errorf("maintain: -destination must be owner/repo")
+			}
+			d, err := publish.ParseRemote("https://github.com/" + *destination)
+			if err != nil {
+				return err
+			}
+			opts.Destination = &d
+		}
+		if *githubAPI != "" || *pushURL != "" {
+			if opts.Destination == nil {
+				return fmt.Errorf("maintain: -github-api and -push-url need -destination")
+			}
+			if *githubAPI != "" {
+				opts.Destination.APIBase = *githubAPI
+			}
+			if *pushURL != "" {
+				opts.Destination.PushURL = *pushURL
+			}
+		}
+	}
 	var res *steward.Result
 	switch *mode {
 	case "baseline":
@@ -327,7 +358,7 @@ func report(res *steward.Result, err error) error {
 		return err
 	}
 	switch res.Outcome {
-	case steward.OutcomeProposalPrepared:
+	case steward.OutcomeProposalPrepared, steward.OutcomeProposalPublished:
 	case steward.OutcomeUnsupported:
 		os.Exit(2)
 	case steward.OutcomeBaselineFailing, steward.OutcomeBaselineInconclusive:
@@ -359,7 +390,7 @@ func runResume(ctx context.Context, args []string) error {
 	if err := fs.Parse(rest); err != nil {
 		return err
 	}
-	ro := steward.ResumeOptions{RunID: runID, DataDir: *dataDir, FixtureProxyDir: *proxyDir, AllowPull: *pull}
+	ro := steward.ResumeOptions{RunID: runID, DataDir: *dataDir, FixtureProxyDir: *proxyDir, AllowPull: *pull, GitHubToken: os.Getenv("GITHUB_TOKEN")}
 	if *trace {
 		ro.Observer = traceObserver()
 	}

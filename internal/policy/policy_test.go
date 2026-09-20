@@ -24,6 +24,7 @@ type fakeFacts struct {
 	scopeOf   func(path string, content []byte) (int, int)
 	scope     session.ScopeConfig
 	budgets   session.Budgets
+	proposal  *policy.ProposalFacts
 }
 
 func (f *fakeFacts) Phase(context.Context) (string, error) { return f.phase, nil }
@@ -48,6 +49,12 @@ func (f *fakeFacts) CheckWritable(_ context.Context, p string, _ []byte) error {
 }
 func (f *fakeFacts) Scope() session.ScopeConfig { return f.scope }
 func (f *fakeFacts) Budgets() session.Budgets   { return f.budgets }
+func (f *fakeFacts) CurrentProposal(context.Context) (*policy.ProposalFacts, bool, error) {
+	if f.proposal == nil {
+		return nil, false, nil
+	}
+	return f.proposal, true, nil
+}
 
 func facts() *fakeFacts {
 	return &fakeFacts{phase: session.PhaseSelect, eligible: map[string]bool{"example.com/lib@v1.2.4": true}, protected: map[string]bool{"main_test.go": true, "go.mod": true},
@@ -196,5 +203,27 @@ func TestValidate_Budgets(t *testing.T) {
 	view = agentrt.RunView{Steps: []agentrt.Step{validateStep(agentrt.StepDone, nil), validateStep(agentrt.StepDone, nil)}}
 	if d := eval(t, f, v, view); d.Outcome != agentrt.Allow {
 		t.Fatalf("clean twice = %+v", d)
+	}
+}
+
+func TestPublish_RequiresProposalBoundApproval(t *testing.T) {
+	f := facts()
+	f.phase = session.PhaseProposal
+	if d := eval(t, f, req(names.Publish, `{}`), agentrt.RunView{}); d.Outcome != agentrt.Deny {
+		t.Fatalf("publish without proposal = %+v", d)
+	}
+	f.proposal = &policy.ProposalFacts{ID: "p1", Hash: "h1", HeadRef: "repo-steward/lib-v1.2.4", BaseRef: "main", Files: []string{"go.mod"}}
+	d := eval(t, f, req(names.Publish, `{}`), agentrt.RunView{})
+	if d.Outcome != agentrt.RequireApproval || d.Kind != policy.KindPublication || !strings.Contains(string(d.Capability), `"proposal_hash":"h1"`) || !strings.Contains(string(d.Presentation), "repo-steward/lib-v1.2.4") {
+		t.Fatalf("publish = %+v", d)
+	}
+	// In the proposal phase, edits are over.
+	if d := eval(t, f, req(names.WriteFile, `{"path":"a.go","content":"x"}`), agentrt.RunView{}); d.Outcome != agentrt.Deny {
+		t.Fatalf("write in proposal phase = %+v", d)
+	}
+	// Publication is not available before a proposal exists, whatever the phase.
+	f.phase = session.PhaseRepair
+	if d := eval(t, f, req(names.Publish, `{}`), agentrt.RunView{}); d.Outcome != agentrt.Deny {
+		t.Fatalf("publish in repair = %+v", d)
 	}
 }

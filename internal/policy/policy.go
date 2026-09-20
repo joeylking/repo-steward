@@ -19,6 +19,10 @@ import (
 // KindScopeExpansion is the approval kind for raising soft scope limits.
 const KindScopeExpansion = "scope_expansion"
 
+// KindPublication is the approval kind for pushing and opening a pull
+// request. It grants exactly one publish of one frozen proposal.
+const KindPublication = "publication"
+
 // Facts is what the policy needs from the session. It is an interface so
 // the policy can be tested without a workspace or engine.
 type Facts interface {
@@ -28,6 +32,20 @@ type Facts interface {
 	CheckWritable(ctx context.Context, path string, content []byte) error
 	Scope() session.ScopeConfig
 	Budgets() session.Budgets
+	// CurrentProposal describes the frozen proposal, if one exists.
+	CurrentProposal(ctx context.Context) (*ProposalFacts, bool, error)
+}
+
+// ProposalFacts is what the publication approval presents and binds.
+type ProposalFacts struct {
+	ID         string   `json:"id"`
+	Hash       string   `json:"hash"`
+	Title      string   `json:"title"`
+	HeadRef    string   `json:"head_ref"`
+	HeadCommit string   `json:"head_commit"`
+	BaseRef    string   `json:"base_ref"`
+	Files      []string `json:"files"`
+	Target     string   `json:"target"`
 }
 
 // Steward is the policy.
@@ -42,8 +60,9 @@ func New(f Facts) *Steward {
 }
 
 var phaseTools = map[string]map[string]bool{
-	session.PhaseSelect: set(names.ReadOnly, names.ApplyUpgrade, names.Blocked),
-	session.PhaseRepair: set(names.ReadOnly, names.WriteFile, names.Normalize, names.Validate, names.Prepare, names.Blocked),
+	session.PhaseSelect:   set(names.ReadOnly, names.ApplyUpgrade, names.Blocked),
+	session.PhaseRepair:   set(names.ReadOnly, names.WriteFile, names.Normalize, names.Validate, names.Prepare, names.Blocked),
+	session.PhaseProposal: set(names.ReadOnly, names.Publish, names.Blocked),
 }
 
 func set(base []string, more ...string) map[string]bool {
@@ -88,8 +107,28 @@ func (p *Steward) Evaluate(ctx context.Context, req agentrt.ToolRequest, view ag
 		return p.evaluateWrite(ctx, req, view)
 	case names.Validate:
 		return p.evaluateValidate(view)
+	case names.Publish:
+		return p.evaluatePublish(ctx)
 	}
 	return p.base.Evaluate(ctx, req, view)
+}
+
+// evaluatePublish always requires a publication approval whose capability
+// and presentation name the frozen proposal and its hash. A different
+// proposal, or a changed one, produces a different approval hash, so an
+// old approval can never authorize it.
+func (p *Steward) evaluatePublish(ctx context.Context) (agentrt.PolicyDecision, error) {
+	facts, ok, err := p.Facts.CurrentProposal(ctx)
+	if err != nil {
+		return agentrt.PolicyDecision{}, err
+	}
+	if !ok {
+		return deny("no frozen proposal to publish"), nil
+	}
+	cap := map[string]any{"tool": names.Publish, "proposal_id": facts.ID, "proposal_hash": facts.Hash}
+	return agentrt.PolicyDecision{Outcome: agentrt.RequireApproval, Kind: KindPublication,
+		Reason:     fmt.Sprintf("publishing proposal %s pushes %s and opens a pull request against %s", facts.ID, facts.HeadRef, facts.BaseRef),
+		Capability: mustJSON(cap), Presentation: mustJSON(facts)}, nil
 }
 
 func (p *Steward) evaluateWrite(ctx context.Context, req agentrt.ToolRequest, view agentrt.RunView) (agentrt.PolicyDecision, error) {
@@ -201,3 +240,25 @@ func (f SessionFacts) CheckWritable(ctx context.Context, p string, c []byte) err
 }
 func (f SessionFacts) Scope() session.ScopeConfig { return f.S.Scope }
 func (f SessionFacts) Budgets() session.Budgets   { return f.S.Budgets }
+func (f SessionFacts) CurrentProposal(ctx context.Context) (*ProposalFacts, bool, error) {
+	rec, ok, err := f.S.CurrentProposal(ctx)
+	if err != nil || !ok {
+		return nil, ok, err
+	}
+	var p struct {
+		Title      string `json:"title"`
+		HeadRef    string `json:"head_ref"`
+		HeadCommit string `json:"head_commit"`
+		BaseRef    string `json:"base_ref"`
+		Target     struct{ Module, Version string }
+		Files      []struct{ Path string }
+	}
+	if err := json.Unmarshal(rec.Proposal, &p); err != nil {
+		return nil, false, err
+	}
+	pf := &ProposalFacts{ID: rec.ID, Hash: rec.Hash, Title: p.Title, HeadRef: p.HeadRef, HeadCommit: p.HeadCommit, BaseRef: p.BaseRef, Target: p.Target.Module + "@" + p.Target.Version}
+	for _, f := range p.Files {
+		pf.Files = append(pf.Files, f.Path)
+	}
+	return pf, true, nil
+}

@@ -123,9 +123,25 @@ Recordings are keyed by the exact request. Changing the system prompt, a
 tool description or schema, or the shape of a tool result invalidates them;
 re-record with `maintain -mode model -record` and commit the new files.
 
-Required for Milestone 3: destination verification, `publish_proposal`,
-publication operations with markers, push through a credential helper, PR
-creation and reconciliation, and the fake GitHub server for tests.
+## Milestone 3
+
+| Control or capability | Status | Reference |
+|---|---|---|
+| Minimal GitHub client: repository, branch head, ref head, commit existence, pull request create and list; token as a bearer header | Verified | `internal/github`, `TestClient_TokenSentAsBearer` |
+| Fake GitHub server for every test, with failure injection and refs read from a bare repository | Implemented | `internal/github/fake` |
+| Destination parsed from the remote, verified before any credential use and before the run directory exists: supported host, repository and base branch exist, base head equals the local base commit; detached HEAD refused | Verified | `publish.Verify`, `TestVerify`, `TestCLI_PublicationRefusedWhenBaseMismatch` (integration) |
+| Push token only in a process-scoped environment variable read by a credential helper; never in arguments, files, or the store | Verified | `publish.PushCommand`, `TestPushCommand_TokenOnlyInEnvironment` |
+| Publication approval bound to the frozen proposal's id and hash; a different or changed proposal cannot reuse it | Verified | `policy.evaluatePublish`, `TestPublish_RequiresProposalBoundApproval`, `TestCLI_PublicationAcrossProcesses` (integration) |
+| Nothing reaches the destination before approval; rejection leaves the remote untouched | Verified (integration) | `TestCLI_PublicationAcrossProcesses`, `TestCLI_PublicationRejected` |
+| On resume, the proposal is verified against the repository and the working tree must still be the proposal tree, else the run ends `proposal_invalidated` | Implemented | `tools.publishTool.Call` |
+| Push and pull request as two journaled operations with markers, recorded before dispatch; base movement recorded and stated in the pull request body, never rebased | Verified | `publish.Publish`, `TestPublish_HappyPath`, `TestPublish_BaseMovedProceedsUnchanged` |
+| Reconciliation from remote state: absent ref pushed again, ref at the commit accepted, different commit is a conflict; pull request found by marker across open, closed, and merged states and never recreated; foreign pull request is a conflict | Verified | `TestReconcile_*` |
+| Interrupted publication resumed by reconciliation: after the pull request was created but unrecorded, and after the push but before the pull request; the run completes without another agent decision | Verified (integration, fault-injected binary) | `TestCLI_PublicationInterruptedIsReconciled`, `TestCLI_PublicationInterruptedBeforePRIsFinished` |
+| Runtime reconciliation outcomes: continue, completed, waiting, conflict | Verified | agent-runtime `TestResume_ReconcileOutcomes` |
+
+Not yet done: a run against github.com itself. Every publication test uses
+the fake API and a local bare repository. Approval expiry and time limits
+remain Required.
 
 ## Not claimed
 

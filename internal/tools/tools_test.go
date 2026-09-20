@@ -77,18 +77,20 @@ func writeArgs(path, content string) string {
 func TestSpecs_AreCompleteAndTerminalToolsMarked(t *testing.T) {
 	_, byName := newSession(t, "patch-safe")
 	if len(byName) != 13 {
-		t.Fatalf("%d tools", len(byName))
+		t.Fatalf("%d tools without publication", len(byName))
 	}
 	for name, tl := range byName {
 		sp := tl.Spec()
 		if len(sp.InputSchema) == 0 || sp.Timeout <= 0 || sp.Description == "" {
 			t.Errorf("%s: incomplete spec %+v", name, sp)
 		}
-		if (name == names.Prepare || name == names.Blocked) != sp.Terminal {
+		// Without publication, prepare_proposal ends the run; publish_proposal
+		// is the only remote tool and is terminal.
+		if (name == names.Prepare || name == names.Blocked || name == names.Publish) != sp.Terminal {
 			t.Errorf("%s: terminal = %v", name, sp.Terminal)
 		}
-		if sp.SideEffect == agentrt.RemoteMutation || sp.SideEffect == agentrt.Destructive {
-			t.Errorf("%s: no tool in this milestone may be %s", name, sp.SideEffect)
+		if (name == names.Publish) != (sp.SideEffect == agentrt.RemoteMutation) || sp.SideEffect == agentrt.Destructive {
+			t.Errorf("%s: side effect %s", name, sp.SideEffect)
 		}
 	}
 }
@@ -207,5 +209,30 @@ func TestPhaseAndTarget_FromJournal(t *testing.T) {
 	}
 	if tg, ok, _ := s.Target(ctx); !ok || tg.Version != "v1.2.4" {
 		t.Fatalf("target = %+v %v", tg, ok)
+	}
+}
+
+func TestSpecs_PublicationChangesToolSet(t *testing.T) {
+	s, _ := newSession(t, "patch-safe")
+	s.Publish = &session.Publication{}
+	all := tools.All(s)
+	if len(all) != 14 {
+		t.Fatalf("%d tools with publication", len(all))
+	}
+	seen := false
+	for _, tl := range all {
+		sp := tl.Spec()
+		if sp.Name == names.Prepare && sp.Terminal {
+			t.Fatal("prepare_proposal must not be terminal when publication is enabled")
+		}
+		if sp.Name == names.Publish {
+			seen = true
+			if !sp.Terminal || sp.SideEffect != agentrt.RemoteMutation {
+				t.Fatalf("publish spec = %+v", sp)
+			}
+		}
+	}
+	if !seen {
+		t.Fatal("publish tool missing with publication enabled")
 	}
 }

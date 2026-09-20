@@ -8,15 +8,19 @@ anything leaves the machine.
 
 ## Status
 
-Milestones 0 and 1 and the first batch of Milestone 2: fixtures, exact
-snapshots, container sandbox, fail-closed validation, candidate discovery,
-the no-model `inspect` command, the deterministic `maintain -mode baseline`
-pipeline, the agent path on
-[agent-runtime](https://github.com/joeylking/agent-runtime) with scoped
-tools, policy, approvals, and resume, a scripted agent for deterministic
-tests, and a model-driven agent that runs against a local Ollama model. No
-paid model calls anywhere; no GitHub yet. See [docs/status.md](docs/status.md)
-for what is implemented and which test verifies it.
+Milestones 0 through 3: fixtures, exact snapshots, container sandbox,
+fail-closed validation, candidate discovery, the no-model `inspect`
+command, the deterministic `maintain -mode baseline` pipeline, the agent
+path on [agent-runtime](https://github.com/joeylking/agent-runtime) with
+scoped tools, policy, approvals, and resume, a scripted agent for
+deterministic tests, a model-driven agent against a local Ollama model,
+committed benchmarks, and publication: after a separate approval, the
+frozen proposal is pushed and a pull request opened, with journaled
+operations that reconcile against the remote after any interruption. No
+paid model calls anywhere. Publication has run against a fake GitHub server
+and a local bare repository in tests; it has not yet been run against
+github.com. See [docs/status.md](docs/status.md) for what is implemented and
+which test verifies it.
 
 ## Data directory layout
 
@@ -106,6 +110,20 @@ go run ./cmd/repo-steward maintain ~/tmp/breaking-minor -mode model \
   -fixture-proxy ~/tmp/proxy -record ~/tmp/recordings -trace
 ```
 
+```sh
+# Publication. The destination is parsed from the source's origin remote
+# (or given with -destination owner/repo) and verified before the run
+# starts: the base branch on github.com must be exactly at the local HEAD.
+# The run pauses on a publication approval bound to the frozen proposal;
+# approve and resume push the commit and open the pull request. The token
+# is read from GITHUB_TOKEN, used for the API and for the push through a
+# credential helper, and never written anywhere.
+export GITHUB_TOKEN=...   # fine-grained, contents and pull requests on the repo
+go run ./cmd/repo-steward maintain ~/src/myrepo -mode model -publish
+go run ./cmd/repo-steward approve <run-id> -note "reviewed the diff"
+go run ./cmd/repo-steward resume <run-id>
+```
+
 Scope limits are flags on `maintain`: `-scope-files-soft`, `-scope-files-hard`,
 `-scope-lines-soft`, `-scope-lines-hard`. Crossing a soft limit pauses the
 run for one expansion approval, which raises the soft limits to the hard
@@ -173,7 +191,8 @@ file:
 | `write_file` | local | Regular source files only; tests, CI, security, and manifest paths denied; ignored paths refused; scope checked on the projected diff before the write. |
 | `normalize_manifests` | local | `go mod tidy` through staging and Gate B. |
 | `run_validation` | read | Build, vet, test on the exact candidate tree; introduced findings relative to the baseline. |
-| `prepare_proposal` | local, terminal | Readiness, then a frozen proposal commit. |
+| `prepare_proposal` | local | Readiness, then a frozen proposal commit. Terminal unless publication is enabled. |
+| `publish_proposal` | remote, terminal | Only with `-publish`. Always requires a publication approval bound to the proposal's hash; verifies the proposal and the working tree again on resume; pushes the commit and opens the pull request as two journaled operations. |
 | `report_blocked` | terminal | Ends the run with an explained non-result. |
 
 The policy denies tools outside the current phase, checks eligibility on
