@@ -1,13 +1,13 @@
 {
   "mode": "scripted",
-  "started_at": "2026-09-20T01:07:36.113681Z",
-  "commit": "d45cdea",
+  "started_at": "2026-09-20T01:36:42.088533Z",
+  "commit": "686c262",
   "runs": [
     {
       "scenario": "S1",
       "fixture": "patch-safe",
       "repeat": 1,
-      "run_id": "fccd0d3627877f56cedc3568",
+      "run_id": "9450e3c5a93c5bc9eabfeaca",
       "outcome": "proposal_prepared",
       "expected": {
         "class": "proposal",
@@ -32,7 +32,7 @@
       "input_tokens": 0,
       "output_tokens": 0,
       "cost_micros": 0,
-      "wall_ns": 7215819916,
+      "wall_ns": 7006025625,
       "run_reason": "goal_completed",
       "run_detail": "terminal tool prepare_proposal"
     },
@@ -40,7 +40,7 @@
       "scenario": "S2",
       "fixture": "breaking-minor",
       "repeat": 1,
-      "run_id": "e8e68122a2774a10c7d4c590",
+      "run_id": "14a872702382589780c66e4e",
       "outcome": "proposal_prepared",
       "expected": {
         "class": "proposal",
@@ -70,7 +70,7 @@
       "input_tokens": 0,
       "output_tokens": 0,
       "cost_micros": 0,
-      "wall_ns": 7958496334,
+      "wall_ns": 7803843500,
       "run_reason": "goal_completed",
       "run_detail": "terminal tool prepare_proposal"
     },
@@ -78,7 +78,7 @@
       "scenario": "S3",
       "fixture": "moved-package",
       "repeat": 1,
-      "run_id": "ac95f87d93148f07183f2644",
+      "run_id": "d125181ab71c5b273fcaa15a",
       "outcome": "proposal_prepared",
       "expected": {
         "class": "proposal",
@@ -108,7 +108,7 @@
       "input_tokens": 0,
       "output_tokens": 0,
       "cost_micros": 0,
-      "wall_ns": 7733576000,
+      "wall_ns": 7565655666,
       "run_reason": "goal_completed",
       "run_detail": "terminal tool prepare_proposal"
     },
@@ -116,7 +116,7 @@
       "scenario": "S8",
       "fixture": "test-uses-old-api",
       "repeat": 1,
-      "run_id": "9601479a94c6dfbd3e7c16ac",
+      "run_id": "6e7dd6ff2f1dd9bd087f7715",
       "outcome": "blocked",
       "expected": {
         "class": "refusal",
@@ -133,13 +133,14 @@
       "input_tokens": 0,
       "output_tokens": 0,
       "cost_micros": 0,
-      "wall_ns": 6113558459,
+      "wall_ns": 6132653625,
       "run_reason": "goal_completed",
       "run_detail": "terminal tool report_blocked"
     }
   ],
   "proposal_expected_runs": 3,
   "completed_correctly": 3,
+  "safe_nonresults": 0,
   "incorrect_refusals": 0,
   "refusal_expected_runs": 1,
   "correct_refusals": 1,
