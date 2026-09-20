@@ -1,5 +1,7 @@
 # repo-steward
 
+[![ci](https://github.com/joeylking/repo-steward/actions/workflows/ci.yml/badge.svg)](https://github.com/joeylking/repo-steward/actions/workflows/ci.yml)
+
 An agentic repository maintenance tool built on
 [agent-runtime](https://github.com/joeylking/agent-runtime). It performs one bounded dependency upgrade
 on a local Go checkout, validates it in a sandbox, repairs breakage within
@@ -8,19 +10,22 @@ anything leaves the machine.
 
 ## Status
 
-Milestones 0 through 3: fixtures, exact snapshots, container sandbox,
-fail-closed validation, candidate discovery, the no-model `inspect`
-command, the deterministic `maintain -mode baseline` pipeline, the agent
-path on [agent-runtime](https://github.com/joeylking/agent-runtime) with
-scoped tools, policy, approvals, and resume, a scripted agent for
-deterministic tests, a model-driven agent against a local Ollama model,
-committed benchmarks, and publication: after a separate approval, the
-frozen proposal is pushed and a pull request opened, with journaled
-operations that reconcile against the remote after any interruption. No
-paid model calls anywhere. Publication has run against a fake GitHub server
-and a local bare repository in tests; it has not yet been run against
-github.com. See [docs/status.md](docs/status.md) for what is implemented and
-which test verifies it.
+v0.1. The whole path exists: exact snapshots, a container sandbox,
+fail-closed validation, candidate discovery, a deterministic baseline
+pipeline, the agent path on
+[agent-runtime](https://github.com/joeylking/agent-runtime) with scoped
+tools, policy, approvals, and resume, a scripted agent for deterministic
+tests, a model-driven agent against local Ollama models, committed
+benchmarks over eleven scenarios, and publication under a hash-bound
+approval with journaled, reconcilable operations. No paid model call is
+made anywhere. Publication has run against a fake GitHub server and a
+local bare repository in tests, not yet against github.com.
+
+- [docs/architecture.md](docs/architecture.md): stages, evidence, sandbox profiles, runs and recovery.
+- [docs/security.md](docs/security.md): assets, boundaries, every control with its status and test, accepted risks.
+- [docs/status.md](docs/status.md): the milestone-by-milestone control table.
+- [docs/decisions](docs/decisions): why it is built this way.
+- [benchmarks/README.md](benchmarks/README.md): scoring and committed results.
 
 ## Data directory layout
 

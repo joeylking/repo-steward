@@ -3,7 +3,7 @@ module github.com/joeylking/repo-steward
 go 1.27
 
 require (
-	github.com/joeylking/agent-runtime v0.0.0-20260920153428-1076cb0674b0
+	github.com/joeylking/agent-runtime v0.1.0
 	golang.org/x/mod v0.41.0
 	modernc.org/sqlite v1.59.0
 )
