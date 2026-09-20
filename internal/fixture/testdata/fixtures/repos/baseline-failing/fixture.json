@@ -1,0 +1,6 @@
+{
+  "name": "baseline-failing",
+  "description": "Scenario S5: identical to patch-safe except a test fails before any change. No upgrade may be attempted and no model call made.",
+  "expected_base_commit": "979a1ffbed7f69cbd0ad09b8292c12c9b75a61bd",
+  "expected_base_tree": "0a3b6dcf390d24983e3ac174a18222e584c229de"
+}

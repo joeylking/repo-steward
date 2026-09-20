@@ -121,7 +121,11 @@ func decodeModules(r io.Reader) ([]moduleInfo, error) {
 	}
 }
 
-// Discover lists outdated direct dependencies and their eligible targets.
+// Discover lists direct dependencies that have a newer version and their
+// eligible targets. Versions come from the module's version list rather
+// than from the toolchain's upgrade suggestion, because the suggestion
+// omits +incompatible majors for modules that have a go.mod; a benchmark
+// scenario depends on seeing those.
 func Discover(ctx context.Context, sb sandbox.Sandbox, pol Policy) ([]Candidate, error) {
 	res, err := acquire(ctx, sb, "go", "list", "-m", "-u", "-json", "all")
 	if err != nil {
@@ -133,7 +137,7 @@ func Discover(ctx context.Context, sb sandbox.Sandbox, pol Policy) ([]Candidate,
 	}
 	var out []Candidate
 	for _, m := range mods {
-		if m.Main || m.Indirect || m.Update == nil || m.Error != nil {
+		if m.Main || m.Indirect || m.Error != nil || m.Version == "" {
 			continue
 		}
 		vres, err := acquire(ctx, sb, "go", "list", "-m", "-versions", "-json", m.Path)
@@ -148,9 +152,15 @@ func Discover(ctx context.Context, sb sandbox.Sandbox, pol Policy) ([]Candidate,
 		if len(vinfo) == 1 {
 			versions = vinfo[0].Versions
 		}
-		c := Candidate{Module: m.Path, Current: m.Version, Latest: m.Update.Version, Delta: delta(m.Version, m.Update.Version), Retracted: len(m.Retracted) > 0, Deprecated: m.Deprecated}
-		c.Targets = targets(m.Path, m.Version, versions, pol)
-		out = append(out, c)
+		targets := targets(m.Path, m.Version, versions, pol)
+		if len(targets) == 0 {
+			continue
+		}
+		latest := targets[len(targets)-1].Version
+		if m.Update != nil && semver.Compare(m.Update.Version, latest) > 0 {
+			latest = m.Update.Version
+		}
+		out = append(out, Candidate{Module: m.Path, Current: m.Version, Latest: latest, Delta: delta(m.Version, latest), Targets: targets, Retracted: len(m.Retracted) > 0, Deprecated: m.Deprecated})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Module < out[j].Module })
 	return out, nil

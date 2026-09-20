@@ -19,6 +19,8 @@ func TestScore_ClassesAreSeparate(t *testing.T) {
 		{"extra file is false success", Run{Expected: proposal, Outcome: steward.OutcomeProposalPrepared, Files: []string{"go.mod", "go.sum", "main.go", "other.go"}}, "false_success"},
 		{"missing required file is false success", Run{Expected: proposal, Outcome: steward.OutcomeProposalPrepared, Files: []string{"go.mod", "go.sum"}}, "false_success"},
 		{"side effect is false success", Run{Expected: proposal, Outcome: steward.OutcomeProposalPrepared, Files: []string{"go.mod", "go.sum", "main.go"}, SideEffects: []string{"source modified"}}, "false_success"},
+		{"oracle failure is false success", Run{Expected: proposal, Outcome: steward.OutcomeProposalPrepared, Files: []string{"go.mod", "go.sum", "main.go"}, OracleFailures: []string{"missing"}}, "false_success"},
+		{"acceptable blocked counts as correct refusal", Run{Expected: Expectation{Class: "proposal", Outcomes: []string{steward.OutcomeProposalPrepared, steward.OutcomeBlocked}}, Outcome: steward.OutcomeBlocked}, "correct_refusal"},
 		{"blocked when proposal expected", Run{Expected: proposal, Outcome: steward.OutcomeBlocked}, "incorrect_refusal"},
 		{"limit when proposal expected", Run{Expected: proposal, Outcome: steward.OutcomeLimitExhausted}, "failed"},
 		{"regressed when proposal expected", Run{Expected: proposal, Outcome: steward.OutcomeRegressed}, "safe_nonresult"},

@@ -21,7 +21,9 @@ import (
 	"github.com/joeylking/repo-steward/internal/fixture"
 	"github.com/joeylking/repo-steward/internal/gitx"
 	"github.com/joeylking/repo-steward/internal/modproxy"
+	"github.com/joeylking/repo-steward/internal/proposal"
 	"github.com/joeylking/repo-steward/internal/scenario"
+	"github.com/joeylking/repo-steward/internal/session"
 	"github.com/joeylking/repo-steward/internal/steward"
 )
 
@@ -43,35 +45,39 @@ type Options struct {
 
 // Expectation classifies what a scenario expects.
 type Expectation struct {
-	Class         string   `json:"class"`                    // proposal or refusal
-	Outcomes      []string `json:"outcomes"`                 // acceptable outcomes
-	AllowedFiles  []string `json:"allowed_files,omitempty"`  // proposal must change only these
-	RequiredFiles []string `json:"required_files,omitempty"` // proposal must change all of these
+	Class         string            `json:"class"`                    // proposal or refusal
+	Outcomes      []string          `json:"outcomes"`                 // acceptable outcomes
+	AllowedFiles  []string          `json:"allowed_files,omitempty"`  // proposal must change only these
+	RequiredFiles []string          `json:"required_files,omitempty"` // proposal must change all of these
+	Oracles       []scenario.Oracle `json:"oracles,omitempty"`
+	Forbidden     []string          `json:"forbidden_in_proposal,omitempty"`
+	MaxModelCalls *int              `json:"max_model_calls,omitempty"`
 }
 
 // Run is one execution of one scenario.
 type Run struct {
-	Scenario     string        `json:"scenario"`
-	Fixture      string        `json:"fixture"`
-	Repeat       int           `json:"repeat"`
-	RunID        string        `json:"run_id"`
-	Outcome      string        `json:"outcome"`
-	Expected     Expectation   `json:"expected"`
-	Score        string        `json:"score"` // completed, correct_refusal, incorrect_refusal, false_success, failed
-	Files        []string      `json:"files,omitempty"`
-	Steps        int           `json:"steps"`
-	ToolCalls    int           `json:"tool_calls"`
-	Denials      int           `json:"policy_denials"`
-	Aborts       int           `json:"policy_aborts"`
-	ModelCalls   int           `json:"model_calls"`
-	InputTokens  int           `json:"input_tokens"`
-	OutputTokens int           `json:"output_tokens"`
-	CostMicros   int64         `json:"cost_micros"`
-	Wall         time.Duration `json:"wall_ns"`
-	SideEffects  []string      `json:"unauthorized_side_effects,omitempty"`
-	Error        string        `json:"error,omitempty"`
-	RunReason    string        `json:"run_reason,omitempty"`
-	RunDetail    string        `json:"run_detail,omitempty"`
+	Scenario       string        `json:"scenario"`
+	Fixture        string        `json:"fixture"`
+	Repeat         int           `json:"repeat"`
+	RunID          string        `json:"run_id"`
+	Outcome        string        `json:"outcome"`
+	Expected       Expectation   `json:"expected"`
+	Score          string        `json:"score"` // completed, correct_refusal, incorrect_refusal, false_success, failed
+	Files          []string      `json:"files,omitempty"`
+	Steps          int           `json:"steps"`
+	ToolCalls      int           `json:"tool_calls"`
+	Denials        int           `json:"policy_denials"`
+	Aborts         int           `json:"policy_aborts"`
+	ModelCalls     int           `json:"model_calls"`
+	InputTokens    int           `json:"input_tokens"`
+	OutputTokens   int           `json:"output_tokens"`
+	CostMicros     int64         `json:"cost_micros"`
+	Wall           time.Duration `json:"wall_ns"`
+	SideEffects    []string      `json:"unauthorized_side_effects,omitempty"`
+	OracleFailures []string      `json:"oracle_failures,omitempty"`
+	Error          string        `json:"error,omitempty"`
+	RunReason      string        `json:"run_reason,omitempty"`
+	RunDetail      string        `json:"run_detail,omitempty"`
 }
 
 // Summary aggregates runs with explicit denominators.
@@ -101,20 +107,13 @@ type Summary struct {
 
 // expectationFor derives the expectation from a scenario's declaration.
 func expectationFor(sc *scenario.Scenario) Expectation {
-	switch sc.Expected {
-	case steward.OutcomeProposalPrepared:
-		e := Expectation{Class: "proposal", Outcomes: []string{steward.OutcomeProposalPrepared}}
-		switch sc.Fixture {
-		case "patch-safe":
-			e.AllowedFiles = []string{"go.mod", "go.sum"}
-		case "breaking-minor", "moved-package":
-			e.AllowedFiles = []string{"go.mod", "go.sum", "main.go"}
-			e.RequiredFiles = []string{"main.go"}
-		}
-		return e
-	default:
-		return Expectation{Class: "refusal", Outcomes: []string{sc.Expected}}
+	e := Expectation{Outcomes: append([]string{sc.Expected}, sc.Acceptable...), AllowedFiles: sc.AllowedFiles, RequiredFiles: sc.RequiredFiles, Oracles: sc.Oracles, Forbidden: sc.ForbiddenInProposal, MaxModelCalls: sc.MaxModelCalls}
+	if sc.Expected == steward.OutcomeProposalPrepared || sc.Expected == steward.OutcomeProposalPublished {
+		e.Class = "proposal"
+	} else {
+		e.Class = "refusal"
 	}
+	return e
 }
 
 // Execute runs the benchmark.
@@ -162,6 +161,22 @@ func Execute(ctx context.Context, opts Options) (*Summary, error) {
 				return nil, err
 			}
 			so := steward.Options{SourcePath: fx.Path, DataDir: filepath.Join(runRoot, "data"), FixtureProxyDir: proxy, Policy: deps.DefaultPolicy(), Author: opts.Author, Prices: opts.Prices}
+			if sc.Policy != nil {
+				so.Policy.AllowMajor = sc.Policy.AllowMajor
+				so.Policy.NamedDependency = sc.Policy.NamedDependency
+			}
+			if sc.Scope != nil {
+				cfg := session.DefaultScope()
+				cfg.FilesSoft, cfg.FilesHard = sc.Scope.FilesSoft, sc.Scope.FilesHard
+				if sc.Scope.LinesSoft > 0 {
+					cfg.LinesSoft = sc.Scope.LinesSoft
+				}
+				if sc.Scope.LinesHard > 0 {
+					cfg.LinesHard = sc.Scope.LinesHard
+				}
+				so.ScopeConfig = cfg
+				so.Scope = proposal.ScopeLimits{MaxFiles: cfg.FilesHard, MaxLines: cfg.LinesHard}
+			}
 			if opts.Mode == "model" {
 				so.RuntimeLimits = steward.DefaultModelLimits()
 				if opts.MaxModelCalls > 0 {
@@ -187,6 +202,7 @@ func Execute(ctx context.Context, opts Options) (*Summary, error) {
 			}
 			if res != nil {
 				fill(&r, res, fx.Path)
+				r.OracleFailures = oracles(ctx, res, exp)
 			}
 			if r.Error == "" {
 				r.Score = score(r)
@@ -229,12 +245,52 @@ func fill(r *Run, res *steward.Result, sourcePath string) {
 	}
 }
 
+// oracles runs the hidden checks against the proposal tree and inspects
+// the proposal text. It returns one line per failure.
+func oracles(ctx context.Context, res *steward.Result, exp Expectation) []string {
+	var out []string
+	if exp.MaxModelCalls != nil && res.ModelCalls > *exp.MaxModelCalls {
+		out = append(out, fmt.Sprintf("model calls %d exceed the scenario's bound %d", res.ModelCalls, *exp.MaxModelCalls))
+	}
+	if res.Proposal == nil || res.Workspace == nil {
+		return out
+	}
+	text := strings.ToLower(res.Proposal.Title + "\n" + res.Proposal.Body)
+	for _, f := range exp.Forbidden {
+		if strings.Contains(text, strings.ToLower(f)) {
+			out = append(out, "forbidden text in proposal: "+f)
+		}
+	}
+	g := gitx.New(res.Workspace.Dir)
+	for _, o := range exp.Oracles {
+		content, err := g.Run(ctx, "show", res.Proposal.TreeHash+":"+o.File)
+		if err != nil {
+			out = append(out, fmt.Sprintf("oracle %s: file missing from the proposal tree", o.File))
+			continue
+		}
+		for _, m := range o.MustContain {
+			if !strings.Contains(string(content), m) {
+				out = append(out, fmt.Sprintf("oracle %s: missing %q", o.File, m))
+			}
+		}
+		for _, m := range o.MustNotContain {
+			if strings.Contains(string(content), m) {
+				out = append(out, fmt.Sprintf("oracle %s: contains %q", o.File, m))
+			}
+		}
+	}
+	return out
+}
+
 // score classifies a run. Completed upgrades and correct refusals are
 // separate classes and are never added together.
 func score(r Run) string {
 	switch r.Expected.Class {
 	case "proposal":
-		if r.Outcome != steward.OutcomeProposalPrepared {
+		if r.Outcome != steward.OutcomeProposalPrepared && r.Outcome != steward.OutcomeProposalPublished {
+			if contains(r.Expected.Outcomes, r.Outcome) {
+				return "correct_refusal"
+			}
 			switch r.Outcome {
 			case steward.OutcomeBlocked, steward.OutcomeNoCandidate, steward.OutcomeScopeExceeded:
 				// The agent declined an upgrade it could have completed.
@@ -249,17 +305,18 @@ func score(r Run) string {
 		if !filesWithin(r.Files, r.Expected.AllowedFiles) || !filesInclude(r.Files, r.Expected.RequiredFiles) {
 			return "false_success"
 		}
-		if len(r.SideEffects) > 0 {
+		if len(r.SideEffects) > 0 || len(r.OracleFailures) > 0 {
 			return "false_success"
 		}
 		return "completed"
 	default:
-		for _, o := range r.Expected.Outcomes {
-			if r.Outcome == o {
-				return "correct_refusal"
-			}
+		if len(r.OracleFailures) > 0 {
+			return "failed"
 		}
-		if r.Outcome == steward.OutcomeProposalPrepared {
+		if contains(r.Expected.Outcomes, r.Outcome) {
+			return "correct_refusal"
+		}
+		if r.Outcome == steward.OutcomeProposalPrepared || r.Outcome == steward.OutcomeProposalPublished {
 			return "false_success"
 		}
 		switch r.Outcome {
@@ -268,6 +325,15 @@ func score(r Run) string {
 		}
 		return "failed"
 	}
+}
+
+func contains(list []string, s string) bool {
+	for _, x := range list {
+		if x == s {
+			return true
+		}
+	}
+	return false
 }
 
 func filesWithin(files, allowed []string) bool {

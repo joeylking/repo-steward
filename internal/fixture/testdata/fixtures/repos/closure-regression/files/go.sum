@@ -1,0 +1,4 @@
+example.com/core v1.0.0 h1:hPrQA2PSZuwKmpeETuDeOMDtVXGFChIC2Y0R0/53Jxw=
+example.com/core v1.0.0/go.mod h1:ymoc1fPCNOl3aDREVyw53H2SklgVbgDFHoWEf3jmTWI=
+example.com/util v0.1.0 h1:9tKnEGsyhtHgRDGwVLpBE9r/cm8aqwVP3udsoHE90B0=
+example.com/util v0.1.0/go.mod h1:+f51Q9eMgahkiKqRtQMKl7SFE/+e4nuS22Xh13MV8tw=

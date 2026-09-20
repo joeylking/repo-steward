@@ -42,6 +42,7 @@ const usage = `usage:
   repo-steward resume <run-id> [-data-dir DIR] [-fixture-proxy DIR] [-trace]
   repo-steward approve <run-id> [-approval ID] [-note TEXT] [-data-dir DIR]
   repo-steward reject <run-id> [-approval ID] [-note TEXT] [-data-dir DIR]
+  repo-steward bench summarize [-dir DIR]
   repo-steward bench run -mode baseline|scripted|model [-model provider:name] [-scenarios S1,S2,...] [-repeat N] [-max-model-calls N] [-max-total-calls N] [-root DIR] [-out DIR] [-author "Name <email>"]
   repo-steward runs list [-data-dir DIR]
   repo-steward runs show <run-id> [-events] [-data-dir DIR]
@@ -74,6 +75,19 @@ func run(args []string) error {
 	}
 	if args[0] == "bench" && args[1] == "run" {
 		return runBench(ctx, args[2:])
+	}
+	if args[0] == "bench" && args[1] == "summarize" {
+		fs := flag.NewFlagSet("bench summarize", flag.ContinueOnError)
+		dir := fs.String("dir", "benchmarks/results", "results directory")
+		if err := fs.Parse(args[2:]); err != nil {
+			return err
+		}
+		sums, err := bench.Latest(*dir)
+		if err != nil {
+			return err
+		}
+		fmt.Print(bench.Comparison(sums))
+		return nil
 	}
 	if args[0] == "runs" && args[1] == "list" {
 		return runsList(ctx, args[2:])
@@ -584,7 +598,7 @@ func runBench(ctx context.Context, args []string) error {
 	fs := flag.NewFlagSet("bench run", flag.ContinueOnError)
 	mode := fs.String("mode", "baseline", "baseline, scripted, or model")
 	modelName := fs.String("model", "ollama:qwen3:30b-a3b", "model as provider:name for -mode model")
-	scenarios := fs.String("scenarios", "S1,S2,S3,S8", "comma-separated scenario names")
+	scenarios := fs.String("scenarios", "S1,S2,S3,S4,S4M,S5,S6,S7,S8,S9,S10H", "comma-separated scenario names")
 	repeat := fs.Int("repeat", 1, "runs per scenario")
 	maxCalls := fs.Int("max-model-calls", 80, "model call cap per run")
 	maxTotal := fs.Int("max-total-calls", 0, "stop when total model calls reach this (0: no cap)")

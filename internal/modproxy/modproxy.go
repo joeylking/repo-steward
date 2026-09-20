@@ -111,7 +111,12 @@ func Build(dir string) (*Index, error) {
 			}
 			gomod, ok := files["go.mod"]
 			if !ok {
-				return nil, fmt.Errorf("modproxy: %s@%s has no go.mod", modPath, version)
+				// A release without go.mod: the proxy serves a synthesized
+				// .mod, as proxy.golang.org does for +incompatible versions.
+				if !strings.HasSuffix(version, "+incompatible") {
+					return nil, fmt.Errorf("modproxy: %s@%s has no go.mod and is not +incompatible", modPath, version)
+				}
+				gomod = []byte("module " + modPath + "\n")
 			}
 			if err := os.WriteFile(filepath.Join(vdir, version+".mod"), gomod, 0o644); err != nil {
 				return nil, err

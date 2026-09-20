@@ -1,0 +1,28 @@
+{
+  "name": "S9",
+  "fixture": "needs-toolchain",
+  "description": "The target version declares a newer go directive than the pinned toolchain. apply_upgrade fails with requires_newer_toolchain and the run must report blocked.",
+  "expected": "blocked",
+  "acceptable": [
+    "requires_newer_toolchain"
+  ],
+  "steps": [
+    {
+      "tool": "list_candidates"
+    },
+    {
+      "tool": "apply_upgrade",
+      "args": {
+        "module": "example.com/needsgo",
+        "version": "v1.1.0"
+      }
+    },
+    {
+      "tool": "report_blocked",
+      "args": {
+        "reason": "requires newer toolchain",
+        "details": "example.com/needsgo v1.1.0 declares go 1.27; the pinned toolchain is 1.22."
+      }
+    }
+  ]
+}

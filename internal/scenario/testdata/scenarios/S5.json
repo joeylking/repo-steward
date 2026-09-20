@@ -1,0 +1,12 @@
+{
+  "name": "S5",
+  "fixture": "baseline-failing",
+  "description": "A test fails before any change: the run ends baseline_failing with no mutation and no model call.",
+  "expected": "baseline_failing",
+  "max_model_calls": 0,
+  "steps": [
+    {
+      "tool": "list_candidates"
+    }
+  ]
+}

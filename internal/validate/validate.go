@@ -282,11 +282,21 @@ func parseTestJSON(res sandbox.ExecResult, packages []string) Attempt {
 		}
 	}
 	att.ParseStatus = ParseComplete
+	// A package that never produced a JSON result but whose failure is
+	// reported on stderr (a setup or build failure) is a conclusive
+	// package-level failure, not a parse gap.
 	var missing []string
+	stderr := string(res.Stderr)
 	for _, p := range packages {
-		if _, ok := terminal[p]; !ok {
-			missing = append(missing, p)
+		if _, ok := terminal[p]; ok {
+			continue
 		}
+		if att.Status != Pass && (strings.Contains(stderr, "FAIL\t"+p+" [") || strings.Contains(stderr, "# "+p+"\n") || diagLine.MatchString(firstDiag(stderr))) {
+			terminal[p] = "fail"
+			output[p] = append(output[p], strings.TrimSpace(firstDiag(stderr)))
+			continue
+		}
+		missing = append(missing, p)
 	}
 	if len(missing) > 0 {
 		att.ParseStatus = ParsePartial
@@ -332,6 +342,16 @@ func parseTestJSON(res sandbox.ExecResult, packages []string) Attempt {
 		att.Note = "nonzero exit with no failing package in the JSON stream: " + firstLine(res.Stderr)
 	}
 	return att
+}
+
+// firstDiag returns the first stderr line that looks like a diagnostic.
+func firstDiag(stderr string) string {
+	for _, line := range strings.Split(stderr, "\n") {
+		if diagLine.MatchString(strings.TrimSpace(line)) {
+			return line
+		}
+	}
+	return ""
 }
 
 func statusOf(res sandbox.ExecResult) Status {

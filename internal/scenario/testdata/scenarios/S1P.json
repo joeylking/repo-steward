@@ -39,5 +39,9 @@
       "tool": "publish_proposal",
       "reason": "Push the frozen proposal and open the pull request."
     }
+  ],
+  "allowed_files": [
+    "go.mod",
+    "go.sum"
   ]
 }

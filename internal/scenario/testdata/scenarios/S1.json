@@ -35,5 +35,17 @@
         "summary": "Patch upgrade. No source changes were needed; build, vet, and tests pass."
       }
     }
+  ],
+  "allowed_files": [
+    "go.mod",
+    "go.sum"
+  ],
+  "oracles": [
+    {
+      "file": "go.mod",
+      "must_contain": [
+        "example.com/lib v1.2.4"
+      ]
+    }
   ]
 }

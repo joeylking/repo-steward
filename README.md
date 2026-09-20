@@ -170,9 +170,14 @@ everything that executes repository code still runs with no network.
 ## Benchmarks
 
 `bench run` executes scenarios through a mode and scores them against what
-each scenario declares, with denominators stated and completions never
-added to refusals. Results are committed under `benchmarks/results/` as
-data. See [benchmarks/README.md](benchmarks/README.md).
+each scenario declares: acceptable outcomes, allowed and required files,
+hidden oracle checks on the proposal tree, forbidden proposal text for
+injection cases, and a model-call bound. Denominators are stated and
+completions are never added to refusals. Eleven scenarios cover a patch
+upgrade, two repairs, a closure-driven regression, a failing baseline, an
+ineligible major, a major beyond scope, injected instructions, a protected
+change, a toolchain gap, and a hard scope limit. Results are committed under
+`benchmarks/results/` as data. See [benchmarks/README.md](benchmarks/README.md).
 
 ## The agent path
 

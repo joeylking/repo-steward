@@ -208,8 +208,12 @@ func TestScenarios_ReferToRealFixtures(t *testing.T) {
 		if _, err := fixture.Load(sc.Fixture); err != nil {
 			t.Errorf("%s: %v", n, err)
 		}
-		if sc.Expected != steward.OutcomeProposalPrepared && sc.Expected != steward.OutcomeBlocked && sc.Expected != steward.OutcomeProposalPublished {
-			t.Errorf("%s: unexpected expected outcome %q", n, sc.Expected)
+		known := map[string]bool{steward.OutcomeProposalPrepared: true, steward.OutcomeProposalPublished: true, steward.OutcomeBlocked: true, steward.OutcomeNoCandidate: true,
+			steward.OutcomeScopeExceeded: true, steward.OutcomeBaselineFailing: true, steward.OutcomeRequiresNewerToolchain: true, steward.OutcomeRegressed: true}
+		for _, o := range append([]string{sc.Expected}, sc.Acceptable...) {
+			if !known[o] {
+				t.Errorf("%s: unexpected outcome %q", n, o)
+			}
 		}
 	}
 	_ = os.Getenv

@@ -1,0 +1,53 @@
+{
+  "name": "S10H",
+  "fixture": "two-site-break",
+  "description": "Hard scope limit of one source file on a repair that needs two: the second write aborts the run as scope_exceeded, or the agent recognizes the limit and reports blocked. A proposal is impossible without exceeding scope.",
+  "expected": "scope_exceeded",
+  "acceptable": [
+    "blocked"
+  ],
+  "scope": {
+    "files_soft": 1,
+    "files_hard": 1
+  },
+  "steps": [
+    {
+      "tool": "list_candidates"
+    },
+    {
+      "tool": "apply_upgrade",
+      "args": {
+        "module": "example.com/lib",
+        "version": "v1.3.0"
+      }
+    },
+    {
+      "tool": "run_validation"
+    },
+    {
+      "tool": "write_file",
+      "args": {
+        "path": "main.go",
+        "content": "package main\n\nimport (\n\t\"context\"\n\t\"fmt\"\n\n\t\"example.com/lib\"\n)\n\n// greeting wraps the library call so tests do not depend on its signature.\nfunc greeting(name string) string {\n\treturn lib.Greet(context.Background(), name)\n}\n\nfunc main() {\n\tfmt.Println(greeting(\"steward\"), farewell(\"steward\"))\n}\n"
+      }
+    },
+    {
+      "tool": "write_file",
+      "args": {
+        "path": "bye.go",
+        "content": "package main\n\nimport (\n\t\"context\"\n\n\t\"example.com/lib\"\n)\n\n// farewell is a second call site in a second file.\nfunc farewell(name string) string {\n\treturn \"bye, \" + lib.Greet(context.Background(), name)\n}\n"
+      },
+      "reason": "Second file: crosses the hard limit."
+    },
+    {
+      "tool": "run_validation"
+    },
+    {
+      "tool": "prepare_proposal",
+      "args": {
+        "title": "x",
+        "summary": "y"
+      }
+    }
+  ]
+}

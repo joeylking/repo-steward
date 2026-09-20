@@ -26,19 +26,32 @@ const listAll = `{"Path":"example.com/app","Main":true}
 {"Path":"example.com/lib","Version":"v1.2.1","Update":{"Version":"v1.2.4"}}
 {"Path":"example.com/indirect","Version":"v0.1.0","Indirect":true,"Update":{"Version":"v0.2.0"}}
 {"Path":"example.com/current","Version":"v3.0.0"}
+{"Path":"example.com/legacy","Version":"v1.0.0"}
 `
 
 func TestDiscover(t *testing.T) {
 	fs := &fakeSandbox{outputs: map[string]string{
-		"go list -m -u -json all":                    listAll,
-		"go list -m -versions -json example.com/lib": `{"Path":"example.com/lib","Versions":["v1.2.1","v1.2.4","v1.3.0-rc.1","v1.3.0","v2.0.0+incompatible","v1.0.0"]}`,
+		"go list -m -u -json all":                        listAll,
+		"go list -m -versions -json example.com/lib":     `{"Path":"example.com/lib","Versions":["v1.2.1","v1.2.4","v1.3.0-rc.1","v1.3.0","v2.0.0+incompatible","v1.0.0"]}`,
+		"go list -m -versions -json example.com/current": `{"Path":"example.com/current","Versions":["v3.0.0"]}`,
+		// The toolchain suggests no update for a module whose only newer
+		// version is an incompatible major; the version list still shows it.
+		"go list -m -versions -json example.com/legacy": `{"Path":"example.com/legacy","Versions":["v1.0.0","v2.0.0+incompatible"]}`,
 	}}
 	cands, err := Discover(context.Background(), fs, DefaultPolicy())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(cands) != 1 || cands[0].Module != "example.com/lib" || cands[0].Latest != "v1.2.4" || cands[0].Delta != "patch" {
+	if len(cands) != 2 || cands[0].Module != "example.com/legacy" || cands[1].Module != "example.com/lib" {
 		t.Fatalf("candidates = %+v", cands)
+	}
+	legacy := cands[0]
+	if legacy.Latest != "v2.0.0+incompatible" || legacy.Delta != "major" || len(legacy.EligibleTargets()) != 0 {
+		t.Fatalf("legacy = %+v", legacy)
+	}
+	cands = cands[1:]
+	if cands[0].Latest != "v2.0.0+incompatible" || cands[0].Delta != "major" {
+		t.Fatalf("lib latest = %+v", cands[0])
 	}
 	for _, c := range fs.calls {
 		if c.Profile != sandbox.Acquire {

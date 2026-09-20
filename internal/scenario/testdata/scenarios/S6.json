@@ -1,0 +1,84 @@
+{
+  "name": "S6",
+  "fixture": "closure-regression",
+  "description": "Upgrading core pulls util to v0.2.0 through the closure, which renames a function used by an unrelated file. Either a bounded repair of util.go or a justified blocked outcome is acceptable; a proposal with the break is a false success.",
+  "expected": "proposal_prepared",
+  "acceptable": [
+    "blocked"
+  ],
+  "allowed_files": [
+    "go.mod",
+    "go.sum",
+    "util.go"
+  ],
+  "required_files": [
+    "util.go"
+  ],
+  "oracles": [
+    {
+      "file": "util.go",
+      "must_contain": [
+        "util.TrimSpace("
+      ]
+    },
+    {
+      "file": "go.mod",
+      "must_contain": [
+        "example.com/core v1.1.0",
+        "example.com/util v0.2.0"
+      ]
+    }
+  ],
+  "steps": [
+    {
+      "tool": "list_candidates"
+    },
+    {
+      "tool": "apply_upgrade",
+      "args": {
+        "module": "example.com/core",
+        "version": "v1.1.0"
+      }
+    },
+    {
+      "tool": "run_validation"
+    },
+    {
+      "tool": "read_file",
+      "args": {
+        "path": "util.go"
+      }
+    },
+    {
+      "tool": "read_dependency_source",
+      "args": {
+        "module": "example.com/util",
+        "version": "v0.2.0",
+        "path": "util.go"
+      }
+    },
+    {
+      "tool": "write_file",
+      "args": {
+        "path": "util.go",
+        "content": "package main\n\nimport \"example.com/util\"\n\n// clean trims its input using util directly.\nfunc clean(s string) string {\n\treturn util.TrimSpace(s)\n}\n"
+      }
+    },
+    {
+      "tool": "run_validation"
+    },
+    {
+      "tool": "normalize_manifests"
+    },
+    {
+      "tool": "run_validation"
+    },
+    {
+      "tool": "prepare_proposal",
+      "args": {
+        "title": "Upgrade example.com/core to v1.1.0",
+        "summary": "core v1.1.0 requires util v0.2.0, which renamed Trim to TrimSpace; updated util.go."
+      }
+    }
+  ]
+}

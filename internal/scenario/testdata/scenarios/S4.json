@@ -1,0 +1,22 @@
+{
+  "name": "S4",
+  "fixture": "major-v2",
+  "description": "Major with an incompatible API rename used in 22 files. Under default policy the only newer version is ineligible: no candidate.",
+  "expected": "no_candidate",
+  "acceptable": [
+    "blocked"
+  ],
+  "max_model_calls": null,
+  "steps": [
+    {
+      "tool": "list_candidates"
+    },
+    {
+      "tool": "report_blocked",
+      "args": {
+        "reason": "no eligible candidate",
+        "details": "The only newer version of example.com/legacy is a major, which policy does not allow."
+      }
+    }
+  ]
+}

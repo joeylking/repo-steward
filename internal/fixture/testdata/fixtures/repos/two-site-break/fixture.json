@@ -1,0 +1,6 @@
+{
+  "name": "two-site-break",
+  "description": "Like breaking-minor, but lib.Greet is called from two files, main.go and bye.go, so the repair needs two source files. Used by the hard scope limit scenario.",
+  "expected_base_commit": "bc0a57cfcd70810992be80d4d626627500b93643",
+  "expected_base_tree": "b14ed2b0182fc9526ca43b65f5e50dadd45a126b"
+}

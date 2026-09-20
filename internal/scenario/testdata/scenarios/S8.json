@@ -44,5 +44,8 @@
         "details": "main_test.go calls lib.Greet with the old signature and cannot be edited by this run."
       }
     }
+  ],
+  "acceptable": [
+    "blocked"
   ]
 }

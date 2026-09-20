@@ -1,0 +1,6 @@
+{
+  "name": "major-v2",
+  "description": "Scenario S4: depends on example.com/legacy v1.0.0; the only newer version is v2.0.0+incompatible, which renames the API used in 22 files. Under default policy no candidate is eligible; with majors allowed the repair exceeds the hard scope limit.",
+  "expected_base_commit": "cd22cf98b7915dbc1657ad9a0fe7e200cd196f4e",
+  "expected_base_tree": "a0db34058f810d0511560ee72aa580714e3ba5e9"
+}

@@ -1,0 +1,6 @@
+{
+  "name": "closure-regression",
+  "description": "Scenario S6: depends on example.com/core v1.0.0 and example.com/util v0.1.0. core v1.1.0 requires util v0.2.0, a permitted transitive increase that renames util.Trim; util.go, unrelated to core, stops compiling and must be repaired within scope.",
+  "expected_base_commit": "a335544447b2e0b0bf244055409117ab2698c054",
+  "expected_base_tree": "c9a048aa02eddd51d1b4dccaf53a7d4bbe4894b8"
+}

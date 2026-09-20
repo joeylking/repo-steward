@@ -556,10 +556,14 @@ func (t *validateTool) Call(ctx context.Context, c agentrt.ToolCall) (agentrt.To
 		checks[name] = entry
 	}
 	summary := "validation passed"
-	if !vr.Conclusive {
-		summary = "validation inconclusive"
-	} else if len(intro) > 0 {
+	switch {
+	case len(intro) > 0:
 		summary = fmt.Sprintf("validation failed: %d introduced finding(s)", len(intro))
+		if !vr.Conclusive {
+			summary += "; " + inconclusiveNote(vr)
+		}
+	case !vr.Conclusive:
+		summary = "validation inconclusive: " + inconclusiveNote(vr)
 	}
 	// The record id is deliberately absent: tool results reach the model,
 	// and anything run-specific in them would make a recorded run
@@ -627,6 +631,16 @@ func (t *prepareTool) Call(ctx context.Context, c agentrt.ToolCall) (agentrt.Too
 	}
 	t.s.Outcome = &session.Outcome{Code: "proposal_prepared", Detail: p}
 	return result(map[string]any{"proposal_id": p.ID, "head_commit": p.HeadCommit, "tree": p.TreeHash, "files": p.Files}, "proposal "+p.ID+" frozen")
+}
+
+func inconclusiveNote(vr *validate.Run) string {
+	var parts []string
+	for _, name := range validate.Required {
+		if c := vr.Checks[name]; !c.Conclusive {
+			parts = append(parts, name+" check inconclusive ("+c.Reason+")")
+		}
+	}
+	return strings.Join(parts, "; ")
 }
 
 func deterministicBody(target manifest.Target, ready *proposal.Readiness) string {

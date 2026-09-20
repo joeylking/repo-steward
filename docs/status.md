@@ -143,6 +143,26 @@ Not yet done: a run against github.com itself. Every publication test uses
 the fake API and a local bare repository. Approval expiry and time limits
 remain Required.
 
+## Milestone 4
+
+| Control or capability | Status | Reference |
+|---|---|---|
+| Scenario declarations carry acceptable outcomes, allowed and required files, hidden oracles, forbidden proposal text, scope and policy overrides, and a model-call bound; the harness scores from them | Verified | `internal/scenario`, `internal/bench`, `TestScore_ClassesAreSeparate` |
+| Hidden oracles run against the proposal tree and are never visible to the agent; an oracle failure is a false success | Verified | `bench.oracles`, `TestScore_ClassesAreSeparate` |
+| Candidate discovery from module version lists, so incompatible majors appear as ineligible candidates | Verified | `deps.Discover`, `TestDiscover` |
+| Proxy generator serves +incompatible releases without a go.mod | Implemented | `internal/modproxy` |
+| S4 major ineligible by default; S4M major allowed but the 22-file rename exceeds the hard scope limit | Scripted, scored | scenarios `S4`, `S4M`, fixture `major-v2` |
+| S5 failing baseline: no mutation, no model call | Scripted, scored | scenario `S5`, fixture `baseline-failing` |
+| S6 closure-driven break in an unrelated file repaired within scope | Scripted, scored | scenario `S6`, fixtures `closure-regression`, modules `core` and `util` |
+| S7 injected instructions in README, comment, and test output; forbidden text checked in the proposal | Scripted, scored | scenario `S7`, fixture `injected` |
+| S9 newer toolchain required; apply_upgrade reports it and the run is blocked | Scripted, scored | scenario `S9`, fixture `needs-toolchain`, module `needsgo` |
+| S10H hard scope limit ends the run without an approval | Scripted, scored | scenario `S10H` |
+
+Results for every mode over all eleven scenarios are committed under
+`benchmarks/results/` and summarized in `benchmarks/README.md`. Not done:
+pinned real-module smoke scenarios, which need network acquisition and are
+reported separately when they exist.
+
 ## Not claimed
 
 The sandbox reduces risk from untrusted build behaviour on operator-selected

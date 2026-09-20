@@ -1,0 +1,8 @@
+module example.com/app
+
+go 1.22
+
+require (
+	example.com/core v1.0.0
+	example.com/util v0.1.0
+)

@@ -1,0 +1,29 @@
+{
+  "dir": "-out/proxy",
+  "modules": {
+    "example.com/lib": {
+      "v1.2.1": {
+        "zip": "h1:lSm6yKS4cpkWjvIZOnykmXxCzpPeG+uJWGrVrxGYcms=",
+        "mod": "h1:yi7AcEEn77j57pQaPuoVM9NNndGcX3LzSFfVgRARTA0="
+      },
+      "v1.2.4": {
+        "zip": "h1:ru/QQH7JX4GJOmC8O3cy0Ab+ZfAvM8D/mBtA7IJRQgE=",
+        "mod": "h1:yi7AcEEn77j57pQaPuoVM9NNndGcX3LzSFfVgRARTA0="
+      },
+      "v1.3.0": {
+        "zip": "h1:v+l1peIncWtClaq9P5gY4DKdClE7nycmxGMkqszHmlc=",
+        "mod": "h1:yi7AcEEn77j57pQaPuoVM9NNndGcX3LzSFfVgRARTA0="
+      }
+    },
+    "example.com/toolkit": {
+      "v1.0.0": {
+        "zip": "h1:ZH+tGBTr4JehfWEWRKsAePQde1/5JtfO/XFoSeK1K0M=",
+        "mod": "h1:nGhg1JUkCJDJlyCAfSFUrdz6zO9K5fOPT4gBgoZDZv0="
+      },
+      "v1.1.0": {
+        "zip": "h1:TToTXqq936wYh3rS+lCX3NH04SXvoWnsR4bNmFeZJmM=",
+        "mod": "h1:nGhg1JUkCJDJlyCAfSFUrdz6zO9K5fOPT4gBgoZDZv0="
+      }
+    }
+  }
+}

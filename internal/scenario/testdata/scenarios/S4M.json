@@ -1,0 +1,201 @@
+{
+  "name": "S4M",
+  "fixture": "major-v2",
+  "description": "Major allowed by policy: the rename touches 22 files, beyond the hard scope limit of 20 (soft raised to hard so no approval is asked), so the run ends as scope_exceeded before a proposal.",
+  "expected": "scope_exceeded",
+  "acceptable": [
+    "blocked"
+  ],
+  "policy": {
+    "allow_major": true
+  },
+  "steps": [
+    {
+      "tool": "list_candidates"
+    },
+    {
+      "tool": "apply_upgrade",
+      "args": {
+        "module": "example.com/legacy",
+        "version": "v2.0.0+incompatible"
+      }
+    },
+    {
+      "tool": "run_validation"
+    },
+    {
+      "tool": "write_file",
+      "args": {
+        "path": "part01.go",
+        "content": "package main\n\nimport \"example.com/legacy\"\n\n// part01 contributes one unit from the legacy library.\nfunc part01() int { return legacy.New(0) }\n"
+      }
+    },
+    {
+      "tool": "write_file",
+      "args": {
+        "path": "part02.go",
+        "content": "package main\n\nimport \"example.com/legacy\"\n\n// part02 contributes one unit from the legacy library.\nfunc part02() int { return legacy.New(0) }\n"
+      }
+    },
+    {
+      "tool": "write_file",
+      "args": {
+        "path": "part03.go",
+        "content": "package main\n\nimport \"example.com/legacy\"\n\n// part03 contributes one unit from the legacy library.\nfunc part03() int { return legacy.New(0) }\n"
+      }
+    },
+    {
+      "tool": "write_file",
+      "args": {
+        "path": "part04.go",
+        "content": "package main\n\nimport \"example.com/legacy\"\n\n// part04 contributes one unit from the legacy library.\nfunc part04() int { return legacy.New(0) }\n"
+      }
+    },
+    {
+      "tool": "write_file",
+      "args": {
+        "path": "part05.go",
+        "content": "package main\n\nimport \"example.com/legacy\"\n\n// part05 contributes one unit from the legacy library.\nfunc part05() int { return legacy.New(0) }\n"
+      }
+    },
+    {
+      "tool": "write_file",
+      "args": {
+        "path": "part06.go",
+        "content": "package main\n\nimport \"example.com/legacy\"\n\n// part06 contributes one unit from the legacy library.\nfunc part06() int { return legacy.New(0) }\n"
+      }
+    },
+    {
+      "tool": "write_file",
+      "args": {
+        "path": "part07.go",
+        "content": "package main\n\nimport \"example.com/legacy\"\n\n// part07 contributes one unit from the legacy library.\nfunc part07() int { return legacy.New(0) }\n"
+      }
+    },
+    {
+      "tool": "write_file",
+      "args": {
+        "path": "part08.go",
+        "content": "package main\n\nimport \"example.com/legacy\"\n\n// part08 contributes one unit from the legacy library.\nfunc part08() int { return legacy.New(0) }\n"
+      }
+    },
+    {
+      "tool": "write_file",
+      "args": {
+        "path": "part09.go",
+        "content": "package main\n\nimport \"example.com/legacy\"\n\n// part09 contributes one unit from the legacy library.\nfunc part09() int { return legacy.New(0) }\n"
+      }
+    },
+    {
+      "tool": "write_file",
+      "args": {
+        "path": "part10.go",
+        "content": "package main\n\nimport \"example.com/legacy\"\n\n// part10 contributes one unit from the legacy library.\nfunc part10() int { return legacy.New(0) }\n"
+      }
+    },
+    {
+      "tool": "write_file",
+      "args": {
+        "path": "part11.go",
+        "content": "package main\n\nimport \"example.com/legacy\"\n\n// part11 contributes one unit from the legacy library.\nfunc part11() int { return legacy.New(0) }\n"
+      }
+    },
+    {
+      "tool": "write_file",
+      "args": {
+        "path": "part12.go",
+        "content": "package main\n\nimport \"example.com/legacy\"\n\n// part12 contributes one unit from the legacy library.\nfunc part12() int { return legacy.New(0) }\n"
+      }
+    },
+    {
+      "tool": "write_file",
+      "args": {
+        "path": "part13.go",
+        "content": "package main\n\nimport \"example.com/legacy\"\n\n// part13 contributes one unit from the legacy library.\nfunc part13() int { return legacy.New(0) }\n"
+      }
+    },
+    {
+      "tool": "write_file",
+      "args": {
+        "path": "part14.go",
+        "content": "package main\n\nimport \"example.com/legacy\"\n\n// part14 contributes one unit from the legacy library.\nfunc part14() int { return legacy.New(0) }\n"
+      }
+    },
+    {
+      "tool": "write_file",
+      "args": {
+        "path": "part15.go",
+        "content": "package main\n\nimport \"example.com/legacy\"\n\n// part15 contributes one unit from the legacy library.\nfunc part15() int { return legacy.New(0) }\n"
+      }
+    },
+    {
+      "tool": "write_file",
+      "args": {
+        "path": "part16.go",
+        "content": "package main\n\nimport \"example.com/legacy\"\n\n// part16 contributes one unit from the legacy library.\nfunc part16() int { return legacy.New(0) }\n"
+      }
+    },
+    {
+      "tool": "write_file",
+      "args": {
+        "path": "part17.go",
+        "content": "package main\n\nimport \"example.com/legacy\"\n\n// part17 contributes one unit from the legacy library.\nfunc part17() int { return legacy.New(0) }\n"
+      }
+    },
+    {
+      "tool": "write_file",
+      "args": {
+        "path": "part18.go",
+        "content": "package main\n\nimport \"example.com/legacy\"\n\n// part18 contributes one unit from the legacy library.\nfunc part18() int { return legacy.New(0) }\n"
+      }
+    },
+    {
+      "tool": "write_file",
+      "args": {
+        "path": "part19.go",
+        "content": "package main\n\nimport \"example.com/legacy\"\n\n// part19 contributes one unit from the legacy library.\nfunc part19() int { return legacy.New(0) }\n"
+      }
+    },
+    {
+      "tool": "write_file",
+      "args": {
+        "path": "part20.go",
+        "content": "package main\n\nimport \"example.com/legacy\"\n\n// part20 contributes one unit from the legacy library.\nfunc part20() int { return legacy.New(0) }\n"
+      }
+    },
+    {
+      "tool": "write_file",
+      "args": {
+        "path": "part21.go",
+        "content": "package main\n\nimport \"example.com/legacy\"\n\n// part21 contributes one unit from the legacy library.\nfunc part21() int { return legacy.New(0) }\n"
+      }
+    },
+    {
+      "tool": "write_file",
+      "args": {
+        "path": "part22.go",
+        "content": "package main\n\nimport \"example.com/legacy\"\n\n// part22 contributes one unit from the legacy library.\nfunc part22() int { return legacy.New(0) }\n"
+      }
+    },
+    {
+      "tool": "run_validation"
+    },
+    {
+      "tool": "normalize_manifests"
+    },
+    {
+      "tool": "run_validation"
+    },
+    {
+      "tool": "prepare_proposal",
+      "args": {
+        "title": "Upgrade legacy to v2",
+        "summary": "Renamed calls."
+      }
+    }
+  ],
+  "scope": {
+    "files_soft": 20,
+    "files_hard": 20
+  }
+}

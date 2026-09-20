@@ -116,14 +116,14 @@ func TestBaseline_FailClosed(t *testing.T) {
 		check   string
 		reason  string
 	}{
-		"timeout":                           {map[string]sandbox.ExecResult{"list": ok(pkgs), "test": {TimedOut: true, ExitCode: 137}}, "test", "timed out"},
-		"truncated output":                  {map[string]sandbox.ExecResult{"list": ok(pkgs), "build": {ExitCode: 0, StdoutTruncated: true}}, "build", "capture limit"},
-		"nonzero without findings":          {map[string]sandbox.ExecResult{"list": ok(pkgs), "build": {ExitCode: 2, Stderr: []byte("segfault in compiler\n")}}, "build", "did not parse"},
-		"exit zero with diagnostics":        {map[string]sandbox.ExecResult{"list": ok(pkgs), "vet": {ExitCode: 0, Stderr: []byte("./a.go:1:1: suspicious\n")}}, "vet", "exit code 0 but"},
-		"missing package terminal":          {map[string]sandbox.ExecResult{"list": ok(pkgs), "test": ok(testJSON(`{"Action":"pass","Package":"example.com/app"}`))}, "test", "did not parse"},
-		"test exit mismatch":                {map[string]sandbox.ExecResult{"list": ok(pkgs), "test": {ExitCode: 0, Stdout: []byte(testJSON(`{"Action":"fail","Package":"example.com/app"}`, `{"Action":"skip","Package":"example.com/app/internal/x"}`))}}, "test", "did not parse"},
-		"test build failure on stderr only": {map[string]sandbox.ExecResult{"list": ok(pkgs), "test": {ExitCode: 1, Stderr: []byte("# example.com/app\n./main.go:3:1: syntax error\n"), Stdout: []byte(testJSON(`{"Action":"skip","Package":"example.com/app/internal/x"}`))}}, "test", "did not parse"},
-		"non-json test output":              {map[string]sandbox.ExecResult{"list": ok(pkgs), "test": {ExitCode: 0, Stdout: []byte("garbage\n" + testJSON(`{"Action":"pass","Package":"example.com/app"}`, `{"Action":"skip","Package":"example.com/app/internal/x"}`))}}, "test", "did not parse"},
+		"timeout":                                   {map[string]sandbox.ExecResult{"list": ok(pkgs), "test": {TimedOut: true, ExitCode: 137}}, "test", "timed out"},
+		"truncated output":                          {map[string]sandbox.ExecResult{"list": ok(pkgs), "build": {ExitCode: 0, StdoutTruncated: true}}, "build", "capture limit"},
+		"nonzero without findings":                  {map[string]sandbox.ExecResult{"list": ok(pkgs), "build": {ExitCode: 2, Stderr: []byte("segfault in compiler\n")}}, "build", "did not parse"},
+		"exit zero with diagnostics":                {map[string]sandbox.ExecResult{"list": ok(pkgs), "vet": {ExitCode: 0, Stderr: []byte("./a.go:1:1: suspicious\n")}}, "vet", "exit code 0 but"},
+		"missing package terminal":                  {map[string]sandbox.ExecResult{"list": ok(pkgs), "test": ok(testJSON(`{"Action":"pass","Package":"example.com/app"}`))}, "test", "did not parse"},
+		"test exit mismatch":                        {map[string]sandbox.ExecResult{"list": ok(pkgs), "test": {ExitCode: 0, Stdout: []byte(testJSON(`{"Action":"fail","Package":"example.com/app"}`, `{"Action":"skip","Package":"example.com/app/internal/x"}`))}}, "test", "did not parse"},
+		"missing package result with silent stderr": {map[string]sandbox.ExecResult{"list": ok(pkgs), "test": {ExitCode: 1, Stderr: []byte("something odd\n"), Stdout: []byte(testJSON(`{"Action":"skip","Package":"example.com/app/internal/x"}`))}}, "test", "did not parse"},
+		"non-json test output":                      {map[string]sandbox.ExecResult{"list": ok(pkgs), "test": {ExitCode: 0, Stdout: []byte("garbage\n" + testJSON(`{"Action":"pass","Package":"example.com/app"}`, `{"Action":"skip","Package":"example.com/app/internal/x"}`))}}, "test", "did not parse"},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -178,5 +178,27 @@ func TestBaseline_ListFailureErrorsEveryCheck(t *testing.T) {
 	}
 	if len(fs.calls) != 1 {
 		t.Fatalf("checks ran despite listing failure: %d calls", len(fs.calls))
+	}
+}
+
+// A package whose test binary could not be built or set up produces no
+// JSON result; the failure on stderr makes it a conclusive package finding.
+func TestBaseline_TestSetupFailureIsConclusive(t *testing.T) {
+	cases := map[string]string{
+		"build failed":   "# example.com/app\n./main.go:3:1: syntax error\nFAIL\texample.com/app [build failed]\n",
+		"setup failed":   "main.go:6:2: cannot find module providing package example.com/toolkit/strutil: import lookup disabled by -mod=readonly\nFAIL\texample.com/app [setup failed]\n",
+		"fail line only": "FAIL\texample.com/app [setup failed]\n",
+	}
+	for name, stderr := range cases {
+		t.Run(name, func(t *testing.T) {
+			run, _ := baseline(t, map[string]sandbox.ExecResult{
+				"list": ok(pkgs),
+				"test": {ExitCode: 1, Stderr: []byte(stderr), Stdout: []byte(testJSON(`{"Action":"skip","Package":"example.com/app/internal/x"}`))},
+			})
+			c := run.Checks["test"]
+			if !c.Conclusive || c.Status != validate.Fail || len(c.Findings) != 1 || c.Findings[0].Key != "test:example.com/app:package" {
+				t.Fatalf("test = %+v", c)
+			}
+		})
 	}
 }

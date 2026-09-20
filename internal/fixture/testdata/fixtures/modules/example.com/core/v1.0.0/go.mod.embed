@@ -1,0 +1,5 @@
+module example.com/core
+
+go 1.22
+
+require example.com/util v0.1.0

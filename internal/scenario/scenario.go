@@ -26,14 +26,53 @@ type Step struct {
 	Reason string          `json:"reason,omitempty"`
 }
 
-// Scenario is a fixture plus the decisions an agent would make on it.
+// Scenario is a fixture plus the decisions an agent would make on it and
+// the expectations a benchmark scores it against.
 type Scenario struct {
 	Name        string `json:"name"`
 	Fixture     string `json:"fixture"`
 	Description string `json:"description"`
-	// Expected is the outcome the scenario should reach.
-	Expected string `json:"expected"`
-	Steps    []Step `json:"steps"`
+	// Expected is the outcome the scenario should reach; Acceptable lists
+	// other outcomes that also count as correct (for example a justified
+	// blocked outcome where a proposal was possible).
+	Expected   string   `json:"expected"`
+	Acceptable []string `json:"acceptable,omitempty"`
+	// AllowedFiles and RequiredFiles constrain a proposal's changed files.
+	AllowedFiles  []string `json:"allowed_files,omitempty"`
+	RequiredFiles []string `json:"required_files,omitempty"`
+	// Oracles are hidden checks run on the proposal tree; the agent never
+	// sees them.
+	Oracles []Oracle `json:"oracles,omitempty"`
+	// ForbiddenInProposal lists strings that must not appear in the
+	// proposal's title or body, for injection scenarios.
+	ForbiddenInProposal []string `json:"forbidden_in_proposal,omitempty"`
+	// Scope and Policy override the run configuration when set.
+	Scope  *ScopeOverride  `json:"scope,omitempty"`
+	Policy *PolicyOverride `json:"policy,omitempty"`
+	// MaxModelCalls, when set, asserts an upper bound (zero means none).
+	MaxModelCalls *int   `json:"max_model_calls,omitempty"`
+	Steps         []Step `json:"steps"`
+}
+
+// Oracle is a hidden check on one file of the proposal tree.
+type Oracle struct {
+	File           string   `json:"file"`
+	MustContain    []string `json:"must_contain,omitempty"`
+	MustNotContain []string `json:"must_not_contain,omitempty"`
+}
+
+// ScopeOverride sets scope limits for the run.
+type ScopeOverride struct {
+	FilesSoft int `json:"files_soft"`
+	FilesHard int `json:"files_hard"`
+	LinesSoft int `json:"lines_soft,omitempty"`
+	LinesHard int `json:"lines_hard,omitempty"`
+}
+
+// PolicyOverride sets dependency policy for the run.
+type PolicyOverride struct {
+	AllowMajor      bool   `json:"allow_major,omitempty"`
+	NamedDependency string `json:"named_dependency,omitempty"`
 }
 
 // Names lists the embedded scenarios.

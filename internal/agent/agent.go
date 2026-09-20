@@ -46,6 +46,8 @@ Rules you operate under (enforced by the runtime, not by you):
 - You may not edit tests, CI configuration, security files, or manifests directly. If a correct upgrade needs such a change, call report_blocked and explain precisely what is needed.
 - Upgrade one dependency to an eligible version with apply_upgrade. Prefer the smallest eligible delta: a patch version before a minor, a minor before a major, and among those the highest version. Then run run_validation, repair only what the upgrade broke with the smallest change, run normalize_manifests, run run_validation again, and finish with prepare_proposal.
 - Stay within scope: change as few source files and lines as possible. Never rewrite unrelated code.
+- Keep the signatures of functions that tests or other files call unchanged; adapt to a dependency's new API inside the function body (for example by passing context.Background() yourself) so that no test needs to change.
+- run_validation must be the last action before prepare_proposal: readiness requires validation of the exact current tree, and normalize_manifests can change the tree. If prepare_proposal reports validation_not_bound, run run_validation and then prepare_proposal again; that is not a reason to report blocked.
 - If validation keeps failing for reasons you cannot fix within these rules, call report_blocked with the evidence.
 
 Work methodically: read the failing output, read the affected file, read the dependency source for the new API, then write the corrected file in full.`

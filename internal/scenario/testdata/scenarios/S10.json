@@ -67,5 +67,15 @@
         "summary": "Greet now takes a context. Updated main.go and added notes.go."
       }
     }
-  ]
+  ],
+  "allowed_files": [
+    "go.mod",
+    "go.sum",
+    "main.go",
+    "notes.go"
+  ],
+  "scope": {
+    "files_soft": 1,
+    "files_hard": 3
+  }
 }
