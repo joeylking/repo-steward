@@ -186,6 +186,20 @@ func (r *run) driver(rt *agentrt.Store, agent agentrt.Agent) (*session.Session, 
 // when the run is terminal.
 func (r *run) finalize(ctx context.Context, rt *agentrt.Store, sess *session.Session, rr agentrt.Run) (*Result, error) {
 	r.res.Run = describeRun(ctx, rt, rr)
+	r.res.ModelCalls, r.res.InputTokens, r.res.OutputTokens, r.res.CostMicros = rr.ModelCalls, rr.Usage.InputTokens, rr.Usage.OutputTokens, int64(rr.EstimatedCost)
+	if steps, err := rt.ListSteps(ctx, rr.ID); err == nil {
+		for _, st := range steps {
+			if st.Policy == nil {
+				continue
+			}
+			switch st.Policy.Outcome {
+			case agentrt.Deny:
+				r.res.PolicyDenials++
+			case agentrt.Abort:
+				r.res.PolicyAborts++
+			}
+		}
+	}
 	r.res.Outcome, r.res.Detail = outcomeOf(rr, sess)
 	if sess.Outcome != nil && sess.Outcome.Code == "proposal_prepared" {
 		if p, ok := sess.Outcome.Detail.(*proposal.Proposal); ok {

@@ -16,6 +16,7 @@ import (
 
 	agentrt "github.com/joeylking/agent-runtime"
 
+	"github.com/joeylking/repo-steward/internal/bench"
 	"github.com/joeylking/repo-steward/internal/deps"
 	"github.com/joeylking/repo-steward/internal/fixture"
 	"github.com/joeylking/repo-steward/internal/gitx"
@@ -40,6 +41,7 @@ const usage = `usage:
   repo-steward resume <run-id> [-data-dir DIR] [-fixture-proxy DIR] [-trace]
   repo-steward approve <run-id> [-approval ID] [-note TEXT] [-data-dir DIR]
   repo-steward reject <run-id> [-approval ID] [-note TEXT] [-data-dir DIR]
+  repo-steward bench run -mode baseline|scripted|model [-model provider:name] [-scenarios S1,S2,...] [-repeat N] [-max-model-calls N] [-max-total-calls N] [-root DIR] [-out DIR] [-author "Name <email>"]
   repo-steward runs list [-data-dir DIR]
   repo-steward runs show <run-id> [-events] [-data-dir DIR]
   repo-steward inspect <repo-path> [-data-dir DIR] [-fixture-proxy DIR] [-pull] [-allow-major] [-dependency MODULE] [-check-timeout DURATION]
@@ -68,6 +70,9 @@ func run(args []string) error {
 		return runDecide(ctx, args[1:], true)
 	case "reject":
 		return runDecide(ctx, args[1:], false)
+	}
+	if args[0] == "bench" && args[1] == "run" {
+		return runBench(ctx, args[2:])
 	}
 	if args[0] == "runs" && args[1] == "list" {
 		return runsList(ctx, args[2:])
@@ -542,6 +547,53 @@ func runsShow(ctx context.Context, args []string) error {
 	proms, _ := ts.ListPromotions(ctx, runID)
 	out["promotions"] = proms
 	return printJSON(out)
+}
+
+func runBench(ctx context.Context, args []string) error {
+	fs := flag.NewFlagSet("bench run", flag.ContinueOnError)
+	mode := fs.String("mode", "baseline", "baseline, scripted, or model")
+	modelName := fs.String("model", "ollama:qwen3:30b-a3b", "model as provider:name for -mode model")
+	scenarios := fs.String("scenarios", "S1,S2,S3,S8", "comma-separated scenario names")
+	repeat := fs.Int("repeat", 1, "runs per scenario")
+	maxCalls := fs.Int("max-model-calls", 80, "model call cap per run")
+	maxTotal := fs.Int("max-total-calls", 0, "stop when total model calls reach this (0: no cap)")
+	root := fs.String("root", "", "working root visible to the container engine (default: ~/.cache/repo-steward-bench)")
+	out := fs.String("out", "benchmarks/results", "directory for the JSON and Markdown result files")
+	author := fs.String("author", "Benchmark Operator <bench@example.invalid>", "proposal author")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *root == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return err
+		}
+		*root = filepath.Join(home, ".cache", "repo-steward-bench")
+	}
+	ident, err := resolveAuthor(*author, ".")
+	if err != nil {
+		return err
+	}
+	spec, err := steward.ParseModelSpec(*modelName)
+	if err != nil && *mode == "model" {
+		return err
+	}
+	opts := bench.Options{Mode: *mode, Model: spec, Scenarios: strings.Split(*scenarios, ","), Repeat: *repeat, MaxModelCalls: *maxCalls, MaxTotalCalls: *maxTotal, Root: *root, Author: ident,
+		Observer: func(msg string) { fmt.Fprintln(os.Stderr, msg) }}
+	sum, err := bench.Execute(ctx, opts)
+	if err != nil {
+		return err
+	}
+	if c, err := exec.Command("git", "rev-parse", "--short", "HEAD").Output(); err == nil {
+		sum.Commit = strings.TrimSpace(string(c))
+	}
+	name, err := sum.Write(*out)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintln(os.Stderr, "wrote", filepath.Join(*out, name+".json"))
+	fmt.Print(sum.Markdown())
+	return nil
 }
 
 func defaultDataDir() (string, error) {

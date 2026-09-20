@@ -110,11 +110,22 @@ Milestone 1 is complete.
 | `-mode model` with persisted model spec so `resume` rebuilds the same agent; `-record` and `-replay` through the runtime's replay package | Implemented | `internal/steward/model.go` |
 | Live local-model runs: patch-safe selects v1.2.4 and freezes a manifest-only proposal; breaking-minor reads the new signature, rewrites the call site, and freezes a proposal with main.go | Observed on 2026-09-17 with qwen3:30b-a3b, not a gated test | see README |
 
-Required for batch 2B: replayable model-mode tests, which need
-deterministic tool outputs (validation record ids and timings currently
-vary between runs); a proof-of-capability harness that runs S1 through S8
-against a chosen model under a call cap and records outcomes as data; a
-second local model for comparison.
+## Milestone 2, batch 2B
+
+| Control or capability | Status | Reference |
+|---|---|---|
+| Tool results carry nothing run-specific, so a recorded model run replays | Verified (integration) | `internal/tools` `run_validation`, `TestModelMode_ReplaysRecordedRuns` |
+| Model mode replays recorded responses with the model server unreachable, in tests and in CI | Verified (integration) | `internal/steward/testdata/recordings`, CI step "model mode from recordings" |
+| Benchmark harness: fresh fixture per run, scores with explicit denominators, completions and refusals never combined, safe non-results distinct from incorrect refusals, side effects and policy stops counted | Verified | `internal/bench`, `TestScore_ClassesAreSeparate`, `TestAggregate_DenominatorsAreExplicit` |
+| Results committed as data with the commit they were produced at | Implemented | `benchmarks/results/` |
+
+Recordings are keyed by the exact request. Changing the system prompt, a
+tool description or schema, or the shape of a tool result invalidates them;
+re-record with `maintain -mode model -record` and commit the new files.
+
+Required for Milestone 3: destination verification, `publish_proposal`,
+publication operations with markers, push through a credential helper, PR
+creation and reconciliation, and the fake GitHub server for tests.
 
 ## Not claimed
 
@@ -130,8 +141,8 @@ with their own tests.
 - The Go module cache under the data directory is created read-only by the
   toolchain. A `cache clean` command is Required.
 - Integration test packages must run serially against one engine.
-- Model-mode runs are not replayable yet because tool results embed
-  run-specific identifiers; recordings from one run do not match the next.
+- Model-mode recordings are tied to the exact prompt and tool shapes and
+  must be re-recorded after any change to them.
 - VM-backed engines cache path lookups. The code never deletes and
   recreates a directory at the same path during a run and probe markers
   are unique, but any new mount path added later must follow the same rule.

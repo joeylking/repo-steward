@@ -554,8 +554,12 @@ func (t *validateTool) Call(ctx context.Context, c agentrt.ToolCall) (agentrt.To
 	} else if len(intro) > 0 {
 		summary = fmt.Sprintf("validation failed: %d introduced finding(s)", len(intro))
 	}
+	// The record id is deliberately absent: tool results reach the model,
+	// and anything run-specific in them would make a recorded run
+	// impossible to replay. The evidence is looked up by tree hash.
+	_ = id
 	return result(map[string]any{
-		"validation_id": id, "tree": vr.TreeHash, "conclusive": vr.Conclusive, "clean": vr.Clean,
+		"tree": vr.TreeHash, "conclusive": vr.Conclusive, "clean": vr.Clean,
 		"introduced": keys, "introduced_hash": hashKeys(keys), "checks": checks, "notice": untrustedNotice,
 	}, summary)
 }

@@ -149,6 +149,13 @@ everything that executes repository code still runs with no network.
 8. Freezes the proposal from a persisted commit recipe and points a
    proposal ref at it.
 
+## Benchmarks
+
+`bench run` executes scenarios through a mode and scores them against what
+each scenario declares, with denominators stated and completions never
+added to refusals. Results are committed under `benchmarks/results/` as
+data. See [benchmarks/README.md](benchmarks/README.md).
+
 ## The agent path
 
 In agent modes the runtime drives a decision loop. Each decision is a

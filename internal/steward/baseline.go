@@ -101,7 +101,14 @@ type Result struct {
 	Readiness     *proposal.Readiness    `json:"readiness,omitempty"`
 	Proposal      *proposal.Proposal     `json:"proposal,omitempty"`
 	Run           *RunInfo               `json:"run,omitempty"`
-	Timings       map[string]int64       `json:"timings_ms"`
+	// Accounting and control counters, filled from the runtime run.
+	ModelCalls    int              `json:"model_calls,omitempty"`
+	InputTokens   int              `json:"input_tokens,omitempty"`
+	OutputTokens  int              `json:"output_tokens,omitempty"`
+	CostMicros    int64            `json:"cost_micros,omitempty"`
+	PolicyDenials int              `json:"policy_denials,omitempty"`
+	PolicyAborts  int              `json:"policy_aborts,omitempty"`
+	Timings       map[string]int64 `json:"timings_ms"`
 }
 
 // ValidationSummary is the per-check summary kept in the result.
