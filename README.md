@@ -26,6 +26,7 @@ local bare repository in tests, not yet against github.com.
 - [docs/status.md](docs/status.md): the milestone-by-milestone control table.
 - [docs/decisions](docs/decisions): why it is built this way.
 - [benchmarks/README.md](benchmarks/README.md): scoring and committed results.
+- [Wiki](https://github.com/joeylking/repo-steward/wiki): the same system at length, for users, developers, and operators, with a glossary and the design decisions explained.
 
 ## Data directory layout
 
