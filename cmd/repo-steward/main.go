@@ -21,6 +21,7 @@ import (
 	"github.com/joeylking/repo-steward/internal/fixture"
 	"github.com/joeylking/repo-steward/internal/gitx"
 	"github.com/joeylking/repo-steward/internal/inspect"
+	"github.com/joeylking/repo-steward/internal/lock"
 	"github.com/joeylking/repo-steward/internal/modproxy"
 	"github.com/joeylking/repo-steward/internal/proposal"
 	"github.com/joeylking/repo-steward/internal/publish"
@@ -42,6 +43,7 @@ const usage = `usage:
   repo-steward resume <run-id> [-data-dir DIR] [-fixture-proxy DIR] [-trace]
   repo-steward approve <run-id> [-approval ID] [-note TEXT] [-data-dir DIR]
   repo-steward reject <run-id> [-approval ID] [-note TEXT] [-data-dir DIR]
+  repo-steward cancel <run-id> [-note TEXT] [-data-dir DIR]
   repo-steward bench summarize [-dir DIR]
   repo-steward bench run -mode baseline|scripted|model [-model provider:name] [-scenarios S1,S2,...] [-repeat N] [-max-model-calls N] [-max-total-calls N] [-root DIR] [-out DIR] [-author "Name <email>"]
   repo-steward runs list [-data-dir DIR]
@@ -72,6 +74,8 @@ func run(args []string) error {
 		return runDecide(ctx, args[1:], true)
 	case "reject":
 		return runDecide(ctx, args[1:], false)
+	case "cancel":
+		return runCancel(ctx, args[1:])
 	}
 	if args[0] == "bench" && args[1] == "run" {
 		return runBench(ctx, args[2:])
@@ -465,6 +469,60 @@ func runDecide(ctx context.Context, args []string, approve bool) error {
 	}
 	a, _ := rt.GetApproval(ctx, runID, *approvalID)
 	return printJSON(map[string]any{"run_id": runID, "approval": a})
+}
+
+// runCancel ends a run that is not terminal without executing anything.
+// It is the only way to close a run whose approval was granted but whose
+// resume never completed, since a decided approval cannot be rejected.
+func runCancel(ctx context.Context, args []string) error {
+	runID, rest, err := positional(args, "cancel: expected a run id")
+	if err != nil {
+		return err
+	}
+	fs := flag.NewFlagSet("cancel", flag.ContinueOnError)
+	dataDir := fs.String("data-dir", "", "data directory")
+	note := fs.String("note", "", "note recorded with the cancellation")
+	by := fs.String("by", "", "who cancelled (default: the current user)")
+	if err := fs.Parse(rest); err != nil {
+		return err
+	}
+	if *dataDir == "" {
+		if *dataDir, err = defaultDataDir(); err != nil {
+			return err
+		}
+	}
+	if *by == "" {
+		*by = os.Getenv("USER")
+	}
+	// Both locks: no process may be executing or resuming the run.
+	exec, err := lock.Acquire(filepath.Join(*dataDir, "executor.lock"))
+	if err != nil {
+		return err
+	}
+	defer exec.Release()
+	runLock, err := lock.Acquire(filepath.Join(*dataDir, "runs", runID, "run.lock"))
+	if err != nil {
+		return err
+	}
+	defer runLock.Release()
+	rt, err := agentrt.OpenStore(filepath.Join(*dataDir, "steward.db"))
+	if err != nil {
+		return err
+	}
+	defer rt.Close()
+	if err := agentrt.Cancel(ctx, rt, nil, runID, *by, *note); err != nil {
+		return err
+	}
+	ts, err := task.Open(filepath.Join(*dataDir, "steward.db"))
+	if err != nil {
+		return err
+	}
+	defer ts.Close()
+	if err := ts.FinishTask(ctx, runID, steward.OutcomeCancelled, map[string]any{"note": *note, "by": *by}); err != nil {
+		return err
+	}
+	run, _ := rt.GetRun(ctx, runID)
+	return printJSON(map[string]any{"run_id": runID, "outcome": steward.OutcomeCancelled, "run": run})
 }
 
 func runsList(ctx context.Context, args []string) error {

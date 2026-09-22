@@ -138,6 +138,7 @@ re-record with `maintain -mode model -record` and commit the new files.
 | Reconciliation from remote state: absent ref pushed again, ref at the commit accepted, different commit is a conflict; pull request found by marker across open, closed, and merged states and never recreated; foreign pull request is a conflict | Verified | `TestReconcile_*` |
 | Interrupted publication resumed by reconciliation: after the pull request was created but unrecorded, and after the push but before the pull request; the run completes without another agent decision | Verified (integration, fault-injected binary) | `TestCLI_PublicationInterruptedIsReconciled`, `TestCLI_PublicationInterruptedBeforePRIsFinished` |
 | Runtime reconciliation outcomes: continue, completed, waiting, conflict | Verified | agent-runtime `TestResume_ReconcileOutcomes` |
+| `cancel` closes a run whose approval was granted but never resumed; both locks taken; resume then refused; nothing reaches the destination | Verified (integration) | `TestCLI_PublicationCancelledAfterApproval` |
 
 Run against github.com on 2026-09-22: a model-mode run on a private Go
 repository of the author's (qwen3:30b-a3b, pgx v5.7.4 to v5.7.5, go.mod and

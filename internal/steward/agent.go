@@ -45,6 +45,7 @@ const (
 	OutcomeLoopDetected         = "loop_detected"
 	OutcomeEndedWithoutProposal = "ended_without_proposal"
 	OutcomeApprovalRejected     = "approval_rejected"
+	OutcomeCancelled            = "cancelled"
 	OutcomeFailed               = "failed"
 )
 

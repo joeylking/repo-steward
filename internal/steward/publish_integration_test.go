@@ -228,3 +228,32 @@ func TestCLI_PublicationDestinationFromOriginAcrossProcesses(t *testing.T) {
 		t.Fatal("publication did not reach the destination")
 	}
 }
+
+// TestCLI_PublicationCancelledAfterApproval closes a run whose approval was
+// granted but which was never resumed. Reject cannot apply to a decided
+// approval; cancel ends the run, and a later resume is refused.
+func TestCLI_PublicationCancelledAfterApproval(t *testing.T) {
+	p := newPublication(t)
+	res, _, _ := p.maintainPublish(p.bin, nil)
+	runID := res["run_id"].(string)
+	if _, code, stderr := p.run(p.bin, nil, "approve", runID, "-data-dir", p.data); code != 0 {
+		t.Fatalf("approve: %s", stderr)
+	}
+	if _, code, _ := p.run(p.bin, nil, "reject", runID, "-data-dir", p.data); code == 0 {
+		t.Fatal("reject after approval must fail")
+	}
+	out, code, stderr := p.run(p.bin, nil, "cancel", runID, "-data-dir", p.data, "-note", "changed my mind")
+	if code != 0 || out["outcome"] != "cancelled" {
+		t.Fatalf("cancel: code %d %v\n%s", code, out, stderr)
+	}
+	if _, code, _ := p.run(p.bin, nil, "resume", runID, "-data-dir", p.data, "-fixture-proxy", p.proxy); code == 0 {
+		t.Fatal("resume of a cancelled run must fail")
+	}
+	if p.remoteHead(t, "repo-steward/lib-v1.2.4") != "" || len(p.api.Repo("acme", "app").PRs) != 0 {
+		t.Fatal("cancelled publication reached the destination")
+	}
+	show, _, _ := p.run(p.bin, nil, "runs", "show", runID, "-data-dir", p.data)
+	if show["task"].(map[string]any)["outcome"] != "cancelled" || show["run"].(map[string]any)["Reason"] != "operator_cancelled" {
+		t.Fatalf("after cancel: task %v run %v", show["task"], show["run"])
+	}
+}
