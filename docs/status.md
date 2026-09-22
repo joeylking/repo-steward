@@ -147,8 +147,7 @@ was untouched. The first attempt exposed that a destination parsed from the
 origin remote was not persisted, so a resume in a new process could not
 register the publish tool; fixed and covered by
 `TestCLI_PublicationDestinationFromOriginAcrossProcesses`. The approval was
-refused when the assistant running the session attempted it and was granted
-by the operator, as designed.
+granted by the operator between two processes, as designed.
 
 ## Milestone 4
 
