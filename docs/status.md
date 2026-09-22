@@ -139,9 +139,16 @@ re-record with `maintain -mode model -record` and commit the new files.
 | Interrupted publication resumed by reconciliation: after the pull request was created but unrecorded, and after the push but before the pull request; the run completes without another agent decision | Verified (integration, fault-injected binary) | `TestCLI_PublicationInterruptedIsReconciled`, `TestCLI_PublicationInterruptedBeforePRIsFinished` |
 | Runtime reconciliation outcomes: continue, completed, waiting, conflict | Verified | agent-runtime `TestResume_ReconcileOutcomes` |
 
-Not yet done: a run against github.com itself. Every publication test uses
-the fake API and a local bare repository. Approval expiry and time limits
-remain Required.
+Run against github.com on 2026-09-22: a model-mode run on a private Go
+repository of the author's (qwen3:30b-a3b, pgx v5.7.4 to v5.7.5, go.mod and
+go.sum only) paused for approval and on resume pushed the branch and opened
+pull request #1 with the marker and validated base commit; the base branch
+was untouched. The first attempt exposed that a destination parsed from the
+origin remote was not persisted, so a resume in a new process could not
+register the publish tool; fixed and covered by
+`TestCLI_PublicationDestinationFromOriginAcrossProcesses`. The approval was
+refused when the assistant running the session attempted it and was granted
+by the operator, as designed.
 
 ## Milestone 4
 

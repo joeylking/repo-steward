@@ -18,8 +18,11 @@ tools, policy, approvals, and resume, a scripted agent for deterministic
 tests, a model-driven agent against local Ollama models, committed
 benchmarks over eleven scenarios, and publication under a hash-bound
 approval with journaled, reconcilable operations. No paid model call is
-made anywhere. Publication has run against a fake GitHub server and a
-local bare repository in tests, not yet against github.com.
+made anywhere. Publication is tested against a fake GitHub server and a local bare
+repository, and has run once for real: on 2026-09-22 a model-mode run on a
+private Go repository of the author's upgraded pgx from v5.7.4 to v5.7.5,
+paused for approval, and on resume pushed one branch and opened one pull
+request on github.com, changing go.mod and go.sum only.
 
 - [docs/architecture.md](docs/architecture.md): stages, evidence, sandbox profiles, runs and recovery.
 - [docs/security.md](docs/security.md): assets, boundaries, every control with its status and test, accepted risks.
