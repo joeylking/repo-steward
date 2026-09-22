@@ -323,17 +323,7 @@ func runMaintain(ctx context.Context, args []string) error {
 			}
 			opts.Destination = &d
 		}
-		if *githubAPI != "" || *pushURL != "" {
-			if opts.Destination == nil {
-				return fmt.Errorf("maintain: -github-api and -push-url need -destination")
-			}
-			if *githubAPI != "" {
-				opts.Destination.APIBase = *githubAPI
-			}
-			if *pushURL != "" {
-				opts.Destination.PushURL = *pushURL
-			}
-		}
+		opts.APIBaseOverride, opts.PushURLOverride = *githubAPI, *pushURL
 	}
 	var res *steward.Result
 	switch *mode {

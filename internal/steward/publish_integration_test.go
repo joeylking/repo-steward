@@ -197,3 +197,34 @@ func TestCLI_PublicationRejected(t *testing.T) {
 		t.Fatalf("task = %v", show["task"])
 	}
 }
+
+// TestCLI_PublicationDestinationFromOriginAcrossProcesses covers the path a
+// real run takes: no -destination, so the destination is parsed from the
+// source's origin remote. It must be persisted with the run, or a resume in
+// a new process cannot register the publish tool and the approved request
+// cannot execute.
+func TestCLI_PublicationDestinationFromOriginAcrossProcesses(t *testing.T) {
+	p := newPublication(t)
+	if _, err := gitx.New(p.repo).Run(ctx, "remote", "add", "origin", "https://github.com/acme/app.git"); err != nil {
+		t.Fatal(err)
+	}
+	res, code, stderr := p.maintain(p.bin, nil, "-mode", "scripted", "-scenario", "S1P", "-publish", "-github-api", p.api.URL(), "-push-url", "file://"+p.bare)
+	if code != 5 || res["outcome"] != "awaiting_approval" {
+		t.Fatalf("code %d outcome %v\n%s", code, res["outcome"], stderr)
+	}
+	runID := res["run_id"].(string)
+	dest := res["destination"].(map[string]any)
+	if dest["owner"] != "acme" || dest["repo"] != "app" || dest["push_url"] != "file://"+p.bare {
+		t.Fatalf("destination = %v", dest)
+	}
+	if _, code, stderr := p.run(p.bin, nil, "approve", runID, "-data-dir", p.data); code != 0 {
+		t.Fatalf("approve: %s", stderr)
+	}
+	res, code, stderr = p.run(p.bin, nil, "resume", runID, "-data-dir", p.data, "-fixture-proxy", p.proxy)
+	if code != 0 || res["outcome"] != "proposal_published" {
+		t.Fatalf("resume: code %d outcome %v detail %v\n%s", code, res["outcome"], res["detail"], stderr)
+	}
+	if p.remoteHead(t, "repo-steward/lib-v1.2.4") == "" || len(p.api.Repo("acme", "app").PRs) != 1 {
+		t.Fatal("publication did not reach the destination")
+	}
+}

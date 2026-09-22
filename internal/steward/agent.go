@@ -131,7 +131,7 @@ func runAgent(ctx context.Context, opts Options, mode string, agent agentrt.Agen
 		return r.res, r.store.FinishTask(ctx, r.id, outcome, r.res.Detail)
 	}
 	defer removeAll(r.buildCache)
-	if err := r.store.SetTaskContext(ctx, r.id, persist(opts), r.cands); err != nil {
+	if err := r.store.SetTaskContext(ctx, r.id, persist(r.opts), r.cands); err != nil {
 		return nil, err
 	}
 
@@ -579,6 +579,12 @@ func (r *run) captureDestination(ctx context.Context, sourcePath string) error {
 			return err
 		}
 		d = &parsed
+	}
+	if r.opts.APIBaseOverride != "" {
+		d.APIBase = r.opts.APIBaseOverride
+	}
+	if r.opts.PushURLOverride != "" {
+		d.PushURL = r.opts.PushURLOverride
 	}
 	client := github.New(d.APIBase, r.opts.GitHubToken)
 	if err := publish.Verify(ctx, client, d, baseRef, baseCommit); err != nil {

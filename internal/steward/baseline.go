@@ -68,6 +68,11 @@ type Options struct {
 	// the source's remote unless given, and verified before the run.
 	Publish     bool
 	Destination *publish.Destination
+	// APIBaseOverride and PushURLOverride replace the destination's API
+	// base and push URL after it is captured, whether it was given or
+	// parsed from the source's origin remote. Tests use them.
+	APIBaseOverride string
+	PushURLOverride string
 	// GitHubToken is read from the environment by the command line and
 	// used for API calls and the push. It is never persisted.
 	GitHubToken string
