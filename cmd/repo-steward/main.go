@@ -39,7 +39,7 @@ func main() {
 }
 
 const usage = `usage:
-  repo-steward maintain <repo-path> -mode baseline|scripted|model [-scenario NAME] [-model provider:name] [-record DIR] [-replay DIR] [-max-model-calls N] [-publish [-destination owner/repo] [-github-api URL] [-push-url URL]] [-author "Name <email>"] [-data-dir DIR] [-fixture-proxy DIR] [-pull] [-allow-major] [-dependency MODULE] [-check-timeout DURATION] [-scope-files-soft N] [-scope-files-hard N] [-scope-lines-soft N] [-scope-lines-hard N] [-trace]
+  repo-steward maintain <repo-path> -mode baseline|scripted|model [-scenario NAME] [-model provider:name] [-record DIR] [-replay DIR] [-max-model-calls N] [-publish [-destination owner/repo] [-github-api URL] [-push-url URL]] [-author "Name <email>"] [-data-dir DIR] [-fixture-proxy DIR] [-pull] [-allow-major] [-dependency MODULE[@VERSION]] [-check-timeout DURATION] [-scope-files-soft N] [-scope-files-hard N] [-scope-lines-soft N] [-scope-lines-hard N] [-trace]
   repo-steward resume <run-id> [-data-dir DIR] [-fixture-proxy DIR] [-trace]
   repo-steward approve <run-id> [-approval ID] [-note TEXT] [-data-dir DIR]
   repo-steward reject <run-id> [-approval ID] [-note TEXT] [-data-dir DIR]
@@ -48,7 +48,7 @@ const usage = `usage:
   repo-steward bench run -mode baseline|scripted|model [-model provider:name] [-scenarios S1,S2,...] [-repeat N] [-max-model-calls N] [-max-total-calls N] [-root DIR] [-out DIR] [-author "Name <email>"]
   repo-steward runs list [-data-dir DIR]
   repo-steward runs show <run-id> [-events] [-data-dir DIR]
-  repo-steward inspect <repo-path> [-data-dir DIR] [-fixture-proxy DIR] [-pull] [-allow-major] [-dependency MODULE] [-check-timeout DURATION]
+  repo-steward inspect <repo-path> [-data-dir DIR] [-fixture-proxy DIR] [-pull] [-allow-major] [-dependency MODULE[@VERSION]] [-check-timeout DURATION]
   repo-steward fixture list
   repo-steward fixture setup <name> [-dest DIR]
   repo-steward fixture proxy [-dest DIR]
@@ -224,7 +224,7 @@ func runInspect(ctx context.Context, args []string) error {
 	proxyDir := fs.String("fixture-proxy", "", "file-based module proxy directory; disables network and checksum database (fixtures only)")
 	pull := fs.Bool("pull", false, "pull the pinned toolchain image if it is not present (one-time bootstrap)")
 	allowMajor := fs.Bool("allow-major", false, "treat major upgrades as eligible")
-	dependency := fs.String("dependency", "", "restrict eligibility to one module")
+	dependency := fs.String("dependency", "", "restrict eligibility to one module, or to one exact version as module@version")
 	checkTimeout := fs.Duration("check-timeout", 10*time.Minute, "timeout per validation check")
 	if err := fs.Parse(rest); err != nil {
 		return err
@@ -273,7 +273,7 @@ func runMaintain(ctx context.Context, args []string) error {
 	proxyDir := fs.String("fixture-proxy", "", "file-based module proxy directory; disables network and checksum database (fixtures only)")
 	pull := fs.Bool("pull", false, "pull the pinned toolchain image if absent")
 	allowMajor := fs.Bool("allow-major", false, "treat major upgrades as eligible")
-	dependency := fs.String("dependency", "", "restrict eligibility to one module")
+	dependency := fs.String("dependency", "", "restrict eligibility to one module, or to one exact version as module@version")
 	checkTimeout := fs.Duration("check-timeout", 10*time.Minute, "timeout per validation check")
 	scopeFilesSoft := fs.Int("scope-files-soft", 0, "soft limit on changed source files (default 10); crossing it asks for one approval")
 	scopeFilesHard := fs.Int("scope-files-hard", 0, "hard limit on changed source files (default 20); crossing it ends the run")

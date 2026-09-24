@@ -170,6 +170,22 @@ Results for every mode over all eleven scenarios are committed under
 pinned real-module smoke scenarios, which need network acquisition and are
 reported separately when they exist.
 
+## Smoke scenarios against public modules
+
+| Control or capability | Status | Reference |
+|---|---|---|
+| Exact-version pin: `-dependency module@version` leaves only that version eligible; an older pin yields no candidate | Verified | `TestTargets_PolicyAndNamedDependency`, smoke `echo-pin-older` |
+| Library-only modules build: `-o` is passed only when the listing contains a main package | Verified | `TestBaseline_BuildOutputOnlyForMainPackages`, smoke `echo-minor` |
+| A `go.mod` under a directory the go tool ignores (`_x`, `.x`, `testdata`) is not a nested module | Verified | `TestInspect_IgnoredDirectoriesAreNotNestedModules`, smoke `validator-patch` |
+| Patch and minor upgrades on real public modules through the public proxy and checksum database end in a frozen proposal changing go.mod and go.sum only, with the proposal commit on the pinned base and its tree equal to the validated tree | Verified (smoke, network) | `TestSmoke/validator-patch`, `TestSmoke/echo-minor` |
+| A target declaring a newer go directive than the pinned image stops before admission as `requires_newer_toolchain` | Verified (smoke, network) | `TestSmoke/echo-requires-newer-toolchain` |
+| A real test suite that reaches the network fails its baseline in the sandbox and the run stops before selection or mutation | Verified (smoke, network) | `TestSmoke/progressbar-baseline-failing` |
+
+Pinned on 2026-09-24: labstack/echo v4.15.4, go-playground/validator
+v10.30.5, schollz/progressbar v3.19.1. A scenario fails if its tag moves
+off the pinned commit. The workflow is `.github/workflows/smoke.yml`,
+on demand and weekly.
+
 ## Not claimed
 
 The sandbox reduces risk from untrusted build behaviour on operator-selected

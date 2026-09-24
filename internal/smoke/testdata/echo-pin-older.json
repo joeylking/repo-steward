@@ -1,0 +1,10 @@
+{
+  "name": "echo-pin-older",
+  "description": "A pin to a version older than the current one is not a candidate: the tool never downgrades.",
+  "repository": "https://github.com/labstack/echo.git",
+  "tag": "v4.15.4",
+  "commit": "ec79b584025d300acc9cb0a2b127a7209c902fd2",
+  "dependency": "golang.org/x/time",
+  "version": "v0.14.0",
+  "expected": "no_candidate"
+}

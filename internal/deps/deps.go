@@ -26,7 +26,9 @@ type Policy struct {
 	AllowMinor bool     `json:"allow_minor"`
 	AllowPatch bool     `json:"allow_patch"`
 	Deny       []string `json:"deny,omitempty"`
-	// NamedDependency restricts eligibility to one module.
+	// NamedDependency restricts eligibility to one module, or with an
+	// "@version" suffix to one exact version of it. Only versions newer
+	// than the current one are ever candidates, so a pin cannot downgrade.
 	NamedDependency string `json:"named_dependency,omitempty"`
 }
 
@@ -178,6 +180,15 @@ func delta(cur, next string) string {
 	}
 }
 
+// splitPin separates "module@version" into its parts; a bare module has
+// an empty version.
+func splitPin(named string) (string, string) {
+	if i := strings.LastIndex(named, "@"); i >= 0 {
+		return named[:i], named[i+1:]
+	}
+	return named, ""
+}
+
 // targets evaluates every listed version newer than cur against the policy.
 func targets(modPath, cur string, versions []string, pol Policy) []Target {
 	sorted := append([]string(nil), versions...)
@@ -217,8 +228,13 @@ func targets(modPath, cur string, versions []string, pol Policy) []Target {
 				deny("module is on the operator deny list")
 			}
 		}
-		if pol.NamedDependency != "" && pol.NamedDependency != modPath {
-			deny("operator named a different dependency")
+		if pol.NamedDependency != "" {
+			named, pinned := splitPin(pol.NamedDependency)
+			if named != modPath {
+				deny("operator named a different dependency")
+			} else if pinned != "" && pinned != v {
+				deny("operator pinned version " + pinned)
+			}
 		}
 		out = append(out, t)
 	}

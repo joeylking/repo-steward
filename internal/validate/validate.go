@@ -113,7 +113,7 @@ func Baseline(ctx context.Context, sb sandbox.Sandbox, opts Options) (*Run, erro
 	}
 
 	// Package enumeration is the precondition for test completeness.
-	listRes, err := exec("go", "list", "./...")
+	listRes, err := exec("go", "list", "-f", "{{.ImportPath}} {{.Name}}", "./...")
 	if err != nil {
 		return nil, err
 	}
@@ -125,20 +125,32 @@ func Baseline(ctx context.Context, sb sandbox.Sandbox, opts Options) (*Run, erro
 		run.Duration = time.Since(run.StartedAt)
 		return run, nil
 	}
+	hasMain := false
 	for _, line := range strings.Split(strings.TrimSpace(string(listRes.Stdout)), "\n") {
-		if line = strings.TrimSpace(line); line != "" {
-			run.Packages = append(run.Packages, line)
+		fields := strings.Fields(line)
+		if len(fields) == 0 {
+			continue
+		}
+		run.Packages = append(run.Packages, fields[0])
+		if len(fields) > 1 && fields[1] == "main" {
+			hasMain = true
 		}
 	}
 	sort.Strings(run.Packages)
+	// Binaries go to tmpfs because the source mount is read-only, but go
+	// build refuses -o when no main package is listed, so a library-only
+	// module builds without it; nothing is written in that case.
+	build := []string{"go", "build", "./..."}
+	if hasMain {
+		build = []string{"go", "build", "-o", "/tmp/gobuild/", "./..."}
+	}
 
 	specs := []struct {
 		name  string
 		argv  []string
 		parse func(res sandbox.ExecResult, packages []string) Attempt
 	}{
-		// Binaries go to tmpfs; the source mount is read-only.
-		{"build", []string{"go", "build", "-o", "/tmp/gobuild/", "./..."}, parseDiagnostics("build")},
+		{"build", build, parseDiagnostics("build")},
 		{"vet", []string{"go", "vet", "./..."}, parseDiagnostics("vet")},
 		{"test", []string{"go", "test", "-json", "-count=1", "./..."}, parseTestJSON},
 	}

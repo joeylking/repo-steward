@@ -89,3 +89,21 @@ func TestRefusalForListError(t *testing.T) {
 		t.Fatal("limit errors are not refusals")
 	}
 }
+
+// A go.mod under a directory the go tool ignores is not a nested module:
+// it cannot enter the build, and refusing it would reject real
+// repositories that keep runnable examples under _examples.
+func TestInspect_IgnoredDirectoriesAreNotNestedModules(t *testing.T) {
+	for _, dir := range []string{"_examples/demo", "testdata/mod", ".tools", "a/testdata/b"} {
+		d := t.TempDir()
+		p, err := repo.Inspect(d, write(t, d, map[string]string{"go.mod": goodMod, "main.go": "package main\n", dir + "/go.mod": "module x\n\ngo 1.22\n"}))
+		if err != nil || len(p.Refusals) != 0 {
+			t.Fatalf("%s: refusals %v", dir, p.Refusals)
+		}
+	}
+	d := t.TempDir()
+	p, err := repo.Inspect(d, write(t, d, map[string]string{"go.mod": goodMod, "main.go": "package main\n", "examples/go.mod": "module x\n\ngo 1.22\n"}))
+	if err != nil || len(p.Refusals) != 1 {
+		t.Fatalf("examples/go.mod not refused: %v", p.Refusals)
+	}
+}

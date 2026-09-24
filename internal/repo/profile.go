@@ -108,7 +108,7 @@ func Inspect(dir string, entries []snapshot.Entry) (*Profile, error) {
 	}
 	var nested []string
 	for path := range paths {
-		if path != "go.mod" && strings.HasSuffix(path, "/go.mod") {
+		if path != "go.mod" && strings.HasSuffix(path, "/go.mod") && !ignoredByGo(path) {
 			nested = append(nested, path)
 		}
 		if strings.HasPrefix(path, "vendor/") {
@@ -203,6 +203,19 @@ func findCgo(dir string, entries []snapshot.Entry) ([]string, error) {
 func contains(list []string, s string) bool {
 	for _, x := range list {
 		if x == s {
+			return true
+		}
+	}
+	return false
+}
+
+// ignoredByGo reports whether a path lies under a directory the go tool
+// skips when matching ./...: one named testdata, or one whose name starts
+// with "." or "_". A go.mod there cannot affect the module's build.
+func ignoredByGo(path string) bool {
+	parts := strings.Split(path, "/")
+	for _, p := range parts[:len(parts)-1] {
+		if p == "testdata" || strings.HasPrefix(p, ".") || strings.HasPrefix(p, "_") {
 			return true
 		}
 	}

@@ -1,0 +1,14 @@
+{
+  "name": "echo-minor",
+  "description": "A minor upgrade of one direct dependency on a library-only module with a real test suite, through the public module proxy and checksum database. The target's own requirements move through the closure.",
+  "repository": "https://github.com/labstack/echo.git",
+  "tag": "v4.15.4",
+  "commit": "ec79b584025d300acc9cb0a2b127a7209c902fd2",
+  "dependency": "github.com/stretchr/testify",
+  "version": "v1.12.0",
+  "expected": "proposal_prepared",
+  "files": [
+    "go.mod",
+    "go.sum"
+  ]
+}

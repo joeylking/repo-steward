@@ -1,0 +1,11 @@
+{
+  "name": "progressbar-baseline-failing",
+  "description": "A real repository whose test suite reaches the network and whose examples fail go vet. The baseline fails inside the no-network sandbox, so the run ends before any candidate is selected or any manifest is touched.",
+  "repository": "https://github.com/schollz/progressbar.git",
+  "tag": "v3.19.1",
+  "commit": "28775d4a960a12279f5905731dfc55656a35abe2",
+  "dependency": "github.com/chengxilo/virtualterm",
+  "version": "v1.0.5",
+  "expected": "baseline_failing",
+  "expected_finding": "TestReaderToBuffer"
+}

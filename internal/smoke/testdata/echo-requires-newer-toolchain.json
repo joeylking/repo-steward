@@ -1,0 +1,10 @@
+{
+  "name": "echo-requires-newer-toolchain",
+  "description": "The target version declares go 1.26.0 while the repository declares 1.25.0 and the image is pinned to it. With GOTOOLCHAIN=local the toolchain cannot be upgraded inside the sandbox, so the run reports the requirement instead of proposing.",
+  "repository": "https://github.com/labstack/echo.git",
+  "tag": "v4.15.4",
+  "commit": "ec79b584025d300acc9cb0a2b127a7209c902fd2",
+  "dependency": "golang.org/x/time",
+  "version": "v0.16.0",
+  "expected": "requires_newer_toolchain"
+}

@@ -90,6 +90,19 @@ func TestTargets_PolicyAndNamedDependency(t *testing.T) {
 			t.Fatalf("named dependency mismatch still eligible: %+v", tg)
 		}
 	}
+	// An exact pin leaves only that version eligible, and never an older one.
+	pol = Policy{AllowMajor: true, AllowMinor: true, AllowPatch: true, NamedDependency: "example.com/lib@v1.3.0"}
+	for _, tg := range targets("example.com/lib", "v1.2.1", versions, pol) {
+		if tg.Eligible != (tg.Version == "v1.3.0") {
+			t.Fatalf("pinned v1.3.0: %+v", tg)
+		}
+	}
+	pol.NamedDependency = "example.com/lib@v1.0.0"
+	for _, tg := range targets("example.com/lib", "v1.2.1", versions, pol) {
+		if tg.Eligible {
+			t.Fatalf("pin to an older version made %s eligible", tg.Version)
+		}
+	}
 	pol = Policy{AllowMajor: true, AllowMinor: true, AllowPatch: true, Deny: []string{"example.com/lib"}}
 	for _, tg := range targets("example.com/lib", "v1.2.1", versions, pol) {
 		if tg.Eligible {

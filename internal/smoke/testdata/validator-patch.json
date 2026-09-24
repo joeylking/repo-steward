@@ -1,0 +1,14 @@
+{
+  "name": "validator-patch",
+  "description": "A patch upgrade on a module that keeps runnable examples with their own go.mod under _examples, which the go tool ignores and the profile must too.",
+  "repository": "https://github.com/go-playground/validator.git",
+  "tag": "v10.30.5",
+  "commit": "6a9b66661aec1c9f9172781187b6638b7a3f7d31",
+  "dependency": "github.com/go-playground/universal-translator",
+  "version": "v0.18.2",
+  "expected": "proposal_prepared",
+  "files": [
+    "go.mod",
+    "go.sum"
+  ]
+}

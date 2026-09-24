@@ -141,6 +141,8 @@ ones; crossing a hard limit ends the run. The proposal commit lives under
 output; the scratch checkout's HEAD is never moved. Against a real repository omit `-fixture-proxy`; dependency
 acquisition then reaches the public module proxy and checksum database, and
 everything that executes repository code still runs with no network.
+`-dependency module@version` pins one exact target; only versions newer
+than the current one are ever candidates, so a pin cannot downgrade.
 
 ## What inspect does
 
@@ -235,6 +237,29 @@ measurement and never in tests or CI.
 go test -tags integration -p 1 ./...
 go test -tags faultinject ./internal/manifest/ ./internal/proposal/
 ```
+
+## Smoke scenarios against public modules
+
+`internal/smoke` holds five scenarios that clone a real public repository
+at a pinned commit, upgrade one direct dependency to a pinned version
+through the public module proxy and checksum database, and check the
+outcome: two proposals (a patch on go-playground/validator, a minor on
+labstack/echo), a pin to an older version that yields no candidate, a
+target whose go directive exceeds the repository's pinned toolchain, and a
+repository whose test suite reaches the network and therefore fails its
+baseline in the sandbox. They need the network and the toolchain images
+the targets declare, so they run under their own tag and in a separate
+on-demand and weekly workflow, not on every push.
+
+```sh
+go test -tags smoke -count=1 -p 1 -v ./internal/smoke/
+```
+
+Writing them exposed two defects that the synthetic fixtures had hidden:
+the build check passed `-o` unconditionally, which `go build` refuses for
+a library-only module, and a `go.mod` under a directory the go tool
+ignores, such as `_examples`, was refused as a nested module. Both are
+fixed and covered by unit tests.
 
 Integration tests need the engine and the pinned image and never pull.
 Packages run serially because `inspect` reaps every container carrying the

@@ -29,7 +29,7 @@ func ok(stdout string) sandbox.ExecResult {
 	return sandbox.ExecResult{ExitCode: 0, Stdout: []byte(stdout)}
 }
 
-const pkgs = "example.com/app\nexample.com/app/internal/x\n"
+const pkgs = "example.com/app main\nexample.com/app/internal/x x\n"
 
 func testJSON(lines ...string) string { return strings.Join(lines, "\n") + "\n" }
 
@@ -200,5 +200,39 @@ func TestBaseline_TestSetupFailureIsConclusive(t *testing.T) {
 				t.Fatalf("test = %+v", c)
 			}
 		})
+	}
+}
+
+// A library-only module has no main package, and go build refuses -o in
+// that case; the build check must still run and still pass. A module with
+// a main package builds to tmpfs so the read-only source is never written.
+func TestBaseline_BuildOutputOnlyForMainPackages(t *testing.T) {
+	argv := func(fs *fakeSandbox) []string {
+		for _, c := range fs.calls {
+			if c.Argv[1] == "build" {
+				return c.Argv
+			}
+		}
+		return nil
+	}
+	lib, fs := baseline(t, map[string]sandbox.ExecResult{
+		"list": ok("example.com/lib lib\nexample.com/lib/sub sub\n"),
+		"test": ok(testJSON(`{"Action":"pass","Package":"example.com/lib"}`, `{"Action":"skip","Package":"example.com/lib/sub"}`)),
+	})
+	if !lib.Conclusive || !lib.Clean {
+		t.Fatalf("library run = %+v", lib)
+	}
+	if a := argv(fs); strings.Join(a, " ") != "go build ./..." {
+		t.Fatalf("library build argv = %v", a)
+	}
+	if len(lib.Packages) != 2 || lib.Packages[0] != "example.com/lib" {
+		t.Fatalf("packages = %v", lib.Packages)
+	}
+	_, fs = baseline(t, map[string]sandbox.ExecResult{
+		"list": ok(pkgs),
+		"test": ok(testJSON(`{"Action":"pass","Package":"example.com/app"}`, `{"Action":"skip","Package":"example.com/app/internal/x"}`)),
+	})
+	if a := argv(fs); strings.Join(a, " ") != "go build -o /tmp/gobuild/ ./..." {
+		t.Fatalf("main build argv = %v", a)
 	}
 }
