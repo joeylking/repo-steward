@@ -39,13 +39,13 @@ func main() {
 }
 
 const usage = `usage:
-  repo-steward maintain <repo-path> -mode baseline|scripted|model [-scenario NAME] [-model provider:name] [-record DIR] [-replay DIR] [-max-model-calls N] [-publish [-destination owner/repo] [-github-api URL] [-push-url URL]] [-author "Name <email>"] [-data-dir DIR] [-fixture-proxy DIR] [-pull] [-allow-major] [-dependency MODULE[@VERSION]] [-check-timeout DURATION] [-scope-files-soft N] [-scope-files-hard N] [-scope-lines-soft N] [-scope-lines-hard N] [-trace]
+  repo-steward maintain <repo-path> -mode baseline|scripted|model [-scenario NAME] [-model provider:name] [-record DIR] [-replay DIR] [-max-model-calls N] [-max-cost-usd USD] [-publish [-destination owner/repo] [-github-api URL] [-push-url URL]] [-author "Name <email>"] [-data-dir DIR] [-fixture-proxy DIR] [-pull] [-allow-major] [-dependency MODULE[@VERSION]] [-check-timeout DURATION] [-scope-files-soft N] [-scope-files-hard N] [-scope-lines-soft N] [-scope-lines-hard N] [-trace]
   repo-steward resume <run-id> [-data-dir DIR] [-fixture-proxy DIR] [-trace]
   repo-steward approve <run-id> [-approval ID] [-note TEXT] [-data-dir DIR]
   repo-steward reject <run-id> [-approval ID] [-note TEXT] [-data-dir DIR]
   repo-steward cancel <run-id> [-note TEXT] [-data-dir DIR]
   repo-steward bench summarize [-dir DIR]
-  repo-steward bench run -mode baseline|scripted|model [-model provider:name] [-scenarios S1,S2,...] [-repeat N] [-max-model-calls N] [-max-total-calls N] [-root DIR] [-out DIR] [-author "Name <email>"]
+  repo-steward bench run -mode baseline|scripted|model [-model provider:name] [-scenarios S1,S2,...] [-repeat N] [-max-model-calls N] [-max-total-calls N] [-max-cost-usd USD] [-max-total-cost-usd USD] [-root DIR] [-out DIR] [-author "Name <email>"]
   repo-steward runs list [-data-dir DIR]
   repo-steward runs show <run-id> [-events] [-data-dir DIR]
   repo-steward inspect <repo-path> [-data-dir DIR] [-fixture-proxy DIR] [-pull] [-allow-major] [-dependency MODULE[@VERSION]] [-check-timeout DURATION]

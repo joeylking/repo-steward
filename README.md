@@ -18,7 +18,8 @@ tools, policy, approvals, and resume, a scripted agent for deterministic
 tests, a model-driven agent against local Ollama models, committed
 benchmarks over eleven scenarios, and publication under a hash-bound
 approval with journaled, reconcilable operations. No paid model call is
-made anywhere. Publication is tested against a fake GitHub server and a local bare
+made by any development, test, or CI path; the one paid provider exists
+for explicit, capped measurements, see Benchmarks. Publication is tested against a fake GitHub server and a local bare
 repository, and has run once for real: on 2026-09-22 a model-mode run on a
 private Go repository of the author's upgraded pgx from v5.7.4 to v5.7.5,
 paused for approval, and on resume pushed one branch and opened one pull
@@ -227,9 +228,12 @@ The system prompt is fixed and never contains repository content; files and
 command output reach the model only inside tool results, labelled as data.
 The runtime enforces call, token, and cost limits before every request and
 records every attempt. Local models through Ollama are the development
-provider precisely because they cost nothing to iterate against; a paid
-provider, when one is added, is used only for an explicit, budgeted
-measurement and never in tests or CI.
+provider precisely because they cost nothing to iterate against. The one
+paid provider, `anthropic:<model>`, is constructed by nothing in tests or
+CI, refuses to run without a known price and a `-max-cost-usd` cap, and
+charges cache writes at their higher rate so the cap never undercounts.
+`bench run` adds `-max-total-cost-usd`, which it stops before a run could
+exceed. It is used only for explicit, budgeted measurements.
 
 ## Integration tests
 

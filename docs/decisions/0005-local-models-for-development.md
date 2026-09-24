@@ -15,5 +15,6 @@ Tradeoffs: local model quality is lower, which the benchmarks show
 honestly. A paid provider is still the right instrument for one explicit,
 budgeted measurement, never for the workflow.
 
-Revisit when: that measurement is wanted; it needs an opt-in flag, a key
-in the environment, and the runtime's cost cap.
+Revisit when: never for the workflow. The measurement was made on
+2026-09-24 with a Claude provider behind `-max-cost-usd` and
+`-max-total-cost-usd`, under a five-dollar cap; see `benchmarks/README.md`.
