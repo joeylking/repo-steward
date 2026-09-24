@@ -263,6 +263,7 @@ func runMaintain(ctx context.Context, args []string) error {
 	recordDir := fs.String("record", "", "record every model response into this directory")
 	replayDir := fs.String("replay", "", "serve model responses from this directory and never call the provider")
 	maxModelCalls := fs.Int("max-model-calls", 0, "cap on model calls for -mode model (default 80)")
+	maxCost := fs.Float64("max-cost-usd", 0, "cap on estimated model spend for -mode model; required for a paid provider")
 	publishFlag := fs.Bool("publish", false, "enable publication: verify the destination now, and let the run push and open a pull request after approval (token from GITHUB_TOKEN)")
 	destination := fs.String("destination", "", "owner/repo on github.com (default: parsed from the source's origin remote)")
 	githubAPI := fs.String("github-api", "", "API base URL override (tests)")
@@ -344,9 +345,15 @@ func runMaintain(ctx context.Context, args []string) error {
 			return perr
 		}
 		spec.RecordDir, spec.ReplayDir = *recordDir, *replayDir
-		if *maxModelCalls > 0 {
+		if *maxModelCalls > 0 || *maxCost > 0 {
 			opts.RuntimeLimits = steward.DefaultModelLimits()
-			opts.RuntimeLimits.MaxModelCalls = *maxModelCalls
+			if *maxModelCalls > 0 {
+				opts.RuntimeLimits.MaxModelCalls = *maxModelCalls
+			}
+			opts.RuntimeLimits.MaxEstimatedCost = agentrt.Micros(*maxCost * 1e6)
+		}
+		if spec.Provider != "ollama" && *replayDir == "" && *maxCost <= 0 {
+			return fmt.Errorf("maintain: a paid provider needs -max-cost-usd")
 		}
 		res, err = steward.RunModel(ctx, opts, spec)
 	default:
@@ -650,6 +657,8 @@ func runBench(ctx context.Context, args []string) error {
 	repeat := fs.Int("repeat", 1, "runs per scenario")
 	maxCalls := fs.Int("max-model-calls", 80, "model call cap per run")
 	maxTotal := fs.Int("max-total-calls", 0, "stop when total model calls reach this (0: no cap)")
+	maxCost := fs.Float64("max-cost-usd", 0, "cap on estimated spend per run; required for a paid provider")
+	maxTotalCost := fs.Float64("max-total-cost-usd", 0, "stop before a run that could push total estimated spend past this; required for a paid provider")
 	root := fs.String("root", "", "working root visible to the container engine (default: ~/.cache/repo-steward-bench)")
 	out := fs.String("out", "benchmarks/results", "directory for the JSON and Markdown result files")
 	author := fs.String("author", "Benchmark Operator <bench@example.invalid>", "proposal author")
@@ -671,8 +680,17 @@ func runBench(ctx context.Context, args []string) error {
 	if err != nil && *mode == "model" {
 		return err
 	}
+	if *mode == "model" && spec.Provider != "ollama" && (*maxCost <= 0 || *maxTotalCost <= 0) {
+		return fmt.Errorf("bench: a paid provider needs -max-cost-usd and -max-total-cost-usd")
+	}
 	opts := bench.Options{Mode: *mode, Model: spec, Scenarios: strings.Split(*scenarios, ","), Repeat: *repeat, MaxModelCalls: *maxCalls, MaxTotalCalls: *maxTotal, Root: *root, Author: ident,
+		MaxCost: agentrt.Micros(*maxCost * 1e6), MaxTotalCost: agentrt.Micros(*maxTotalCost * 1e6),
 		Observer: func(msg string) { fmt.Fprintln(os.Stderr, msg) }}
+	if *mode == "model" {
+		if opts.Prices, err = spec.Prices(); err != nil {
+			return err
+		}
+	}
 	sum, err := bench.Execute(ctx, opts)
 	if err != nil {
 		return err

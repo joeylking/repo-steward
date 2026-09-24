@@ -9,6 +9,7 @@ import (
 	"github.com/joeylking/agent-runtime/replay"
 
 	"github.com/joeylking/repo-steward/internal/agent"
+	"github.com/joeylking/repo-steward/internal/model/anthropic"
 	"github.com/joeylking/repo-steward/internal/model/ollama"
 	"github.com/joeylking/repo-steward/internal/session"
 )
@@ -36,14 +37,35 @@ func ParseModelSpec(s string) (ModelSpec, error) {
 
 func (m ModelSpec) String() string { return m.Provider + ":" + m.Name }
 
+// Prices returns the price table for the spec's provider; local providers
+// have none. A paid provider whose model is absent from its table is
+// refused rather than run at a price of zero.
+func (m ModelSpec) Prices() (agentrt.PriceTable, error) {
+	switch m.Provider {
+	case "anthropic":
+		p := anthropic.Prices()
+		if _, ok := p[m.String()]; !ok {
+			return nil, fmt.Errorf("no price for %s; a paid model runs only with a known price", m.String())
+		}
+		return p, nil
+	}
+	return nil, nil
+}
+
 // build returns the agentrt.Model for the spec.
 func (m ModelSpec) build() (agentrt.Model, error) {
 	var inner agentrt.Model
 	switch m.Provider {
 	case "ollama":
 		inner = ollama.New(m.Name)
+	case "anthropic":
+		a, err := anthropic.New(m.Name)
+		if err != nil {
+			return nil, err
+		}
+		inner = a
 	default:
-		return nil, fmt.Errorf("unknown model provider %q (available: ollama)", m.Provider)
+		return nil, fmt.Errorf("unknown model provider %q (available: ollama, anthropic)", m.Provider)
 	}
 	if m.ReplayDir != "" {
 		return &replay.Replayer{ModelName: inner.Name(), Dir: m.ReplayDir}, nil
@@ -71,6 +93,13 @@ func RunModel(ctx context.Context, opts Options, spec ModelSpec) (*Result, error
 		opts.RuntimeLimits = DefaultModelLimits()
 	}
 	opts.Model = &spec
+	if opts.Prices == nil {
+		p, err := spec.Prices()
+		if err != nil {
+			return nil, err
+		}
+		opts.Prices = p
+	}
 	return runAgent(ctx, opts, "model:"+spec.String(), nil)
 }
 

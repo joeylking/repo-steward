@@ -37,10 +37,14 @@ type Options struct {
 	// across runs reaches MaxTotalCalls.
 	MaxModelCalls int
 	MaxTotalCalls int
-	Root          string // working root; must be visible to the container engine
-	Author        gitx.Identity
-	Prices        agentrt.PriceTable
-	Observer      func(msg string)
+	// MaxCost caps each run's estimated spend; the harness stops before a
+	// run whose cap could push the total past MaxTotalCost.
+	MaxCost      agentrt.Micros
+	MaxTotalCost agentrt.Micros
+	Root         string // working root; must be visible to the container engine
+	Author       gitx.Identity
+	Prices       agentrt.PriceTable
+	Observer     func(msg string)
 }
 
 // Expectation classifies what a scenario expects.
@@ -133,7 +137,7 @@ func Execute(ctx context.Context, opts Options) (*Summary, error) {
 			return nil, err
 		}
 	}
-	sum := &Summary{Mode: opts.Mode, StartedAt: time.Now().UTC(), PerScenario: map[string]string{}, Budget: map[string]int{"max_model_calls_per_run": opts.MaxModelCalls, "max_total_calls": opts.MaxTotalCalls}}
+	sum := &Summary{Mode: opts.Mode, StartedAt: time.Now().UTC(), PerScenario: map[string]string{}, Budget: map[string]int{"max_model_calls_per_run": opts.MaxModelCalls, "max_total_calls": opts.MaxTotalCalls, "max_cost_micros_per_run": int(opts.MaxCost), "max_total_cost_micros": int(opts.MaxTotalCost)}}
 	if opts.Mode == "model" {
 		sum.Model = opts.Model.String()
 	}
@@ -143,6 +147,7 @@ func Execute(ctx context.Context, opts Options) (*Summary, error) {
 		}
 	}
 	totalCalls := 0
+	var totalCost agentrt.Micros
 	for _, name := range opts.Scenarios {
 		sc, err := scenario.Load(name)
 		if err != nil {
@@ -152,6 +157,10 @@ func Execute(ctx context.Context, opts Options) (*Summary, error) {
 		for rep := 1; rep <= opts.Repeat; rep++ {
 			if opts.MaxTotalCalls > 0 && totalCalls >= opts.MaxTotalCalls {
 				sum.Notes = append(sum.Notes, fmt.Sprintf("stopped before %s repeat %d: total call budget %d reached", name, rep, opts.MaxTotalCalls))
+				break
+			}
+			if opts.MaxTotalCost > 0 && totalCost+opts.MaxCost > opts.MaxTotalCost {
+				sum.Notes = append(sum.Notes, fmt.Sprintf("stopped before %s repeat %d: spent %d micros, a run may cost %d, total budget %d", name, rep, totalCost, opts.MaxCost, opts.MaxTotalCost))
 				break
 			}
 			r := Run{Scenario: name, Fixture: sc.Fixture, Repeat: rep, Expected: exp}
@@ -182,6 +191,7 @@ func Execute(ctx context.Context, opts Options) (*Summary, error) {
 				if opts.MaxModelCalls > 0 {
 					so.RuntimeLimits.MaxModelCalls = opts.MaxModelCalls
 				}
+				so.RuntimeLimits.MaxEstimatedCost = opts.MaxCost
 			}
 			start := time.Now()
 			var res *steward.Result
@@ -208,6 +218,7 @@ func Execute(ctx context.Context, opts Options) (*Summary, error) {
 				r.Score = score(r)
 			}
 			totalCalls += r.ModelCalls
+			totalCost += agentrt.Micros(r.CostMicros)
 			sum.Runs = append(sum.Runs, r)
 			log("%s repeat %d: %s -> %s (%d steps, %d model calls, %s)", name, rep, r.Outcome, r.Score, r.Steps, r.ModelCalls, r.Wall.Round(time.Second))
 		}
@@ -418,7 +429,7 @@ func (s *Summary) Markdown() string {
 	fmt.Fprintf(&b, "| Prohibited requests stopped by policy | %d denials, %d aborts | %d runs |\n", s.PolicyDenials, s.PolicyAborts, len(s.Runs))
 	fmt.Fprintf(&b, "| Unauthorized side effects | %d | %d runs |\n", s.UnauthorizedEffects, len(s.Runs))
 	fmt.Fprintf(&b, "| Model calls | %d | total |\n", s.TotalModelCalls)
-	fmt.Fprintf(&b, "| Estimated cost | %d micros | total |\n\n", s.TotalCostMicros)
+	fmt.Fprintf(&b, "| Estimated cost | $%.4f | total |\n\n", float64(s.TotalCostMicros)/1e6)
 	fmt.Fprintf(&b, "| Scenario | Repeat | Outcome | Score | Steps | Model calls | Tokens in/out | Wall |\n|---|---|---|---|---|---|---|---|\n")
 	for _, r := range s.Runs {
 		fmt.Fprintf(&b, "| %s | %d | %s | %s | %d | %d | %d/%d | %s |\n", r.Scenario, r.Repeat, r.Outcome, r.Score, r.Steps, r.ModelCalls, r.InputTokens, r.OutputTokens, r.Wall.Round(time.Second))

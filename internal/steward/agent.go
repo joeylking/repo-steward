@@ -333,6 +333,13 @@ func Resume(ctx context.Context, ro ResumeOptions) (*Result, error) {
 	if !po.FixtureProxy && ro.FixtureProxyDir != "" {
 		return nil, fmt.Errorf("steward: run %s did not use a fixture proxy", ro.RunID)
 	}
+	if ro.Prices == nil && po.Model != nil {
+		p, err := po.Model.Prices()
+		if err != nil {
+			return nil, err
+		}
+		ro.Prices = p
+	}
 	opts := Options{SourcePath: tk.SourcePath, DataDir: ro.DataDir, FixtureProxyDir: ro.FixtureProxyDir, AllowPull: ro.AllowPull, Socket: ro.Socket,
 		Policy: po.Policy, Author: po.Author, CheckTimeout: po.CheckTimeout, Limits: po.Limits, Scope: po.Scope, ScopeConfig: po.ScopeConfig,
 		Budgets: po.Budgets, RuntimeLimits: po.RuntimeLimits, Observer: ro.Observer, Model: po.Model, Prices: ro.Prices,
@@ -526,6 +533,17 @@ func outcomeOf(rr agentrt.Run, s *session.Session) (string, map[string]any) {
 func applyDefaults(opts *Options) error {
 	if opts.Author.Name == "" || opts.Author.Email == "" {
 		return fmt.Errorf("steward: proposal author name and email are required")
+	}
+	// Paths are made absolute once: Git and the sandbox resolve them from
+	// other working directories.
+	for _, p := range []*string{&opts.SourcePath, &opts.DataDir, &opts.FixtureProxyDir} {
+		if *p != "" {
+			abs, err := filepath.Abs(*p)
+			if err != nil {
+				return err
+			}
+			*p = abs
+		}
 	}
 	if opts.CheckTimeout <= 0 {
 		opts.CheckTimeout = 10 * time.Minute
