@@ -15,6 +15,9 @@ import (
 	"time"
 
 	agentrt "github.com/joeylking/agent-runtime"
+	"github.com/joeylking/agent-runtime/providers"
+	rttrace "github.com/joeylking/agent-runtime/trace"
+	"github.com/joeylking/agent-runtime/view"
 
 	"github.com/joeylking/repo-steward/internal/bench"
 	"github.com/joeylking/repo-steward/internal/deps"
@@ -263,7 +266,7 @@ func runMaintain(ctx context.Context, args []string) error {
 	recordDir := fs.String("record", "", "record every model response into this directory")
 	replayDir := fs.String("replay", "", "serve model responses from this directory and never call the provider")
 	maxModelCalls := fs.Int("max-model-calls", 0, "cap on model calls for -mode model (default 80)")
-	maxCost := fs.Float64("max-cost-usd", 0, "cap on estimated model spend for -mode model; required for a paid provider")
+	maxCost := fs.String("max-cost-usd", "", "cap on estimated model spend for -mode model, e.g. 5 or $0.50; required for a paid provider")
 	publishFlag := fs.Bool("publish", false, "enable publication: verify the destination now, and let the run push and open a pull request after approval (token from GITHUB_TOKEN)")
 	destination := fs.String("destination", "", "owner/repo on github.com (default: parsed from the source's origin remote)")
 	githubAPI := fs.String("github-api", "", "API base URL override (tests)")
@@ -312,7 +315,7 @@ func runMaintain(ctx context.Context, args []string) error {
 		opts.Scope = proposal.ScopeLimits{MaxFiles: sc.FilesHard, MaxLines: sc.LinesHard}
 	}
 	if *trace {
-		opts.Observer = traceObserver()
+		opts.Observer = rttrace.Writer(os.Stderr)
 	}
 	if *publishFlag {
 		opts.Publish = true
@@ -345,14 +348,18 @@ func runMaintain(ctx context.Context, args []string) error {
 			return perr
 		}
 		spec.RecordDir, spec.ReplayDir = *recordDir, *replayDir
-		if *maxModelCalls > 0 || *maxCost > 0 {
+		costCap, cerr := dollars(*maxCost, "maintain: -max-cost-usd")
+		if cerr != nil {
+			return cerr
+		}
+		if *maxModelCalls > 0 || costCap > 0 {
 			opts.RuntimeLimits = steward.DefaultModelLimits()
 			if *maxModelCalls > 0 {
 				opts.RuntimeLimits.MaxModelCalls = *maxModelCalls
 			}
-			opts.RuntimeLimits.MaxEstimatedCost = agentrt.Micros(*maxCost * 1e6)
+			opts.RuntimeLimits.MaxEstimatedCost = costCap
 		}
-		if spec.Provider != "ollama" && *replayDir == "" && *maxCost <= 0 {
+		if spec.Provider != "ollama" && *replayDir == "" && costCap <= 0 {
 			return fmt.Errorf("maintain: a paid provider needs -max-cost-usd")
 		}
 		res, err = steward.RunModel(ctx, opts, spec)
@@ -360,6 +367,19 @@ func runMaintain(ctx context.Context, args []string) error {
 		return fmt.Errorf("maintain: unknown mode %q", *mode)
 	}
 	return report(res, err)
+}
+
+// dollars parses a spend cap written as "5", "4.41", or "$0.50" into the
+// runtime's micros. An empty flag means no cap.
+func dollars(flag, name string) (agentrt.Micros, error) {
+	if strings.TrimSpace(flag) == "" {
+		return 0, nil
+	}
+	m, err := providers.ParseDollars(flag)
+	if err != nil {
+		return 0, fmt.Errorf("%s: %w", name, err)
+	}
+	return m, nil
 }
 
 // report prints the result and exits with its outcome code: 0 proposal
@@ -386,12 +406,6 @@ func report(res *steward.Result, err error) error {
 	return nil
 }
 
-func traceObserver() agentrt.Observer {
-	return func(e agentrt.Event) {
-		fmt.Fprintf(os.Stderr, "%s  %-22s %s\n", e.At.Local().Format("15:04:05.000"), e.Type, string(e.Payload))
-	}
-}
-
 func runResume(ctx context.Context, args []string) error {
 	runID, rest, err := positional(args, "resume: expected a run id")
 	if err != nil {
@@ -407,7 +421,7 @@ func runResume(ctx context.Context, args []string) error {
 	}
 	ro := steward.ResumeOptions{RunID: runID, DataDir: *dataDir, FixtureProxyDir: *proxyDir, AllowPull: *pull, GitHubToken: os.Getenv("GITHUB_TOKEN")}
 	if *trace {
-		ro.Observer = traceObserver()
+		ro.Observer = rttrace.Writer(os.Stderr)
 	}
 	res, err := steward.Resume(ctx, ro)
 	return report(res, err)
@@ -443,22 +457,13 @@ func runDecide(ctx context.Context, args []string, approve bool) error {
 		return err
 	}
 	defer rt.Close()
-	if *approvalID == "" {
-		approvals, err := rt.ListApprovals(ctx, runID)
-		if err != nil {
-			return err
-		}
-		var pending []agentrt.Approval
-		for _, a := range approvals {
-			if a.Status == agentrt.ApprovalPending {
-				pending = append(pending, a)
-			}
-		}
-		if len(pending) != 1 {
-			return fmt.Errorf("%s: run %s has %d pending approvals; pass -approval", verb, runID, len(pending))
-		}
-		*approvalID = pending[0].ID
+	// Without -approval the run must have exactly one pending approval; the
+	// runtime's selection rule names the candidates when it does not.
+	pending, err := view.PendingApproval(ctx, rt, runID, *approvalID)
+	if err != nil {
+		return fmt.Errorf("%s: %w", verb, err)
 	}
+	*approvalID = pending.ID
 	if approve {
 		err = agentrt.Approve(ctx, rt, nil, runID, *approvalID, *by, *note)
 	} else {
@@ -559,20 +564,23 @@ func runsList(ctx context.Context, args []string) error {
 		return err
 	}
 	type row struct {
-		RunID      string `json:"run_id"`
-		Mode       string `json:"mode"`
-		Source     string `json:"source"`
-		Outcome    string `json:"outcome"`
-		RunStatus  string `json:"run_status,omitempty"`
-		Steps      int    `json:"steps,omitempty"`
-		CreatedAt  string `json:"created_at"`
-		FinishedAt string `json:"finished_at,omitempty"`
+		RunID     string `json:"run_id"`
+		Mode      string `json:"mode"`
+		Source    string `json:"source"`
+		Outcome   string `json:"outcome"`
+		RunStatus string `json:"run_status,omitempty"`
+		Steps     int    `json:"steps,omitempty"`
+		// PendingApproval is the approval waiting on this run, when the run
+		// waits on exactly one.
+		PendingApproval string `json:"pending_approval_id,omitempty"`
+		CreatedAt       string `json:"created_at"`
+		FinishedAt      string `json:"finished_at,omitempty"`
 	}
 	var rows []row
 	for _, t := range tasks {
 		r := row{RunID: t.RunID, Mode: t.Mode, Source: t.SourcePath, Outcome: t.Outcome, CreatedAt: t.CreatedAt, FinishedAt: t.FinishedAt}
-		if run, err := rt.GetRun(ctx, t.RunID); err == nil {
-			r.RunStatus, r.Steps = string(run.Status), run.StepCount
+		if rs, err := view.Summary(ctx, rt, t.RunID); err == nil {
+			r.RunStatus, r.Steps, r.PendingApproval = string(rs.Status), rs.Steps, rs.PendingApprovalID
 		}
 		rows = append(rows, r)
 	}
@@ -612,31 +620,7 @@ func runsShow(ctx context.Context, args []string) error {
 	out := map[string]any{"task": tk}
 	if run, err := rt.GetRun(ctx, runID); err == nil {
 		out["run"] = run
-		steps, _ := rt.ListSteps(ctx, runID)
-		type stepRow struct {
-			Index   int    `json:"index"`
-			ID      string `json:"id"`
-			Tool    string `json:"tool,omitempty"`
-			Kind    string `json:"kind"`
-			Status  string `json:"status"`
-			Policy  string `json:"policy,omitempty"`
-			Summary string `json:"summary,omitempty"`
-		}
-		var srows []stepRow
-		for _, st := range steps {
-			r := stepRow{Index: st.Index, ID: st.ID, Status: string(st.Status)}
-			if st.Decision != nil {
-				r.Tool, r.Kind = st.Decision.Tool, string(st.Decision.Kind)
-			}
-			if st.Policy != nil {
-				r.Policy = string(st.Policy.Outcome)
-			}
-			if st.Observation != nil {
-				r.Summary = st.Observation.Summary
-			}
-			srows = append(srows, r)
-		}
-		out["steps"] = srows
+		out["steps"], _ = view.Steps(ctx, rt, runID)
 		out["approvals"], _ = rt.ListApprovals(ctx, runID)
 		if *events {
 			out["events"], _ = rt.ListEvents(ctx, runID)
@@ -657,8 +641,8 @@ func runBench(ctx context.Context, args []string) error {
 	repeat := fs.Int("repeat", 1, "runs per scenario")
 	maxCalls := fs.Int("max-model-calls", 80, "model call cap per run")
 	maxTotal := fs.Int("max-total-calls", 0, "stop when total model calls reach this (0: no cap)")
-	maxCost := fs.Float64("max-cost-usd", 0, "cap on estimated spend per run; required for a paid provider")
-	maxTotalCost := fs.Float64("max-total-cost-usd", 0, "stop before a run that could push total estimated spend past this; required for a paid provider")
+	maxCost := fs.String("max-cost-usd", "", "cap on estimated spend per run, e.g. 5 or $0.50; required for a paid provider")
+	maxTotalCost := fs.String("max-total-cost-usd", "", "stop before a run that could push total estimated spend past this; required for a paid provider")
 	root := fs.String("root", "", "working root visible to the container engine (default: ~/.cache/repo-steward-bench)")
 	out := fs.String("out", "benchmarks/results", "directory for the JSON and Markdown result files")
 	author := fs.String("author", "Benchmark Operator <bench@example.invalid>", "proposal author")
@@ -680,11 +664,19 @@ func runBench(ctx context.Context, args []string) error {
 	if err != nil && *mode == "model" {
 		return err
 	}
-	if *mode == "model" && spec.Provider != "ollama" && (*maxCost <= 0 || *maxTotalCost <= 0) {
+	costCap, err := dollars(*maxCost, "bench: -max-cost-usd")
+	if err != nil {
+		return err
+	}
+	totalCostCap, err := dollars(*maxTotalCost, "bench: -max-total-cost-usd")
+	if err != nil {
+		return err
+	}
+	if *mode == "model" && spec.Provider != "ollama" && (costCap <= 0 || totalCostCap <= 0) {
 		return fmt.Errorf("bench: a paid provider needs -max-cost-usd and -max-total-cost-usd")
 	}
 	opts := bench.Options{Mode: *mode, Model: spec, Scenarios: strings.Split(*scenarios, ","), Repeat: *repeat, MaxModelCalls: *maxCalls, MaxTotalCalls: *maxTotal, Root: *root, Author: ident,
-		MaxCost: agentrt.Micros(*maxCost * 1e6), MaxTotalCost: agentrt.Micros(*maxTotalCost * 1e6),
+		MaxCost: costCap, MaxTotalCost: totalCostCap,
 		Observer: func(msg string) { fmt.Fprintln(os.Stderr, msg) }}
 	if *mode == "model" {
 		if opts.Prices, err = spec.Prices(); err != nil {

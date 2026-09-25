@@ -126,9 +126,8 @@ func (p *Steward) evaluatePublish(ctx context.Context) (agentrt.PolicyDecision, 
 		return deny("no frozen proposal to publish"), nil
 	}
 	cap := map[string]any{"tool": names.Publish, "proposal_id": facts.ID, "proposal_hash": facts.Hash}
-	return agentrt.PolicyDecision{Outcome: agentrt.RequireApproval, Kind: KindPublication,
-		Reason:     fmt.Sprintf("publishing proposal %s pushes %s and opens a pull request against %s", facts.ID, facts.HeadRef, facts.BaseRef),
-		Capability: mustJSON(cap), Presentation: mustJSON(facts)}, nil
+	reason := fmt.Sprintf("publishing proposal %s pushes %s and opens a pull request against %s", facts.ID, facts.HeadRef, facts.BaseRef)
+	return agentrt.NeedApproval(KindPublication, reason, cap, facts)
 }
 
 func (p *Steward) evaluateWrite(ctx context.Context, req agentrt.ToolRequest, view agentrt.RunView) (agentrt.PolicyDecision, error) {
@@ -158,7 +157,8 @@ func (p *Steward) evaluateWrite(ctx context.Context, req agentrt.ToolRequest, vi
 		}
 		cap := map[string]any{"limit": "scope", "files_soft": sc.FilesHard, "lines_soft": sc.LinesHard}
 		pres := map[string]any{"path": a.Path, "projected_files": files, "projected_lines": lines, "soft": map[string]int{"files": sc.FilesSoft, "lines": sc.LinesSoft}, "hard": map[string]int{"files": sc.FilesHard, "lines": sc.LinesHard}}
-		return agentrt.PolicyDecision{Outcome: agentrt.RequireApproval, Kind: KindScopeExpansion, Reason: fmt.Sprintf("the write would leave %d source files and %d lines changed, beyond the soft limits of %d files and %d lines", files, lines, sc.FilesSoft, sc.LinesSoft), Capability: mustJSON(cap), Presentation: mustJSON(pres)}, nil
+		reason := fmt.Sprintf("the write would leave %d source files and %d lines changed, beyond the soft limits of %d files and %d lines", files, lines, sc.FilesSoft, sc.LinesSoft)
+		return agentrt.NeedApproval(KindScopeExpansion, reason, cap, pres)
 	}
 	return agentrt.PolicyDecision{Outcome: agentrt.Allow, Reason: "within scope"}, nil
 }
@@ -217,11 +217,6 @@ func scopeRequested(view agentrt.RunView) bool {
 		}
 	}
 	return false
-}
-
-func mustJSON(v any) json.RawMessage {
-	b, _ := json.Marshal(v)
-	return b
 }
 
 // SessionFacts adapts a session to Facts.

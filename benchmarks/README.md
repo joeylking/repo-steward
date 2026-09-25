@@ -44,8 +44,8 @@ successes over all runs.
 Also reported per run: steps, tool calls, policy denials and aborts (a
 prohibited request the policy stopped), unauthorized side effects (a change
 to the operator's checkout), model calls including retries, tokens, and
-estimated cost. Local models have no price, so cost is zero until a priced
-provider exists.
+estimated cost. A local model is priced free rather than left unpriced, so
+its cost is zero while an unpriced paid model is refused outright.
 
 ## What the current results do and do not show
 
@@ -130,7 +130,9 @@ Observations, from the event logs of these runs:
   eight scenarios the same way and failed the other three differently: S4M
   and S6 at a $0.60 per-run cost cap, and S10H on a request the API
   rejected because the agent's nudge had produced an empty text block,
-  since fixed in the provider adapter. Estimated spend across the probe
+  since fixed in the provider adapter, now the runtime's
+  `providers/anthropic`, which drops an empty text block for the same
+  reason. Estimated spend across the probe
   and both runs was $4.41 against a $5.00 budget; estimates charge cache
   writes at their higher rate and are at or above the bill.
 - No run in any mode produced a false success, modified the operator's

@@ -2,15 +2,18 @@ package steward
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"os"
 	"strings"
 
 	agentrt "github.com/joeylking/agent-runtime"
+	"github.com/joeylking/agent-runtime/providers"
+	"github.com/joeylking/agent-runtime/providers/anthropic"
+	"github.com/joeylking/agent-runtime/providers/ollama"
 	"github.com/joeylking/agent-runtime/replay"
 
 	"github.com/joeylking/repo-steward/internal/agent"
-	"github.com/joeylking/repo-steward/internal/model/anthropic"
-	"github.com/joeylking/repo-steward/internal/model/ollama"
 	"github.com/joeylking/repo-steward/internal/session"
 )
 
@@ -37,33 +40,65 @@ func ParseModelSpec(s string) (ModelSpec, error) {
 
 func (m ModelSpec) String() string { return m.Provider + ":" + m.Name }
 
-// Prices returns the price table for the spec's provider; local providers
-// have none. A paid provider whose model is absent from its table is
-// refused rather than run at a price of zero.
+// ErrNoKey is returned when a Claude run has no API key configured. The key
+// is read here rather than left to the provider SDK so that a run without
+// one is refused before anything is recorded.
+var ErrNoKey = errors.New("anthropic: no API key in ANTHROPIC_API_KEY or CLAUDE_KEY")
+
+// apiKey reads the Claude credential from the environment.
+func apiKey() string {
+	if k := os.Getenv("ANTHROPIC_API_KEY"); k != "" {
+		return k
+	}
+	return os.Getenv("CLAUDE_KEY")
+}
+
+// Prices returns the price table for the spec's model. A local model is
+// recorded as free, which keeps "free" and "unpriced" distinguishable; a
+// paid model absent from its provider's table is refused rather than run at
+// a price of zero.
 func (m ModelSpec) Prices() (agentrt.PriceTable, error) {
 	switch m.Provider {
-	case "anthropic":
-		p := anthropic.Prices()
-		if _, ok := p[m.String()]; !ok {
-			return nil, fmt.Errorf("no price for %s; a paid model runs only with a known price", m.String())
+	case "ollama":
+		om, err := ollama.New(ollama.Config{Model: m.Name})
+		if err != nil {
+			return nil, err
 		}
-		return p, nil
+		return ollama.Free(om), nil
+	case "anthropic":
+		table := anthropic.Prices()
+		if _, err := providers.PriceFor(table, m.String()); err != nil {
+			return nil, err
+		}
+		return providers.Merge(table), nil
 	}
 	return nil, nil
 }
 
-// build returns the agentrt.Model for the spec.
+// build returns the agentrt.Model for the spec. The adapters' default names
+// are "ollama:<model>" and "anthropic:<model>", which is what the price
+// table and the recordings are keyed by.
 func (m ModelSpec) build() (agentrt.Model, error) {
 	var inner agentrt.Model
 	switch m.Provider {
 	case "ollama":
-		inner = ollama.New(m.Name)
-	case "anthropic":
-		a, err := anthropic.New(m.Name)
+		// Host comes from OLLAMA_HOST by way of the adapter's default;
+		// thinking mode stays off and the context window is the default.
+		om, err := ollama.New(ollama.Config{Model: m.Name})
 		if err != nil {
 			return nil, err
 		}
-		inner = a
+		inner = om
+	case "anthropic":
+		key := apiKey()
+		if key == "" {
+			return nil, ErrNoKey
+		}
+		am, err := anthropic.New(anthropic.Config{Model: m.Name, APIKey: key})
+		if err != nil {
+			return nil, err
+		}
+		inner = am
 	default:
 		return nil, fmt.Errorf("unknown model provider %q (available: ollama, anthropic)", m.Provider)
 	}
@@ -76,8 +111,8 @@ func (m ModelSpec) build() (agentrt.Model, error) {
 	return inner, nil
 }
 
-// DefaultModelLimits bound a model-driven run. Local models have no price,
-// so the cost limit only matters once a priced provider exists.
+// DefaultModelLimits bound a model-driven run. A local model is priced
+// free, so the cost limit only matters for a paid provider.
 func DefaultModelLimits() agentrt.Limits {
 	l := agentrt.DefaultLimits()
 	l.MaxSteps = 40

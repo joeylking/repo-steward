@@ -15,7 +15,8 @@ fail-closed validation, candidate discovery, a deterministic baseline
 pipeline, the agent path on
 [agent-runtime](https://github.com/joeylking/agent-runtime) with scoped
 tools, policy, approvals, and resume, a scripted agent for deterministic
-tests, a model-driven agent against local Ollama models, committed
+tests, a model-driven agent against local Ollama models on the runtime's
+provider, renderer, trace, and operator read models, committed
 benchmarks over eleven scenarios, and publication under a hash-bound
 approval with journaled, reconcilable operations. No paid model call is
 made by any development, test, or CI path; the one paid provider exists
@@ -224,16 +225,29 @@ nothing about a real model's repair quality, which is measured separately.
 The model agent in `-mode model` is stateless between steps: each decision
 renders the recorded steps into a message list, asks the model through the
 runtime's accounting caller, and maps the first tool call to a decision.
+The rendering and that mapping are the runtime's `render` package; what
+this repository owns is the domain text, which is the facts, the system
+prompt, the opening message, and the labelled tool-result format. A reply
+that contains no executable tool call, or one cut off by the output cap, is
+recorded as an invalid decision and answered on the next step with a nudge
+naming what was wrong: it costs one step against the limits, and the audit
+log shows it, instead of a second model call hidden inside one step.
 The system prompt is fixed and never contains repository content; files and
 command output reach the model only inside tool results, labelled as data.
 The runtime enforces call, token, and cost limits before every request and
-records every attempt. Local models through Ollama are the development
-provider precisely because they cost nothing to iterate against. The one
+records every attempt. The provider adapters are the runtime's nested
+modules `providers/ollama` and `providers/anthropic`, so the transport
+classification, the price tables, and the paid-model refusal are shared
+rather than rebuilt here. Local models through Ollama are the development
+provider precisely because they cost nothing to iterate against, and they
+are priced free so that free and unpriced stay distinguishable. The one
 paid provider, `anthropic:<model>`, is constructed by nothing in tests or
-CI, refuses to run without a known price and a `-max-cost-usd` cap, and
-charges cache writes at their higher rate so the cap never undercounts.
+CI, refuses to run without a key in `ANTHROPIC_API_KEY` or `CLAUDE_KEY`,
+refuses to run without a known price and a `-max-cost-usd` cap, and charges
+cache writes at their higher rate so the cap never undercounts.
 `bench run` adds `-max-total-cost-usd`, which it stops before a run could
-exceed. It is used only for explicit, budgeted measurements.
+exceed. Both caps are written as `5`, `4.41`, or `$0.50` and parsed by the
+runtime's dollar parser, which refuses anything else. It is used only for explicit, budgeted measurements.
 
 ## Integration tests
 

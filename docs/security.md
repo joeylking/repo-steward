@@ -57,7 +57,8 @@ branch names read during reconciliation.
 | False success claim | Readiness is code: bound validation, conclusive checks, introduced findings, manifest rules, protected paths, scope; evidence admissible only from completed steps; a frozen proposal verifies by hash, ref, tree, and parent | Verified | `TestReadiness_*` via integration, `TestVerify_DetectsTamperedBody`, `TestFreeze_Interruptions` |
 | Proposal altered between review and publish | Publication approval bound to the proposal id and hash; on resume the proposal is re-verified and the working tree must still be the proposal tree | Verified (integration) | `TestPublish_RequiresProposalBoundApproval`, `TestCLI_PublicationAcrossProcesses` |
 | Credential leakage | Containers get an empty environment; the push token lives only in a process-scoped variable read by a credential helper and never in arguments; the API token is a bearer header; nothing writes tokens to the store | Verified | `TestPushCommand_TokenOnlyInEnvironment`, `TestClient_TokenSentAsBearer`, `TestEnvironmentIsBuiltFromScratch` |
-| Repository content sent to the model | Local models during development; the paid provider is constructed by no test or CI path, refuses to run without a known price and a cost cap, and is used only for explicit budgeted measurements | Verified | `TestNew_RefusesWithoutKey`, `TestGenerate_RequestShapeAndUsage`, `maintain` and `bench` refuse a paid provider without a cap |
+| Repository content sent to the model | Local models during development; the paid provider is constructed by no test or CI path, refuses to run without a key or a known price, and is used only for explicit budgeted measurements under a cost cap | Verified | `TestModelSpec_PaidProviderRefusals`, `TestModelSpec_LocalModelIsNamedAndFree`, `maintain` and `bench` refuse a paid provider without a cap; the adapters' own request and usage tests live in `agent-runtime/providers/anthropic` |
+| A reply that asks for nothing executable | Recorded as an invalid decision with an `invalid_decision` observation and nudged on the next step, so it counts against the step and consecutive-failure limits and is visible in the audit log; a partial tool call from a truncated reply is never executed | Verified | `TestDecide_NoToolCallIsRecordedNotRetried`, `TestRender_InvalidStepIsNudged`, runtime `render.Decide` |
 | Duplicate or wrong remote actions on recovery | Operations journaled before dispatch with markers; reconciliation reads remote state across ref and pull request states and never recreates a marked pull request | Verified | `TestReconcile_*`, `TestCLI_PublicationInterrupted*` |
 | Concurrent writers | Exclusive OS lock per run and per data directory; no takeover, no heartbeat | Verified | `TestLock_SuspendedHolderBlocksSecondProcess`, `TestLock_KilledHolderReleases` |
 | Resource exhaustion and spend | Container limits, output caps, timeouts, step, failure, loop, call, token, cost, and time limits, repair budgets | Verified | runtime limit tests, `TestValidate_Budgets` |
@@ -81,4 +82,9 @@ repository content from whichever model provider is configured.
 - The Go module cache under the data directory is created read-only by
   the toolchain; removing a data directory needs the permissions restored
   first.
-- Model recordings are tied to the exact prompt and tool shapes.
+- Model recordings are tied to the exact prompt and tool shapes. The
+  runtime's renderer reproduces the previous renderer byte for byte, so the
+  recordings committed before it replay unchanged.
+- The Claude SDK reaches this module's dependency graph through
+  `providers/anthropic`, which `internal/steward` imports for every mode.
+  No development, test, or CI path constructs the adapter.

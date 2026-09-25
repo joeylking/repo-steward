@@ -3,6 +3,13 @@
 // asks the model through the runtime's accounting caller, and maps the
 // first tool use to a decision. Repository content only ever reaches the
 // model inside tool results, labelled as data.
+//
+// The rendering and the response mapping are the runtime's render package;
+// what stays here is the domain text: the facts, the system prompt, the
+// opening message, and the labelled observation format. A reply with no
+// executable tool call is recorded as an invalid decision and nudged on the
+// next step, which costs one step against the limits instead of a second
+// model call inside one step.
 package agent
 
 import (
@@ -12,6 +19,7 @@ import (
 	"strings"
 
 	agentrt "github.com/joeylking/agent-runtime"
+	"github.com/joeylking/agent-runtime/render"
 )
 
 // Facts are the deterministic facts rendered into the first user message.
@@ -34,7 +42,6 @@ type Agent struct {
 	MaxOutputTokens int
 }
 
-const defaultRecent = 6
 const defaultMaxOutput = 2048
 
 // System is the fixed system prompt. It never contains repository content.
@@ -52,53 +59,50 @@ Rules you operate under (enforced by the runtime, not by you):
 
 Work methodically: read the failing output, read the affected file, read the dependency source for the new API, then write the corrected file in full.`
 
-// Decide implements agentrt.Agent.
+// Decide implements agentrt.Agent. A refusal fails the run and a reply
+// without an executable tool call becomes an invalid decision the next
+// render nudges; neither is retried inside the step.
 func (a *Agent) Decide(ctx context.Context, in agentrt.StepInput) (agentrt.Decision, error) {
 	if in.Model == nil {
 		return agentrt.Decision{}, fmt.Errorf("agent: no model caller in step input")
 	}
-	req := agentrt.ModelRequest{System: System, Messages: a.Render(in), Tools: in.Tools, MaxOutputTokens: a.maxOutput()}
-	resp, err := in.Model.Generate(ctx, req)
+	resp, err := in.Model.Generate(ctx, agentrt.ModelRequest{System: System, Messages: a.Render(in), Tools: in.Tools, MaxOutputTokens: a.maxOutput()})
 	if err != nil {
 		return agentrt.Decision{}, err
 	}
-	if len(resp.ToolUses) == 0 {
-		// One nudge: models sometimes narrate before acting.
-		req.Messages = append(req.Messages,
-			agentrt.Message{Role: "assistant", Content: []agentrt.ContentBlock{{Type: "text", Text: strings.TrimSpace(resp.Text)}}},
-			agentrt.Message{Role: "user", Content: []agentrt.ContentBlock{{Type: "text", Text: "Reply with exactly one tool call. Text is discarded."}}})
-		resp, err = in.Model.Generate(ctx, req)
-		if err != nil {
-			return agentrt.Decision{}, err
-		}
-		if len(resp.ToolUses) == 0 {
-			return agentrt.Decision{Kind: agentrt.DecideFail, Message: "model produced no tool call: " + truncate(resp.Text, 300)}, nil
-		}
-	}
-	tu := resp.ToolUses[0]
-	reason := truncate(strings.TrimSpace(resp.Text), 500)
-	return agentrt.Decision{Kind: agentrt.DecideToolCall, Tool: tu.Name, Args: tu.Args, Reason: reason}, nil
+	return render.Decide(resp), nil
 }
 
 // Render builds the conversation from recorded steps. Each prior step is an
-// assistant tool_use block followed by a user tool_result block.
+// assistant tool_use block followed by a user tool_result block carrying a
+// labelled head and the content; a step that produced no tool call is
+// answered with the renderer's nudge.
 func (a *Agent) Render(in agentrt.StepInput) []agentrt.Message {
-	recent := a.RecentResults
-	if recent <= 0 {
-		recent = defaultRecent
-	}
-	msgs := []agentrt.Message{{Role: "user", Content: []agentrt.ContentBlock{{Type: "text", Text: a.opening(in)}}}}
-	steps := in.Steps
-	for i, st := range steps {
-		if st.Decision == nil || st.Decision.Kind != agentrt.DecideToolCall {
-			continue
-		}
-		id := fmt.Sprintf("step_%d", st.Index)
-		msgs = append(msgs, agentrt.Message{Role: "assistant", Content: []agentrt.ContentBlock{{Type: "tool_use", ToolUseID: id, Name: st.Decision.Tool, Input: orEmpty(st.Decision.Args)}}})
-		full := i >= len(steps)-recent
-		msgs = append(msgs, agentrt.Message{Role: "user", Content: []agentrt.ContentBlock{{Type: "tool_result", ToolUseID: id, Name: st.Decision.Tool, Content: renderObservation(st, full), IsError: st.Observation != nil && st.Observation.Failure()}}})
-	}
-	return msgs
+	return render.Messages(in, render.Options{
+		Opening:       a.opening,
+		RecentResults: a.RecentResults,
+		Assistant: func(st agentrt.Step, id string) []agentrt.ContentBlock {
+			if !calls(st) {
+				return nil // the renderer's own text turn
+			}
+			return []agentrt.ContentBlock{{Type: "tool_use", ToolUseID: id, Name: st.Decision.Tool, Input: orEmpty(st.Decision.Args)}}
+		},
+		Observation: func(st agentrt.Step, id string, full bool) agentrt.ContentBlock {
+			if !calls(st) {
+				return agentrt.ContentBlock{} // the renderer's own nudge
+			}
+			return agentrt.ContentBlock{Type: "tool_result", ToolUseID: id, Name: st.Decision.Tool,
+				Content: renderObservation(st, full), IsError: st.Observation != nil && st.Observation.Failure()}
+		},
+	})
+}
+
+// calls reports whether a step asked for a tool. Only such a step has an
+// assistant tool_use turn and a tool_result answering it; a step whose
+// decision was invalid is left to the renderer, which states what was wrong
+// and asks again.
+func calls(st agentrt.Step) bool {
+	return st.Decision.Kind == agentrt.DecideToolCall && st.Decision.Tool != ""
 }
 
 func (a *Agent) opening(in agentrt.StepInput) string {
@@ -145,11 +149,4 @@ func orEmpty(r json.RawMessage) json.RawMessage {
 		return json.RawMessage("{}")
 	}
 	return r
-}
-
-func truncate(s string, n int) string {
-	if len(s) <= n {
-		return s
-	}
-	return s[:n] + "…"
 }

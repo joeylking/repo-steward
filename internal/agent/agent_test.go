@@ -68,19 +68,48 @@ func TestDecide_MapsFirstToolUse(t *testing.T) {
 	}
 }
 
-func TestDecide_NudgesOnceThenFails(t *testing.T) {
-	m := &replay.Scripted{Responses: []agentrt.ModelResponse{{Text: "Let me think."}, {ToolUses: []agentrt.ToolUse{{Name: "read_file", Args: []byte(`{}`)}}}}}
+// A reply with no executable tool call is not retried inside the step: it
+// is recorded as an invalid decision, and the next render tells the model
+// what was wrong. A refusal fails the run.
+func TestDecide_NoToolCallIsRecordedNotRetried(t *testing.T) {
+	m := &replay.Scripted{Responses: []agentrt.ModelResponse{{Text: "Let me think."}}}
 	d, err := (&agent.Agent{}).Decide(context.Background(), input(nil, m))
-	if err != nil || d.Kind != agentrt.DecideToolCall || len(m.Requests) != 2 {
-		t.Fatalf("d=%+v err=%v requests=%d", d, err, len(m.Requests))
+	if err != nil {
+		t.Fatal(err)
 	}
-	if !strings.Contains(m.Requests[1].Messages[len(m.Requests[1].Messages)-1].Content[0].Text, "exactly one tool call") {
-		t.Fatal("nudge missing")
+	if d.Kind != agentrt.KindNoToolCall || d.Reason != "Let me think." || len(m.Requests) != 1 {
+		t.Fatalf("d=%+v requests=%d", d, len(m.Requests))
 	}
-	m2 := &replay.Scripted{Responses: []agentrt.ModelResponse{{Text: "no"}, {Text: "still no"}}}
-	d, err = (&agent.Agent{}).Decide(context.Background(), input(nil, m2))
-	if err != nil || d.Kind != agentrt.DecideFail {
-		t.Fatalf("d=%+v err=%v", d, err)
+	m2 := &replay.Scripted{Responses: []agentrt.ModelResponse{{StopReason: "max_tokens", ToolUses: []agentrt.ToolUse{{Name: "write_file"}}}}}
+	if d, err = (&agent.Agent{}).Decide(context.Background(), input(nil, m2)); err != nil || d.Kind != agentrt.KindTruncated {
+		t.Fatalf("truncated: d=%+v err=%v", d, err)
+	}
+	m3 := &replay.Scripted{Responses: []agentrt.ModelResponse{{StopReason: "refusal", Text: "no"}}}
+	if d, err = (&agent.Agent{}).Decide(context.Background(), input(nil, m3)); err != nil || d.Kind != agentrt.DecideFail {
+		t.Fatalf("refusal: d=%+v err=%v", d, err)
+	}
+}
+
+// Such a step is rendered as the model's own text answered by a nudge, not
+// as a tool_use with no tool.
+func TestRender_InvalidStepIsNudged(t *testing.T) {
+	steps := []agentrt.Step{
+		{Index: 0, Status: agentrt.StepFailed, Decision: &agentrt.Decision{Kind: agentrt.KindNoToolCall, Reason: "narrating"},
+			Observation: &agentrt.Observation{Kind: agentrt.ObserveInvalidDecision, Summary: "invalid decision"}},
+		step(1, "read_file", `{"path":"main.go"}`, agentrt.ObserveToolResult, "read main.go", `{"content":"package main"}`),
+	}
+	msgs := (&agent.Agent{}).Render(input(steps, nil))
+	if len(msgs) != 5 {
+		t.Fatalf("messages = %d", len(msgs))
+	}
+	if msgs[1].Content[0].Type != "text" || msgs[1].Content[0].Text != "narrating" {
+		t.Fatalf("assistant turn = %+v", msgs[1])
+	}
+	if msgs[2].Content[0].Type != "text" || !strings.Contains(msgs[2].Content[0].Text, "exactly one tool call") {
+		t.Fatalf("nudge = %+v", msgs[2])
+	}
+	if msgs[3].Content[0].Type != "tool_use" || msgs[4].Content[0].Type != "tool_result" {
+		t.Fatalf("tool-call step = %+v %+v", msgs[3], msgs[4])
 	}
 }
 

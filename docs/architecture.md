@@ -7,6 +7,17 @@ runs on [agent-runtime](https://github.com/joeylking/agent-runtime), which
 owns the decision loop and its controls; this repository owns everything
 that knows what a repository is.
 
+The runtime also supplies the parts that are not about repositories: the
+provider adapters (`providers/ollama` and `providers/anthropic`, nested
+modules, so the Claude SDK is a dependency of the adapter and not of the
+core), the shared provider helpers (transport classification, price lookup
+that refuses an unpriced paid model, dollar parsing), the step-log to
+message renderer and response mapping (`render`), the stderr trace observer
+(`trace`), and the operator read models over `runs.db` (`view`: run and
+step summaries and the pending-approval selection rule). Those were written
+here first and are now deleted; what stayed is the domain text and the
+joins with this repository's own task, proposal, and promotion tables.
+
 ## Stages and who decides
 
 | Stage | Owner | Package |
@@ -61,6 +72,9 @@ journaled operations, and hands control back to the runtime.
 `baseline` runs the pipeline with no model and is the floor the agents are
 measured against. `scripted` replays a declared decision list through the
 full control path. `model` asks a model for each decision through the
-runtime's accounting caller; local models through Ollama are the
-development provider. `bench run` executes scenarios in any mode and
+runtime's accounting caller, with the runtime's renderer building the
+request and mapping the reply; local models through Ollama are the
+development provider. A reply with no executable tool call is recorded as
+an invalid decision and nudged on the next step, so it costs a step and
+appears in the audit log. `bench run` executes scenarios in any mode and
 scores them against their declarations.

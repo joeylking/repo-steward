@@ -91,12 +91,12 @@ marked *integration* run under `-tags integration` against a real engine.
 |---|---|---|
 | Run options and candidate facts persisted at start; resume reconstructs the session under the same configuration hash | Verified (integration) | `task.SetTaskContext`, `steward.Resume`, `TestCLI_ScopeExpansionAcrossProcesses` |
 | Resume refuses a run started with a fixture proxy unless the proxy is supplied again, and refuses a finished run | Verified (integration) | `TestCLI_ScopeExpansionAcrossProcesses`, `TestCLI_RejectCancels` |
-| `approve` and `reject` decide the single pending approval from a separate process; a second decision is refused | Verified (integration) | `agentrt.Approve`, `agentrt.Reject`, `TestCLI_ScopeExpansionAcrossProcesses` |
+| `approve` and `reject` decide the single pending approval from a separate process; a second decision is refused | Verified (integration) | `agentrt.Approve`, `agentrt.Reject`, `view.PendingApproval` for the selection rule, `TestCLI_ScopeExpansionAcrossProcesses` |
 | Soft scope limit pauses the run with a `scope_expansion` approval whose presentation names the write; after approval and resume the write lands and the proposal includes it | Verified (integration) | `TestCLI_ScopeExpansionAcrossProcesses` |
 | Hard scope limit ends the run without asking | Verified (integration) | `TestCLI_HardScopeLimitAborts` |
 | Reject cancels the run, records the outcome, and the pending write never lands | Verified (integration) | `TestCLI_RejectCancels` |
 | A process killed inside a tool leaves the run RUNNING with an executing step; resume records the step as interrupted, reconciles, and continues to a proposal | Verified (integration, fault-injected binary) | `TestCLI_InterruptedRunResumes` |
-| `runs list` and `runs show` expose task, run, steps, approvals, proposals, and promotions | Verified (integration) | `TestCLI_*` |
+| `runs list` and `runs show` expose task, run, steps, approvals, proposals, and promotions | Verified (integration) | `TestCLI_*`; the runtime rows come from `agent-runtime/view` (`Summary`, `Steps`), the task, proposal, and promotion joins from this repository |
 | Paths are never deleted and recreated within a run; probe markers carry a nonce | Verified (integration) | `workspace.Materialize`, `sandbox.Probe`, `TestCLI_ScopeExpansionAcrossProcesses` |
 
 Milestone 1 is complete.
@@ -105,8 +105,8 @@ Milestone 1 is complete.
 
 | Control or capability | Status | Reference |
 |---|---|---|
-| Ollama adapter over the native chat API: system, tool_use, and tool_result mapping, tool_calls parsed, usage reported, 5xx and connection failures transient, 4xx and body errors plain | Verified | `internal/model/ollama`, `TestGenerate_MapsRequestAndToolCalls`, `TestGenerate_ErrorsClassified` |
-| Model agent: fixed system prompt with no repository content; steps rendered as tool_use and tool_result pairs; older results elided; first tool use mapped to a decision; one nudge on text-only replies then a fail decision; limit errors propagated | Verified | `internal/agent`, `TestRender_StepsBecomeToolUseAndResultPairs`, `TestDecide_MapsFirstToolUse`, `TestDecide_NudgesOnceThenFails`, `TestDecide_PropagatesLimitErrors` |
+| Ollama adapter over the native chat API: system, tool_use, and tool_result mapping, tool_calls parsed, usage reported, 5xx and connection failures transient, 4xx and body errors plain | Verified in the runtime | `agent-runtime/providers/ollama` (this repository's copy was deleted on 2026-09-25, when the runtime shipped it); the spec's name and free price here: `TestModelSpec_LocalModelIsNamedAndFree` |
+| Model agent: fixed system prompt with no repository content; steps rendered as tool_use and tool_result pairs; older results elided; first tool use mapped to a decision; a reply with no executable tool call recorded as an invalid decision and nudged on the next step; limit errors propagated | Verified | `internal/agent` over `agent-runtime/render`, `TestRender_StepsBecomeToolUseAndResultPairs`, `TestDecide_MapsFirstToolUse`, `TestDecide_NoToolCallIsRecordedNotRetried`, `TestRender_InvalidStepIsNudged`, `TestDecide_PropagatesLimitErrors` |
 | `-mode model` with persisted model spec so `resume` rebuilds the same agent; `-record` and `-replay` through the runtime's replay package | Implemented | `internal/steward/model.go` |
 | Live local-model runs: patch-safe selects v1.2.4 and freezes a manifest-only proposal; breaking-minor reads the new signature, rewrites the call site, and freezes a proposal with main.go | Observed on 2026-09-17 with qwen3:30b-a3b, not a gated test | see README |
 
@@ -122,6 +122,9 @@ Milestone 1 is complete.
 Recordings are keyed by the exact request. Changing the system prompt, a
 tool description or schema, or the shape of a tool result invalidates them;
 re-record with `maintain -mode model -record` and commit the new files.
+Moving onto the runtime's `render` package on 2026-09-25 did not invalidate
+them: it reproduces the previous renderer byte for byte, and the recorded
+qwen3 runs replay unchanged.
 
 ## Milestone 3
 
