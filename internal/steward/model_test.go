@@ -40,8 +40,8 @@ func TestModelSpec_PaidProviderRefusals(t *testing.T) {
 	if _, err := (ModelSpec{Provider: "anthropic", Name: "claude-sonnet-5"}).build(); !errors.Is(err, ErrNoKey) {
 		t.Fatalf("built a paid model without a key: %v", err)
 	}
-	if _, err := (ModelSpec{Provider: "anthropic", Name: "no-such-model"}).Prices(); err == nil {
-		t.Fatal("an unpriced paid model was accepted")
+	if _, err := (ModelSpec{Provider: "anthropic", Name: "no-such-model"}).Prices(); !errors.Is(err, providers.ErrNoPrice) {
+		t.Fatalf("an unpriced paid model was accepted: %v", err)
 	}
 	priced := ModelSpec{Provider: "anthropic", Name: "claude-sonnet-5"}
 	prices, err := priced.Prices()

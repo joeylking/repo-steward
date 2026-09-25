@@ -3,6 +3,9 @@
 Status values: **Required** (planned, not implemented), **Implemented** (code
 exists, reference given), **Verified** (a named test exercises it). Tests
 marked *integration* run under `-tags integration` against a real engine.
+References to `agent-runtime/...` are to the released modules this
+repository pins: `agent-runtime v0.2.0`, with the provider adapters at their
+nested tags `providers/ollama/v0.1.0` and `providers/anthropic/v0.1.0`.
 
 ## Milestone 0A
 

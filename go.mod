@@ -3,9 +3,9 @@ module github.com/joeylking/repo-steward
 go 1.27
 
 require (
-	github.com/joeylking/agent-runtime v0.1.3-0.20260925184844-c642b93d309f
-	github.com/joeylking/agent-runtime/providers/anthropic v0.0.0-20260925184844-c642b93d309f
-	github.com/joeylking/agent-runtime/providers/ollama v0.0.0-20260925184844-c642b93d309f
+	github.com/joeylking/agent-runtime v0.2.0
+	github.com/joeylking/agent-runtime/providers/anthropic v0.1.0
+	github.com/joeylking/agent-runtime/providers/ollama v0.1.0
 	golang.org/x/mod v0.41.0
 	modernc.org/sqlite v1.59.0
 )

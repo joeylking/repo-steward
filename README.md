@@ -47,6 +47,9 @@ same path within a run, because VM-backed engines cache path lookups.
 ## Requirements
 
 - Go 1.27 or later and Git.
+- The runtime is pinned in `go.mod` at released versions: `agent-runtime
+  v0.2.0`, and the provider adapters at their own nested module tags,
+  `providers/ollama/v0.1.0` and `providers/anthropic/v0.1.0`.
 - A Docker-compatible engine reachable over a unix socket for `inspect`
   (Docker Desktop, OrbStack, Colima, or Rancher Desktop). `fixture` and
   `snapshot` commands need no engine.

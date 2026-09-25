@@ -60,11 +60,9 @@ func apiKey() string {
 func (m ModelSpec) Prices() (agentrt.PriceTable, error) {
 	switch m.Provider {
 	case "ollama":
-		om, err := ollama.New(ollama.Config{Model: m.Name})
-		if err != nil {
-			return nil, err
-		}
-		return ollama.Free(om), nil
+		// ollama.Name is the name the adapter would report, so the table can
+		// be keyed without building one.
+		return providers.Free(ollama.Name(m.Name)), nil
 	case "anthropic":
 		table := anthropic.Prices()
 		if _, err := providers.PriceFor(table, m.String()); err != nil {
