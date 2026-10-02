@@ -65,7 +65,16 @@ promotions, validation records, proposals, and publication operations.
 Phase is derived from the journals, never stored. A run paused for
 approval, or left mid-step by a crash, is continued by `resume`, which
 rebuilds the session from the persisted options and facts, reconciles
-journaled operations, and hands control back to the runtime.
+journaled operations, and hands control back to the runtime. The runtime
+leases a RUNNING run to the process executing it; `resume` against a run
+whose lease is still live, because that process is still working or
+because it crashed and the lease has not yet expired (30 seconds by
+default), is refused and reports who holds it and until when, rather than
+racing it. Because repo-steward supplies `Config.Reconcile`, an
+interrupted tool call is never replayed blindly: the runtime hands the
+crash to the same journal-based reconciliation (manifest promotions,
+proposals, publication operations) resume always used, not to its own
+generic approval for an unreconciled interruption.
 
 ## Modes
 

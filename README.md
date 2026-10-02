@@ -159,7 +159,7 @@ project outside these limits is refused at the start with the reason.
 ## Status
 
 The tagged release is v0.1.0, and `main` has moved on since: it now runs on
-agent-runtime v0.2.0. The whole path described above exists and is tested.
+agent-runtime v0.3.0. The whole path described above exists and is tested.
 
 - **Deterministic parts:** exact snapshots, the container sandbox,
   validation that treats an unclear result as a failure, discovery of
@@ -196,8 +196,8 @@ Where to read more:
 
 - Go 1.27 or later and Git.
 - The runtime is pinned in `go.mod` at released versions: `agent-runtime
-  v0.2.0`, and the provider adapters at their own nested module tags,
-  `providers/ollama/v0.1.0` and `providers/anthropic/v0.1.0`.
+  v0.3.0`, and the provider adapters at their own nested module tags,
+  `providers/ollama/v0.2.0` and `providers/anthropic/v0.2.0`.
 - A Docker-compatible engine reachable over a unix socket (Docker Desktop,
   OrbStack, Colima, or Rancher Desktop) for every command that builds or
   tests code: `inspect`, `maintain`, `resume`, and `bench run`. `fixture`
@@ -273,7 +273,11 @@ go run ./cmd/repo-steward cancel <run-id> -note "no longer needed"
 
 # A run whose process died mid-step is continued the same way: the
 # interrupted step is recorded, journaled operations are reconciled, and
-# the agent proceeds. No side effect is re-executed.
+# the agent proceeds. No side effect is re-executed. repo-steward supplies
+# its own reconciliation (manifest promotions, proposals, and publication
+# operations are each journaled and recovered from that journal), so this
+# is unchanged by the runtime's own interrupted_side_effect approval, which
+# only pauses a run that has none.
 go run ./cmd/repo-steward resume <run-id> -fixture-proxy ~/tmp/proxy
 ```
 
