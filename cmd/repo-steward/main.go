@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -424,7 +425,27 @@ func runResume(ctx context.Context, args []string) error {
 		ro.Observer = rttrace.Writer(os.Stderr)
 	}
 	res, err := steward.Resume(ctx, ro)
+	if err != nil {
+		return resumeError(err)
+	}
 	return report(res, err)
+}
+
+// resumeError turns a lease conflict into a plain sentence instead of a
+// raw wrapped error, without changing the command's exit status (still
+// non-zero, through run()'s default handling). A run whose loop is alive
+// in another process cannot be resumed until that process gives it up or
+// its lease expires; a run interrupted by a crash becomes resumable again
+// once the dead process's lease runs out, agentrt.DefaultLeaseTTL (30
+// seconds) after it stopped renewing, unless the operator configured a
+// different Config.LeaseTTL.
+func resumeError(err error) error {
+	var leased agentrt.ErrRunLeased
+	if errors.As(err, &leased) {
+		return fmt.Errorf("resume: run %s is still being executed by %s, until %s; if that process crashed rather than exited, wait for its lease to expire (%s by default) and resume again",
+			leased.RunID, leased.Owner, leased.ExpiresAt.UTC().Format(time.RFC3339), agentrt.DefaultLeaseTTL)
+	}
+	return err
 }
 
 func runDecide(ctx context.Context, args []string, approve bool) error {

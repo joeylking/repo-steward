@@ -14,7 +14,6 @@ package agent
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -85,7 +84,10 @@ func (a *Agent) Render(in agentrt.StepInput) []agentrt.Message {
 			if !calls(st) {
 				return nil // the renderer's own text turn
 			}
-			return []agentrt.ContentBlock{{Type: "tool_use", ToolUseID: id, Name: st.Decision.Tool, Input: orEmpty(st.Decision.Args)}}
+			// render.Args falls back to the legacy {"invalid_json": ...}
+			// form for a decision whose arguments were not usable JSON, so
+			// a rendered conversation and its replay key are unchanged.
+			return []agentrt.ContentBlock{{Type: "tool_use", ToolUseID: id, Name: st.Decision.Tool, Input: render.Args(*st.Decision)}}
 		},
 		Observation: func(st agentrt.Step, id string, full bool) agentrt.ContentBlock {
 			if !calls(st) {
@@ -144,9 +146,3 @@ func (a *Agent) maxOutput() int {
 	return defaultMaxOutput
 }
 
-func orEmpty(r json.RawMessage) json.RawMessage {
-	if len(r) == 0 {
-		return json.RawMessage("{}")
-	}
-	return r
-}

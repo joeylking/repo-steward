@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/joeylking/repo-steward/internal/fixture"
 	"github.com/joeylking/repo-steward/internal/modproxy"
@@ -89,6 +90,24 @@ func (c *cli) maintain(bin string, env []string, extra ...string) (map[string]an
 	return c.run(bin, env, args...)
 }
 
+// resumeAfterCrash retries a resume after a fault-injected process exit,
+// which leaves the run's lease stamped for a now-dead owner: agent-runtime
+// v0.3.0 refuses to resume a leased run until that lease expires
+// (agentrt.DefaultLeaseTTL, 30 seconds by default), the same wait a real
+// crash recovery meets. It retries on exactly that refusal, the wording
+// cmd/repo-steward's own resumeError prints, up to a generous bound so the
+// test is not tied to the exact default.
+func (c *cli) resumeAfterCrash(bin string, env []string, args ...string) (map[string]any, int, string) {
+	deadline := time.Now().Add(45 * time.Second)
+	for {
+		res, code, stderr := c.run(bin, env, args...)
+		if !strings.Contains(stderr, "is still being executed by") || time.Now().After(deadline) {
+			return res, code, stderr
+		}
+		time.Sleep(time.Second)
+	}
+}
+
 func tools(res map[string]any) []string {
 	var out []string
 	if run, ok := res["run"].(map[string]any); ok {
@@ -134,7 +153,7 @@ func TestCLI_ScopeExpansionAcrossProcesses(t *testing.T) {
 	}
 
 	// Resuming before a decision must fail and change nothing.
-	if _, code, stderr := c.run(c.bin, nil, "resume", runID, "-data-dir", c.data, "-fixture-proxy", c.proxy); code == 0 || !strings.Contains(stderr, "no approved approval") {
+	if _, code, stderr := c.run(c.bin, nil, "resume", runID, "-data-dir", c.data, "-fixture-proxy", c.proxy); code == 0 || !strings.Contains(stderr, "not approved") {
 		t.Fatalf("resume before approval: code %d\n%s", code, stderr)
 	}
 	// Resuming without the fixture proxy the run started with is refused.
@@ -231,7 +250,7 @@ func TestCLI_InterruptedRunResumes(t *testing.T) {
 		t.Fatalf("last step before resume = %v", lastStep)
 	}
 
-	res, code, stderr := c.run(c.bin, nil, "resume", runID, "-data-dir", c.data, "-fixture-proxy", c.proxy)
+	res, code, stderr := c.resumeAfterCrash(c.bin, nil, "resume", runID, "-data-dir", c.data, "-fixture-proxy", c.proxy)
 	if code != 0 || res["outcome"] != "proposal_prepared" {
 		t.Fatalf("resume: code %d outcome %v\n%s", code, res["outcome"], stderr)
 	}

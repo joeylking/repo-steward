@@ -12,7 +12,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"net/url"
+	"os"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -26,8 +28,18 @@ type Store struct {
 	db *sql.DB
 }
 
-// Open opens or creates the database at path.
+// Open opens or creates the database at path. This store and
+// agentrt.OpenStore open the same file, in either order depending on the
+// caller, so a missing file is created owner-only (0600) here too: the
+// database's security rules refuse an existing file that is writable by
+// group or others, so whichever store creates it first must not leave it
+// open to a permissive umask.
 func Open(path string) (*Store, error) {
+	if path != ":memory:" {
+		if err := createOwnerOnly(path); err != nil {
+			return nil, err
+		}
+	}
 	dsn := "file:" + path
 	if path != ":memory:" {
 		q := url.Values{}
@@ -53,6 +65,27 @@ func Open(path string) (*Store, error) {
 
 // Close releases the database.
 func (s *Store) Close() error { return s.db.Close() }
+
+// createOwnerOnly creates a missing database file at mode 0600, independent
+// of the process umask: os.OpenFile's mode has no group or other bits set,
+// so there is nothing for a permissive umask to add. A concurrent creator
+// that wins the race is left alone; an existing file's mode is left to
+// agentrt.OpenStore to check or tighten.
+func createOwnerOnly(path string) error {
+	if _, err := os.Stat(path); err == nil {
+		return nil
+	} else if !errors.Is(err, fs.ErrNotExist) {
+		return err
+	}
+	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0o600)
+	if err != nil {
+		if errors.Is(err, fs.ErrExist) {
+			return nil
+		}
+		return fmt.Errorf("task: create database: %w", err)
+	}
+	return f.Close()
+}
 
 var migrations = []string{`
 CREATE TABLE tasks (

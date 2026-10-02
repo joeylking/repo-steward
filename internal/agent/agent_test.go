@@ -60,7 +60,8 @@ func TestDecide_MapsFirstToolUse(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if d.Kind != agentrt.DecideToolCall || d.Tool != "read_file" || string(d.Args) != `{"path":"main.go"}` || d.Reason != "I will read it." {
+	const wantReason = "I will read it. [1 further tool call(s) not executed: git_diff]"
+	if d.Kind != agentrt.DecideToolCall || d.Tool != "read_file" || string(d.Args) != `{"path":"main.go"}` || d.Reason != wantReason {
 		t.Fatalf("decision = %+v", d)
 	}
 	if m.Requests[0].System != agent.System || len(m.Requests[0].Tools) != 1 || m.Requests[0].MaxOutputTokens == 0 {

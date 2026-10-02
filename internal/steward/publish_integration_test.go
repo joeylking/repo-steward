@@ -132,7 +132,7 @@ func TestCLI_PublicationInterruptedIsReconciled(t *testing.T) {
 	if len(p.api.Repo("acme", "app").PRs) != 1 {
 		t.Fatal("PR was not created before the crash")
 	}
-	res, code, stderr = p.run(p.bin, nil, "resume", runID, "-data-dir", p.data, "-fixture-proxy", p.proxy)
+	res, code, stderr = p.resumeAfterCrash(p.bin, nil, "resume", runID, "-data-dir", p.data, "-fixture-proxy", p.proxy)
 	if code != 0 || res["outcome"] != "proposal_published" {
 		t.Fatalf("recovery resume: code %d outcome %v\n%s", code, res["outcome"], stderr)
 	}
@@ -165,7 +165,7 @@ func TestCLI_PublicationInterruptedBeforePRIsFinished(t *testing.T) {
 	if p.remoteHead(t, "repo-steward/lib-v1.2.4") == "" || len(p.api.Repo("acme", "app").PRs) != 0 {
 		t.Fatal("unexpected remote state after the crash")
 	}
-	res, code, stderr := p.run(p.bin, nil, "resume", runID, "-data-dir", p.data, "-fixture-proxy", p.proxy)
+	res, code, stderr := p.resumeAfterCrash(p.bin, nil, "resume", runID, "-data-dir", p.data, "-fixture-proxy", p.proxy)
 	if code != 0 || res["outcome"] != "proposal_published" {
 		t.Fatalf("recovery resume: code %d outcome %v\n%s", code, res["outcome"], stderr)
 	}
