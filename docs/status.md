@@ -201,9 +201,8 @@ on demand and weekly.
 The sandbox reduces risk from untrusted build behaviour on operator-selected
 repositories. It does not claim container-escape resistance, OS-enforced
 egress control during acquisition against a real proxy, or protection of the
-per-run build cache from code under test. Credential handling, approvals,
-mutation tools, and publication are Required and arrive in later milestones
-with their own tests.
+per-run build cache from code under test. The full list of accepted risks
+is in [security.md](security.md).
 
 ## Known limitations
 
