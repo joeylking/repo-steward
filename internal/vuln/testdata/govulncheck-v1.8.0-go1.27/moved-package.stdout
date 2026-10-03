@@ -1,0 +1,164 @@
+{
+  "config": {
+    "protocol_version": "v1.0.0",
+    "scanner_name": "govulncheck",
+    "scanner_version": "v1.8.0",
+    "db": "file:///vulndb",
+    "db_last_modified": "2026-01-01T00:00:00Z",
+    "go_version": "go1.27.1",
+    "scan_level": "symbol",
+    "scan_mode": "source"
+  }
+}
+{
+  "SBOM": {
+    "go_version": "go1.27.1",
+    "modules": [
+      {
+        "path": "example.com/app"
+      },
+      {
+        "path": "example.com/toolkit",
+        "version": "v1.0.0"
+      },
+      {
+        "path": "stdlib",
+        "version": "v1.27.1"
+      }
+    ],
+    "roots": [
+      "example.com/app"
+    ]
+  }
+}
+{
+  "progress": {
+    "message": "Fetching vulnerabilities from the database..."
+  }
+}
+{
+  "osv": {
+    "schema_version": "1.3.1",
+    "id": "GO-TEST-0004",
+    "modified": "2026-01-01T00:00:00Z",
+    "published": "2026-01-01T00:00:00Z",
+    "summary": "Synthetic scanning flaw in fmt",
+    "details": "Sscanf is declared vulnerable in every Go release before 1.99.0.",
+    "affected": [
+      {
+        "package": {
+          "name": "stdlib",
+          "ecosystem": "Go"
+        },
+        "ranges": [
+          {
+            "type": "SEMVER",
+            "events": [
+              {
+                "introduced": "0"
+              },
+              {
+                "fixed": "1.99.0"
+              }
+            ]
+          }
+        ],
+        "ecosystem_specific": {
+          "imports": [
+            {
+              "path": "fmt",
+              "symbols": [
+                "Sscanf"
+              ]
+            }
+          ]
+        }
+      }
+    ],
+    "database_specific": {
+      "review_status": "REVIEWED"
+    }
+  }
+}
+{
+  "osv": {
+    "schema_version": "1.3.1",
+    "id": "GO-TEST-0003",
+    "modified": "2026-01-01T00:00:00Z",
+    "published": "2026-01-01T00:00:00Z",
+    "summary": "Case folding in example.com/toolkit/text/strutil",
+    "details": "Upper mishandles special casing. No fixed version exists.",
+    "affected": [
+      {
+        "package": {
+          "name": "example.com/toolkit",
+          "ecosystem": "Go"
+        },
+        "ranges": [
+          {
+            "type": "SEMVER",
+            "events": [
+              {
+                "introduced": "0"
+              }
+            ]
+          }
+        ],
+        "ecosystem_specific": {
+          "imports": [
+            {
+              "path": "example.com/toolkit/text/strutil",
+              "symbols": [
+                "Upper"
+              ]
+            }
+          ]
+        }
+      }
+    ],
+    "database_specific": {
+      "review_status": "REVIEWED"
+    }
+  }
+}
+{
+  "progress": {
+    "message": "Checking the code against the vulnerabilities..."
+  }
+}
+{
+  "finding": {
+    "osv": "GO-TEST-0004",
+    "fixed_version": "v1.99.0",
+    "trace": [
+      {
+        "module": "stdlib",
+        "version": "v1.27.1"
+      }
+    ]
+  }
+}
+{
+  "finding": {
+    "osv": "GO-TEST-0003",
+    "trace": [
+      {
+        "module": "example.com/toolkit",
+        "version": "v1.0.0"
+      }
+    ]
+  }
+}
+{
+  "finding": {
+    "osv": "GO-TEST-0004",
+    "fixed_version": "v1.99.0",
+    "trace": [
+      {
+        "module": "stdlib",
+        "version": "v1.27.1",
+        "package": "fmt"
+      }
+    ]
+  }
+}

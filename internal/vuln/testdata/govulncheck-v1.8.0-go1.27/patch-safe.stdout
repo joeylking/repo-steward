@@ -1,0 +1,301 @@
+{
+  "config": {
+    "protocol_version": "v1.0.0",
+    "scanner_name": "govulncheck",
+    "scanner_version": "v1.8.0",
+    "db": "file:///vulndb",
+    "db_last_modified": "2026-01-01T00:00:00Z",
+    "go_version": "go1.27.1",
+    "scan_level": "symbol",
+    "scan_mode": "source"
+  }
+}
+{
+  "SBOM": {
+    "go_version": "go1.27.1",
+    "modules": [
+      {
+        "path": "example.com/app"
+      },
+      {
+        "path": "example.com/lib",
+        "version": "v1.2.1"
+      },
+      {
+        "path": "stdlib",
+        "version": "v1.27.1"
+      }
+    ],
+    "roots": [
+      "example.com/app"
+    ]
+  }
+}
+{
+  "progress": {
+    "message": "Fetching vulnerabilities from the database..."
+  }
+}
+{
+  "osv": {
+    "schema_version": "1.3.1",
+    "id": "GO-TEST-0004",
+    "modified": "2026-01-01T00:00:00Z",
+    "published": "2026-01-01T00:00:00Z",
+    "summary": "Synthetic scanning flaw in fmt",
+    "details": "Sscanf is declared vulnerable in every Go release before 1.99.0.",
+    "affected": [
+      {
+        "package": {
+          "name": "stdlib",
+          "ecosystem": "Go"
+        },
+        "ranges": [
+          {
+            "type": "SEMVER",
+            "events": [
+              {
+                "introduced": "0"
+              },
+              {
+                "fixed": "1.99.0"
+              }
+            ]
+          }
+        ],
+        "ecosystem_specific": {
+          "imports": [
+            {
+              "path": "fmt",
+              "symbols": [
+                "Sscanf"
+              ]
+            }
+          ]
+        }
+      }
+    ],
+    "database_specific": {
+      "review_status": "REVIEWED"
+    }
+  }
+}
+{
+  "osv": {
+    "schema_version": "1.3.1",
+    "id": "GO-TEST-0001",
+    "modified": "2026-01-01T00:00:00Z",
+    "published": "2026-01-01T00:00:00Z",
+    "aliases": [
+      "CVE-0000-0001"
+    ],
+    "summary": "Greeting injection in example.com/lib",
+    "details": "Greet echoes an empty name unchanged. Fixed in v1.2.4.",
+    "affected": [
+      {
+        "package": {
+          "name": "example.com/lib",
+          "ecosystem": "Go"
+        },
+        "ranges": [
+          {
+            "type": "SEMVER",
+            "events": [
+              {
+                "introduced": "0"
+              },
+              {
+                "fixed": "1.2.4"
+              }
+            ]
+          }
+        ],
+        "ecosystem_specific": {
+          "imports": [
+            {
+              "path": "example.com/lib",
+              "symbols": [
+                "Greet"
+              ]
+            }
+          ]
+        }
+      }
+    ],
+    "database_specific": {
+      "review_status": "REVIEWED"
+    }
+  }
+}
+{
+  "osv": {
+    "schema_version": "1.3.1",
+    "id": "GO-TEST-0002",
+    "modified": "2026-01-01T00:00:00Z",
+    "published": "2026-01-01T00:00:00Z",
+    "summary": "Context misuse in example.com/lib v1.3",
+    "details": "Greet ignores context values. No fixed version exists.",
+    "affected": [
+      {
+        "package": {
+          "name": "example.com/lib",
+          "ecosystem": "Go"
+        },
+        "ranges": [
+          {
+            "type": "SEMVER",
+            "events": [
+              {
+                "introduced": "1.3.0"
+              }
+            ]
+          }
+        ],
+        "ecosystem_specific": {
+          "imports": [
+            {
+              "path": "example.com/lib",
+              "symbols": [
+                "Greet"
+              ]
+            }
+          ]
+        }
+      }
+    ],
+    "database_specific": {
+      "review_status": "REVIEWED"
+    }
+  }
+}
+{
+  "osv": {
+    "schema_version": "1.3.1",
+    "id": "GO-TEST-0006",
+    "modified": "2026-01-01T00:00:00Z",
+    "published": "2026-01-01T00:00:00Z",
+    "withdrawn": "2026-01-01T00:00:00Z",
+    "summary": "Withdrawn report against example.com/lib",
+    "details": "Withdrawn; must not be reported.",
+    "affected": [
+      {
+        "package": {
+          "name": "example.com/lib",
+          "ecosystem": "Go"
+        },
+        "ranges": [
+          {
+            "type": "SEMVER",
+            "events": [
+              {
+                "introduced": "0"
+              },
+              {
+                "fixed": "1.2.4"
+              }
+            ]
+          }
+        ],
+        "ecosystem_specific": {
+          "imports": [
+            {
+              "path": "example.com/lib",
+              "symbols": [
+                "Greet"
+              ]
+            }
+          ]
+        }
+      }
+    ],
+    "database_specific": {
+      "review_status": "REVIEWED"
+    }
+  }
+}
+{
+  "progress": {
+    "message": "Checking the code against the vulnerabilities..."
+  }
+}
+{
+  "finding": {
+    "osv": "GO-TEST-0004",
+    "fixed_version": "v1.99.0",
+    "trace": [
+      {
+        "module": "stdlib",
+        "version": "v1.27.1"
+      }
+    ]
+  }
+}
+{
+  "finding": {
+    "osv": "GO-TEST-0001",
+    "fixed_version": "v1.2.4",
+    "trace": [
+      {
+        "module": "example.com/lib",
+        "version": "v1.2.1"
+      }
+    ]
+  }
+}
+{
+  "finding": {
+    "osv": "GO-TEST-0001",
+    "fixed_version": "v1.2.4",
+    "trace": [
+      {
+        "module": "example.com/lib",
+        "version": "v1.2.1",
+        "package": "example.com/lib"
+      }
+    ]
+  }
+}
+{
+  "finding": {
+    "osv": "GO-TEST-0004",
+    "fixed_version": "v1.99.0",
+    "trace": [
+      {
+        "module": "stdlib",
+        "version": "v1.27.1",
+        "package": "fmt"
+      }
+    ]
+  }
+}
+{
+  "finding": {
+    "osv": "GO-TEST-0001",
+    "fixed_version": "v1.2.4",
+    "trace": [
+      {
+        "module": "example.com/lib",
+        "version": "v1.2.1",
+        "package": "example.com/lib",
+        "function": "Greet",
+        "position": {
+          "filename": "lib.go",
+          "offset": 154,
+          "line": 6,
+          "column": 6
+        }
+      },
+      {
+        "module": "example.com/app",
+        "package": "example.com/app",
+        "function": "main",
+        "position": {
+          "filename": "main.go",
+          "offset": 89,
+          "line": 10,
+          "column": 23
+        }
+      }
+    ]
+  }
+}

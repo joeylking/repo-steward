@@ -1,0 +1,9 @@
+govulncheck: loading packages: 
+There are errors with the provided package patterns:
+
+/work/main.go:10:33: not enough arguments in call to lib.Greet
+	have (string)
+	want (context.Context, string)
+
+For details on package patterns, see https://pkg.go.dev/cmd/go#hdr-Package_lists_and_patterns.
+

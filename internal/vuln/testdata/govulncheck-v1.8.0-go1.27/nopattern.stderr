@@ -1,0 +1,3 @@
+govulncheck: no package patterns provided
+
+To scan the current module, run: govulncheck ./...
