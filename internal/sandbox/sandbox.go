@@ -156,6 +156,16 @@ func (c *Config) Validate() error {
 type Docker struct {
 	cfg    Config
 	client *dockerapi.Client
+	// cleanup overrides dockerapi.WaitTimeout as the budget of each
+	// post-run engine call; zero means the default. Tests shorten it.
+	cleanup time.Duration
+}
+
+func (d *Docker) cleanupTimeout() time.Duration {
+	if d.cleanup > 0 {
+		return d.cleanup
+	}
+	return dockerapi.WaitTimeout
 }
 
 // NewDocker validates cfg, prepares host directories, and connects to the
@@ -190,14 +200,14 @@ func NewDocker(cfg Config, socket string) (*Docker, error) {
 func (d *Docker) WithSource(dir string) *Docker {
 	c := d.cfg
 	c.SourceDir = dir
-	return &Docker{cfg: c, client: d.client}
+	return &Docker{cfg: c, client: d.client, cleanup: d.cleanup}
 }
 
 // WithStaging returns a sandbox whose mutate profile mounts dir at /staging.
 func (d *Docker) WithStaging(dir string) *Docker {
 	c := d.cfg
 	c.StagingDir = dir
-	return &Docker{cfg: c, client: d.client}
+	return &Docker{cfg: c, client: d.client, cleanup: d.cleanup}
 }
 
 // Client exposes the engine client for tests and reaping.
@@ -425,10 +435,18 @@ func (d *Docker) Run(ctx context.Context, spec ExecSpec) (ExecResult, error) {
 		return res, err
 	}
 	res.ContainerID = id
-	// Removal must not depend on the caller's context still being alive.
-	cleanupCtx, cancelCleanup := context.WithTimeout(context.Background(), dockerapi.WaitTimeout)
-	defer cancelCleanup()
-	defer d.client.ContainerRemove(cleanupCtx, id)
+	// Kill, log collection, and removal must not depend on the caller's
+	// context still being alive. Each gets its own budget starting when it
+	// begins: a budget started at creation would already be spent by any
+	// command that runs longer than it.
+	afterRun := func() (context.Context, context.CancelFunc) {
+		return context.WithTimeout(context.Background(), d.cleanupTimeout())
+	}
+	defer func() {
+		rctx, cancel := afterRun()
+		defer cancel()
+		d.client.ContainerRemove(rctx, id)
+	}()
 
 	start := time.Now()
 	if err := d.client.ContainerStart(ctx, id); err != nil {
@@ -440,10 +458,12 @@ func (d *Docker) Run(ctx context.Context, spec ExecSpec) (ExecResult, error) {
 	if err != nil {
 		if runCtx.Err() != nil {
 			res.TimedOut = true
-			if kerr := d.client.ContainerKill(cleanupCtx, id); kerr != nil {
+			kctx, cancelKill := afterRun()
+			defer cancelKill()
+			if kerr := d.client.ContainerKill(kctx, id); kerr != nil {
 				return res, kerr
 			}
-			code, err = d.client.ContainerWait(cleanupCtx, id)
+			code, err = d.client.ContainerWait(kctx, id)
 			if err != nil {
 				return res, err
 			}
@@ -453,7 +473,9 @@ func (d *Docker) Run(ctx context.Context, spec ExecSpec) (ExecResult, error) {
 	}
 	res.Duration = time.Since(start)
 	res.ExitCode = code
-	logs, err := d.client.ContainerLogs(cleanupCtx, id, spec.OutputCap)
+	lctx, cancelLogs := afterRun()
+	defer cancelLogs()
+	logs, err := d.client.ContainerLogs(lctx, id, spec.OutputCap)
 	if err != nil {
 		return res, err
 	}
