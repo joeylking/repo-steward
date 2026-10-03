@@ -145,4 +145,3 @@ func (a *Agent) maxOutput() int {
 	}
 	return defaultMaxOutput
 }
-
