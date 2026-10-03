@@ -6,7 +6,6 @@ import (
 	"errors"
 	"strings"
 	"testing"
-	"time"
 
 	agentrt "github.com/joeylking/agent-runtime"
 	"github.com/joeylking/agent-runtime/testkit"
@@ -195,21 +194,6 @@ func TestPublish_RequiresProposalBoundApproval(t *testing.T) {
 	})
 }
 
-// destructiveTool stands in for a destructive tool. repo-steward has none,
-// and testkit.Never fails for a class no tool has, so the assertion that
-// the policy never allows one is made over this stand-in: a tool the
-// policy has never heard of, which it must refuse in every phase.
-type destructiveTool struct{}
-
-func (destructiveTool) Spec() agentrt.ToolSpec {
-	return agentrt.ToolSpec{Name: "delete_path", Description: "Delete a path.", SideEffect: agentrt.Destructive, Timeout: time.Second,
-		InputSchema: []byte(`{"type":"object","properties":{"path":{"type":"string"}},"required":["path"],"additionalProperties":false}`)}
-}
-
-func (destructiveTool) Call(context.Context, agentrt.ToolCall) (agentrt.ToolResult, error) {
-	return agentrt.ToolResult{}, errors.New("not callable")
-}
-
 // The kit's Never generates arguments that pass the runtime's validation
 // for every tool of a class and asserts the policy never gives an outcome,
 // under every grant the run can hold.
@@ -219,7 +203,7 @@ func TestNever(t *testing.T) {
 		{Approvals: []agentrt.Approval{{Kind: policy.KindScopeExpansion, Status: agentrt.ApprovalApproved}}},
 		{Approvals: []agentrt.Approval{{Kind: policy.KindPublication, Status: agentrt.ApprovalApproved}}},
 	}
-	withDestructive := append(allTools(), destructiveTool{})
+	withDestructive := append(allTools(), testkit.StandIn("delete_path", agentrt.Destructive))
 	for _, phase := range []string{session.PhaseSelect, session.PhaseRepair, session.PhaseProposal} {
 		t.Run(phase, func(t *testing.T) {
 			f := facts()

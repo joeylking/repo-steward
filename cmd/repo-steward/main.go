@@ -614,13 +614,10 @@ func runCancel(ctx context.Context, args []string) error {
 	if err := ts.FinishTask(ctx, runID, steward.OutcomeCancelled, map[string]any{"note": *note, "by": *by}); err != nil {
 		return err
 	}
-	// The approver reads approvals only; the run is read for the output
-	// through a read-only open.
-	var run agentrt.Run
-	if rt, err := agentrt.OpenExisting(filepath.Join(*dataDir, "steward.db"), true); err == nil {
-		run, _ = rt.GetRun(ctx, runID)
-		rt.Close()
-	}
+	// The run is read for the output through the approver, which reads it
+	// as a front end reads one it may not trust. A failed read leaves the
+	// run empty, as the cancellation itself has already been recorded.
+	run, _ := ap.Run(ctx, runID)
 	return printJSON(map[string]any{"run_id": runID, "outcome": steward.OutcomeCancelled, "run": run})
 }
 
