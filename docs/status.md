@@ -207,13 +207,29 @@ on demand and weekly.
 | Model-driven repair of those breaks by qwen3:30b-a3b | Not achieved: 0 of 9 runs (3 per scenario) repaired; all ended `limit_exhausted` after three consecutive failed steps, no edit attempted, checkout untouched | `benchmarks/README.md` "Repair on real repositories", `benchmarks/real-repair/2026-10-03/` |
 | Recorded runs of these scenarios replay with the model server unreachable and network acquisition | Observed once each for two runs, not a gated test; recordings not committed | `benchmarks/real-repair/2026-10-03/*-replay-of-cli-1.json` |
 
+## Before automatic upgrades
+
+| Control or capability | Status | Reference |
+|---|---|---|
+| Every validation (baseline, post, each `run_validation`, `inspect`) and every readiness or tool command in the execute profile runs against a new, empty, randomly named build cache; the execute profile refuses to run without one; acquire and mutate use a separate cache execute never mounts; end-of-run cleanup removes them all | Verified (integration) | `sandbox.WithFreshBuildCache`, `TestFreshBuildCache_IsolatesValidations`, `TestExecute_BuildCacheFreshPerValidation`, `TestBaseline_BuildCacheFreshPerValidation`, `TestScripted_BuildCacheFreshPerValidation` |
+| Data directory created 0700; one that group or others can only read or enter is tightened to 0700; one they can write, or that another account owns, is refused naming the path, its mode, and the fix; build cache and staging roots, and new parents of the module cache, created owner-only | Verified | `lock.Private`, `TestPrivate_CreatesTightensOrRefuses`, `TestFreshBuildCache_IsolatesValidations`; mode after a run in `TestBaseline_BuildCacheFreshPerValidation` (integration) |
+| Containers still write world-writable caches below an owner-only parent | Verified (integration) on colima with virtiofs; native Linux Docker by CI's integration job, not yet run on this change | `TestExecute_BuildCacheFreshPerValidation` |
+| A `go get` or `go mod tidy` that fails because the module proxy or checksum database is unreachable (DNS, connection, timeout, TLS) or answers 5xx ends `acquisition_failed` with the toolchain's message, not `admission_refused` or `normalization_refused`; `apply_upgrade` aborts the run with the same outcome; `maintain` exits 6; anything not matched keeps its outcome | Verified | `OpError.AcquisitionFailed`, `TestOpError_AcquisitionFailed` (stderr captured from go 1.22 in the toolchain image), `TestStageOutcome_AcquisitionFailureIsNotARefusal`; not exercised by a full run against an unreachable proxy |
+
+The fresh build caches cost time, because a later validation no longer
+reuses what an earlier one compiled. Measured on 2026-10-03 on colima,
+interleaving test binaries built before and after the change,
+`TestBaseline_PatchSafeProducesVerifiedProposal` took 5.8 to 7.1 seconds
+before (nine runs, median 6.0) and 9.2 to 9.8 seconds after (six runs,
+median 9.3).
+
 ## Not claimed
 
 The sandbox reduces risk from untrusted build behaviour on operator-selected
 repositories. It does not claim container-escape resistance, OS-enforced
-egress control during acquisition against a real proxy, or protection of the
-per-run build cache from code under test. The full list of accepted risks
-is in [security.md](security.md).
+egress control during acquisition against a real proxy, or protection of a
+validation's build cache from the code that same validation runs. The full
+list of accepted risks is in [security.md](security.md).
 
 ## Known limitations
 
