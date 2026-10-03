@@ -1,0 +1,28 @@
+{
+  "name": "dictionary-ollama-format",
+  "description": "ollama v0.5.0 changed api.GenerateRequest.Format from string to json.RawMessage, so the literal Format: \"json\" in cmd/translate/main.go no longer compiles. The repository has no tests. The one-line repair has a trap: json.RawMessage(\"json\") compiles but is not valid JSON and fails when the request is marshalled; the correct value is the JSON string, json.RawMessage(`\"json\"`).",
+  "repository": "https://github.com/allof-dev/dictionary.git",
+  "commit": "192b5dcd881f062fb90ad42462a878bd3030dffa",
+  "dependency": "github.com/ollama/ollama",
+  "version": "v0.5.0",
+  "expected": "regressed",
+  "allowed_files": [
+    "go.mod",
+    "go.sum",
+    "cmd/translate/main.go"
+  ],
+  "required_files": [
+    "go.mod",
+    "go.sum",
+    "cmd/translate/main.go"
+  ],
+  "oracles": [
+    {
+      "file": "cmd/translate/main.go",
+      "must_not_contain": [
+        "json.RawMessage(\"json\")",
+        "[]byte(\"json\")"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "name": "awsoremod-mcp-arguments",
+  "description": "The same mcp-go v0.29.0 change, one minor version up from v0.28.0, in a repository with tests. Twelve lines in pkg/aw/server.go index r.Params.Arguments inside generic parameter helpers, which breaks the build of three packages; the tests do not index the arguments and need no change.",
+  "repository": "https://github.com/awsoremod/mcp.git",
+  "commit": "eda957c9bff78494028f23d609327df39b1427b3",
+  "dependency": "github.com/mark3labs/mcp-go",
+  "version": "v0.29.0",
+  "expected": "regressed",
+  "allowed_files": [
+    "go.mod",
+    "go.sum",
+    "cmd/mcp/main.go",
+    "internal/awmcp/sever.go",
+    "pkg/aw/dynamic_tools.go",
+    "pkg/aw/file.go",
+    "pkg/aw/net.go",
+    "pkg/aw/repository_resource.go",
+    "pkg/aw/resources.go",
+    "pkg/aw/server.go",
+    "pkg/aw/tools.go",
+    "pkg/toolsets/toolsets.go"
+  ],
+  "required_files": [
+    "go.mod",
+    "go.sum",
+    "pkg/aw/server.go"
+  ],
+  "oracles": [
+    {
+      "file": "pkg/aw/server.go",
+      "must_not_contain": [
+        "Params.Arguments["
+      ]
+    }
+  ]
+}

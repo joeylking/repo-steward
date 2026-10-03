@@ -1,0 +1,27 @@
+{
+  "name": "mcp-openweather-arguments",
+  "description": "mcp-go v0.29.0 changed CallToolRequest.Params.Arguments from map[string]any to any, so indexing it no longer compiles. Three reads in main.go break; the repository has no tests. A repair reads the arguments through request.GetArguments() or a checked type assertion.",
+  "repository": "https://github.com/mschneider82/mcp-openweather.git",
+  "commit": "e032683574a0723591445462ef7104d360ad0889",
+  "dependency": "github.com/mark3labs/mcp-go",
+  "version": "v0.29.0",
+  "expected": "regressed",
+  "allowed_files": [
+    "go.mod",
+    "go.sum",
+    "main.go"
+  ],
+  "required_files": [
+    "go.mod",
+    "go.sum",
+    "main.go"
+  ],
+  "oracles": [
+    {
+      "file": "main.go",
+      "must_not_contain": [
+        "Params.Arguments["
+      ]
+    }
+  ]
+}
