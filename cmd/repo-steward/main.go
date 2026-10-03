@@ -11,11 +11,14 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"os/user"
 	"path/filepath"
 	"strings"
 	"time"
 
 	agentrt "github.com/joeylking/agent-runtime"
+	"github.com/joeylking/agent-runtime/approver"
+	"github.com/joeylking/agent-runtime/approver/webhook"
 	"github.com/joeylking/agent-runtime/providers"
 	rttrace "github.com/joeylking/agent-runtime/trace"
 	"github.com/joeylking/agent-runtime/view"
@@ -472,24 +475,26 @@ func runDecide(ctx context.Context, args []string, approve bool) error {
 		}
 	}
 	if *by == "" {
-		*by = os.Getenv("USER")
+		*by = currentUser()
 	}
-	rt, err := agentrt.OpenStore(filepath.Join(*dataDir, "steward.db"))
+	ap, err := approver.Open(filepath.Join(*dataDir, "steward.db"), nil)
 	if err != nil {
 		return err
 	}
-	defer rt.Close()
-	// Without -approval the run must have exactly one pending approval; the
-	// runtime's selection rule names the candidates when it does not.
-	pending, err := view.PendingApproval(ctx, rt, runID, *approvalID)
+	defer ap.Close()
+	shown, err := shownApproval(ctx, ap, runID, *approvalID)
 	if err != nil {
 		return fmt.Errorf("%s: %w", verb, err)
 	}
-	*approvalID = pending.ID
+	// The approval is printed, sanitised, before it is decided, and the
+	// decision is bound to the hash of what was printed: if the stored
+	// approval differs, nothing is decided.
+	fmt.Fprint(os.Stderr, webhook.Text(shown))
+	d := approver.Decision{RunID: runID, ApprovalID: shown.ID, Hash: shown.Hash, By: *by, Note: *note}
 	if approve {
-		err = agentrt.Approve(ctx, rt, nil, runID, *approvalID, *by, *note)
+		err = ap.Approve(ctx, d)
 	} else {
-		err = agentrt.Reject(ctx, rt, nil, runID, *approvalID, *by, *note)
+		err = ap.Reject(ctx, d)
 		if err == nil {
 			ts, terr := task.Open(filepath.Join(*dataDir, "steward.db"))
 			if terr == nil {
@@ -498,11 +503,65 @@ func runDecide(ctx context.Context, args []string, approve bool) error {
 			}
 		}
 	}
-	if err != nil {
-		return err
+	switch {
+	case errors.Is(err, agentrt.ErrApprovalChanged):
+		return fmt.Errorf("%s: approval %s changed after it was printed; nothing was decided: %w", verb, shown.ID, err)
+	case errors.Is(err, approver.ErrExpired):
+		return fmt.Errorf("%s: approval %s had expired, and the run was cancelled: %w", verb, shown.ID, err)
+	case err != nil:
+		return fmt.Errorf("%s: %w", verb, err)
 	}
-	a, _ := rt.GetApproval(ctx, runID, *approvalID)
-	return printJSON(map[string]any{"run_id": runID, "approval": a})
+	a, _ := ap.Show(ctx, runID, shown.ID)
+	return printJSON(map[string]any{"run_id": runID, "approval": a.Approval})
+}
+
+// currentUser names who decided when -by is not given: $USER, or the
+// account's name when that is unset. The approver refuses a decision with
+// no identity.
+func currentUser() string {
+	if u := os.Getenv("USER"); u != "" {
+		return u
+	}
+	if u, err := user.Current(); err == nil {
+		return u.Username
+	}
+	return ""
+}
+
+// shownApproval reads the approval a decision is about: the one named, which
+// must be pending, or else the run's single pending approval.
+func shownApproval(ctx context.Context, ap *approver.Local, runID, approvalID string) (approver.Pending, error) {
+	if approvalID == "" {
+		const maxCandidates = 20
+		pending, err := ap.Pending(ctx, runID, maxCandidates+1)
+		if err != nil {
+			return approver.Pending{}, err
+		}
+		switch {
+		case len(pending) == 0:
+			return approver.Pending{}, fmt.Errorf("run %s: %w", runID, view.ErrNoPendingApproval)
+		case len(pending) > 1:
+			ids := make([]string, 0, len(pending))
+			for i, p := range pending {
+				if i == maxCandidates {
+					ids = append(ids, "and more")
+					break
+				}
+				ids = append(ids, p.ID)
+			}
+			return approver.Pending{}, fmt.Errorf("run %s has more than one pending approval, name one of %s: %w", runID, strings.Join(ids, ", "), view.ErrAmbiguousApproval)
+		}
+		approvalID = pending[0].ID
+	}
+	// Show reads the row whole, as it will be decided.
+	a, err := ap.Show(ctx, runID, approvalID)
+	if err != nil {
+		return approver.Pending{}, fmt.Errorf("approval %s of run %s: %w", approvalID, runID, err)
+	}
+	if a.Status != agentrt.ApprovalPending {
+		return approver.Pending{}, fmt.Errorf("approval %s is %s: %w", a.ID, a.Status, view.ErrNotPending)
+	}
+	return a, nil
 }
 
 // runCancel ends a run that is not terminal without executing anything.
@@ -526,7 +585,7 @@ func runCancel(ctx context.Context, args []string) error {
 		}
 	}
 	if *by == "" {
-		*by = os.Getenv("USER")
+		*by = currentUser()
 	}
 	// Both locks: no process may be executing or resuming the run.
 	exec, err := lock.Acquire(filepath.Join(*dataDir, "executor.lock"))
@@ -539,13 +598,13 @@ func runCancel(ctx context.Context, args []string) error {
 		return err
 	}
 	defer runLock.Release()
-	rt, err := agentrt.OpenStore(filepath.Join(*dataDir, "steward.db"))
+	ap, err := approver.Open(filepath.Join(*dataDir, "steward.db"), nil)
 	if err != nil {
 		return err
 	}
-	defer rt.Close()
-	if err := agentrt.Cancel(ctx, rt, nil, runID, *by, *note); err != nil {
-		return err
+	defer ap.Close()
+	if err := ap.Cancel(ctx, runID, *by, *note); err != nil {
+		return fmt.Errorf("cancel: %w", err)
 	}
 	ts, err := task.Open(filepath.Join(*dataDir, "steward.db"))
 	if err != nil {
@@ -555,7 +614,13 @@ func runCancel(ctx context.Context, args []string) error {
 	if err := ts.FinishTask(ctx, runID, steward.OutcomeCancelled, map[string]any{"note": *note, "by": *by}); err != nil {
 		return err
 	}
-	run, _ := rt.GetRun(ctx, runID)
+	// The approver reads approvals only; the run is read for the output
+	// through a read-only open.
+	var run agentrt.Run
+	if rt, err := agentrt.OpenExisting(filepath.Join(*dataDir, "steward.db"), true); err == nil {
+		run, _ = rt.GetRun(ctx, runID)
+		rt.Close()
+	}
 	return printJSON(map[string]any{"run_id": runID, "outcome": steward.OutcomeCancelled, "run": run})
 }
 
