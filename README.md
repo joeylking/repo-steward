@@ -161,9 +161,8 @@ project outside these limits is refused at the start with the reason.
 
 ## Status
 
-The tagged release is v0.1.0, and `main` has moved on since: it now runs on
-agent-runtime v0.3.2, and scores its benchmarks with agent-runtime's `bench`
-module. The whole path described above exists and is tested.
+The current release is v0.2.0. It runs on agent-runtime v0.3.2 and scores
+its benchmarks with agent-runtime's `bench` module. The whole path described above exists and is tested.
 
 - **Deterministic parts:** exact snapshots, the container sandbox,
   validation that treats an unclear result as a failure, discovery of
