@@ -8,14 +8,37 @@ on:
   schedule:
     - cron: "17 6 * * 1"
 
+# Read-only by default; no job here needs to write to the repository or to
+# packages.
+permissions:
+  contents: read
+
+# One run per ref at a time. A branch's superseded push is cancelled, but a
+# tag, the main branch, and a scheduled run are never cancelled mid-run.
+# github.ref is compared against the literal refs/heads/main because
+# github.event.repository.default_branch is empty on a schedule event.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref_type != 'tag' && github.ref != 'refs/heads/main' && github.event_name != 'schedule' }}
+
+# GOTOOLCHAIN=local forbids a silent switch to a different toolchain than
+# the one setup-go installed from go.mod.
+env:
+  GOTOOLCHAIN: local
+
 jobs:
   smoke:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+      - run: go mod verify
       - run: docker version
       - name: pull the pinned toolchain images the targets declare
         run: |
