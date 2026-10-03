@@ -48,7 +48,7 @@ const usage = `usage:
   repo-steward approve <run-id> [-approval ID] [-note TEXT] [-data-dir DIR]
   repo-steward reject <run-id> [-approval ID] [-note TEXT] [-data-dir DIR]
   repo-steward cancel <run-id> [-note TEXT] [-data-dir DIR]
-  repo-steward bench summarize [-dir DIR]
+  repo-steward bench summarize [-dir DIR] [-mixed-commits]
   repo-steward bench run -mode baseline|scripted|model [-model provider:name] [-scenarios S1,S2,...] [-repeat N] [-max-model-calls N] [-max-total-calls N] [-max-cost-usd USD] [-max-total-cost-usd USD] [-root DIR] [-out DIR] [-author "Name <email>"]
   repo-steward runs list [-data-dir DIR]
   repo-steward runs show <run-id> [-events] [-data-dir DIR]
@@ -87,14 +87,15 @@ func run(args []string) error {
 	if args[0] == "bench" && args[1] == "summarize" {
 		fs := flag.NewFlagSet("bench summarize", flag.ContinueOnError)
 		dir := fs.String("dir", "benchmarks/results", "results directory")
+		mixed := fs.Bool("mixed-commits", false, "compare results from different commits")
 		if err := fs.Parse(args[2:]); err != nil {
 			return err
 		}
-		sums, err := bench.Latest(*dir)
+		md, err := bench.Comparison(*dir, *mixed)
 		if err != nil {
 			return err
 		}
-		fmt.Print(bench.Comparison(sums))
+		fmt.Print(md)
 		return nil
 	}
 	if args[0] == "runs" && args[1] == "list" {
@@ -711,7 +712,11 @@ func runBench(ctx context.Context, args []string) error {
 	if c, err := exec.Command("git", "rev-parse", "--short", "HEAD").Output(); err == nil {
 		sum.Commit = strings.TrimSpace(string(c))
 	}
-	name, err := sum.Write(*out)
+	model := ""
+	if *mode == "model" {
+		model = spec.String()
+	}
+	name, err := bench.Write(sum, *mode, model, *out)
 	if err != nil {
 		return err
 	}

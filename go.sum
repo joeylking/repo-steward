@@ -22,6 +22,8 @@ github.com/invopop/jsonschema v0.14.0 h1:MHQqLhvpNUZfw+hM3AZDYK7jxO8FZoQeQM77g8i
 github.com/invopop/jsonschema v0.14.0/go.mod h1:ygm6C2EaVNMBDPpaPlnOA2pFAxBnxGjFlMZABxm9n2I=
 github.com/joeylking/agent-runtime v0.3.1 h1:YxALcFugoWgrLa8V9EoprbW2L/0HhJcJbLFt6tfyZMk=
 github.com/joeylking/agent-runtime v0.3.1/go.mod h1:QNMMIF1zPWL8m9bnHhrIBzAOVJrSSK56RJv+jzcakgE=
+github.com/joeylking/agent-runtime/bench v0.1.0 h1:Y0MJ6OasVxrUSVrW6vsGzVwHXGiQh/lGNzPBmL50GPU=
+github.com/joeylking/agent-runtime/bench v0.1.0/go.mod h1:E6E5D1LtL77y6IlfzTLMXOkiV64pP3rbucAVk5hSQ8o=
 github.com/joeylking/agent-runtime/providers/anthropic v0.2.0 h1:MU1fVmFE8SPQfEIr3eJnPj23QoVe7c1PSsTeRVEwauQ=
 github.com/joeylking/agent-runtime/providers/anthropic v0.2.0/go.mod h1:nmRWWNgRS0JrNSGmAoSmN9odjbhBelaZDAXS30yoKsg=
 github.com/joeylking/agent-runtime/providers/ollama v0.2.0 h1:utURfC2OgIx75UeKm4Ptn9UGRXSHRY8fkVbJhiEly3E=
