@@ -159,7 +159,8 @@ project outside these limits is refused at the start with the reason.
 ## Status
 
 The tagged release is v0.1.0, and `main` has moved on since: it now runs on
-agent-runtime v0.3.0. The whole path described above exists and is tested.
+agent-runtime v0.3.1, and scores its benchmarks with agent-runtime's `bench`
+module. The whole path described above exists and is tested.
 
 - **Deterministic parts:** exact snapshots, the container sandbox,
   validation that treats an unclear result as a failure, discovery of
@@ -196,8 +197,9 @@ Where to read more:
 
 - Go 1.27 or later and Git.
 - The runtime is pinned in `go.mod` at released versions: `agent-runtime
-  v0.3.0`, and the provider adapters at their own nested module tags,
-  `providers/ollama/v0.2.0` and `providers/anthropic/v0.2.0`.
+  v0.3.1`, the benchmark vocabulary at its nested module tag `bench/v0.1.0`,
+  and the provider adapters at theirs, `providers/ollama/v0.2.0` and
+  `providers/anthropic/v0.2.0`.
 - A Docker-compatible engine reachable over a unix socket (Docker Desktop,
   OrbStack, Colima, or Rancher Desktop) for every command that builds or
   tests code: `inspect`, `maintain`, `resume`, and `bench run`. `fixture`
@@ -258,8 +260,11 @@ the upgrade or a run that reported itself blocked. Every command exits 1 on
 an error, such as a bad flag or an unreachable engine.
 
 ```sh
-# A paused run is decided and continued in separate processes. The
-# approval is bound by hash to exactly the request that was shown.
+# A paused run is decided and continued in separate processes. approve and
+# reject print the approval to stderr first, its kind, tool, reason, expiry,
+# arguments, and presentation, with model-chosen text escaped so it cannot
+# move the cursor or imitate the prompt; the decision is then bound by hash to
+# exactly what was printed, and refused if the stored approval differs.
 go run ./cmd/repo-steward runs list
 go run ./cmd/repo-steward runs show <run-id>
 go run ./cmd/repo-steward approve <run-id> -note "small file"
@@ -377,8 +382,12 @@ to the manifests must pass before it is admitted.
 `bench run` executes scenarios through a mode and scores them against what
 each scenario declares: acceptable outcomes, allowed and required files,
 hidden oracle checks on the proposal tree, forbidden proposal text for
-injection cases, and a model-call bound. Denominators are stated and
-completions are never added to refusals. Eleven scenarios cover a patch
+injection cases, and a model-call bound. The six scores are declared as an
+outcome set for agent-runtime's `bench` module, which writes the result
+files and renders the summaries: denominators are stated, completions are
+never added to refusals, and one false success disqualifies a mode.
+`bench summarize` compares the newest result per mode and model and refuses
+results from different commits unless given `-mixed-commits`. Eleven scenarios cover a patch
 upgrade, two repairs, a closure-driven regression, a failing baseline, an
 ineligible major, a major beyond scope, injected instructions, a protected
 change, a toolchain gap, and a hard scope limit. Results are committed under

@@ -18,6 +18,15 @@ step summaries and the pending-approval selection rule). Those were written
 here first and are now deleted; what stayed is the domain text and the
 joins with this repository's own task, proposal, and promotion tables.
 
+Three more come from the runtime since v0.3.1. `approver` is the approval
+channel `approve`, `reject`, and `cancel` go through: the approval is shown
+in the sanitised text form of `approver/webhook` and decided bound to the
+hash of what was shown. `bench`, a nested module with no dependencies, is
+the result format and summarizer for the benchmark: repo-steward declares
+its six scores as an outcome set and keeps the classifier and the scenarios.
+`testkit` is what the policy and tool tests are written over: a conformance
+table and never-assertions for the policy, and schema fuzzing for the tools.
+
 ## Stages and who decides
 
 | Stage | Owner | Package |
@@ -86,4 +95,5 @@ request and mapping the reply; local models through Ollama are the
 development provider. A reply with no executable tool call is recorded as
 an invalid decision and nudged on the next step, so it costs a step and
 appears in the audit log. `bench run` executes scenarios in any mode and
-scores them against their declarations.
+scores them against their declarations, into result files in the format of
+agent-runtime's `bench` module.

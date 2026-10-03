@@ -4,8 +4,9 @@ Status values: **Required** (planned, not implemented), **Implemented** (code
 exists, reference given), **Verified** (a named test exercises it). Tests
 marked *integration* run under `-tags integration` against a real engine.
 References to `agent-runtime/...` are to the released modules this
-repository pins: `agent-runtime v0.3.0`, with the provider adapters at their
-nested tags `providers/ollama/v0.2.0` and `providers/anthropic/v0.2.0`.
+repository pins: `agent-runtime v0.3.1` and its nested `bench/v0.1.0`, with
+the provider adapters at their nested tags `providers/ollama/v0.2.0` and
+`providers/anthropic/v0.2.0`.
 
 ## Milestone 0A
 
@@ -81,6 +82,8 @@ nested tags `providers/ollama/v0.2.0` and `providers/anthropic/v0.2.0`.
 | `apply_upgrade` allowed only for the exact eligible module and version, once per run | Verified | `TestApplyUpgrade_ExactEligibility`, `TestPhaseGating` |
 | Scope computed on the projected diff before a write: hard limit aborts, soft limit asks once, expansion raises soft to hard, a second ask aborts, other approval kinds do not count | Verified | `TestWrite_ScopeBeforeApply`, `TestWrite_SingleExpansion`, `TestProjectedScope_CountsProposedWrite` |
 | Repair budgets: validation cycles and no-progress detection on introduced findings | Verified | `TestValidate_Budgets` |
+| Policy tests are agent-runtime `testkit.CheckPolicy` tables over the real tool specs, so a request goes through the runtime's argument validation first; `testkit.Never`: in repair nothing read-only is denied, aborted, or held for approval, and in every phase and under every grant publishing is never allowed without approval and a destructive tool never allowed | Verified | `internal/policy`, `TestNever` |
+| Tool schemas fuzzed: generated arguments that satisfy a schema reach the tool without a panic, near misses are refused before it (every tool but `run_validation`, which needs the engine) | Verified | `TestSpecs_FuzzedArguments` |
 | Validation evidence produced by a tool is admissible only when its runtime step is done | Verified (integration) | `proposal.Inputs.StepDone`, `verifyProposal` in `scripted_integration_test.go` |
 | S1 patch upgrade through the agent path | Verified (integration) | `TestScripted_S1_PatchUpgrade` |
 | S2 breaking minor repaired in one source file; protected test unchanged | Verified (integration) | `TestScripted_S2_BreakingMinorRepaired` |
@@ -94,7 +97,7 @@ nested tags `providers/ollama/v0.2.0` and `providers/anthropic/v0.2.0`.
 |---|---|---|
 | Run options and candidate facts persisted at start; resume reconstructs the session under the same configuration hash | Verified (integration) | `task.SetTaskContext`, `steward.Resume`, `TestCLI_ScopeExpansionAcrossProcesses` |
 | Resume refuses a run started with a fixture proxy unless the proxy is supplied again, and refuses a finished run | Verified (integration) | `TestCLI_ScopeExpansionAcrossProcesses`, `TestCLI_RejectCancels` |
-| `approve` and `reject` decide the single pending approval from a separate process; a second decision is refused | Verified (integration) | `agentrt.Approve`, `agentrt.Reject`, `view.PendingApproval` for the selection rule, `TestCLI_ScopeExpansionAcrossProcesses` |
+| `approve` and `reject` decide the single pending approval from a separate process, through `approver.Open` on `steward.db`; each prints the approval with `webhook.Text` before deciding and is bound to the hash it printed; a second decision is refused | Verified (integration) | `runDecide`, `approver.Local.Approve` and `Reject`, `TestCLI_ScopeExpansionAcrossProcesses`, `TestCLI_RejectCancels` |
 | Soft scope limit pauses the run with a `scope_expansion` approval whose presentation names the write; after approval and resume the write lands and the proposal includes it | Verified (integration) | `TestCLI_ScopeExpansionAcrossProcesses` |
 | Hard scope limit ends the run without asking | Verified (integration) | `TestCLI_HardScopeLimitAborts` |
 | Reject cancels the run, records the outcome, and the pending write never lands | Verified (integration) | `TestCLI_RejectCancels` |
@@ -119,8 +122,9 @@ Milestone 1 is complete.
 |---|---|---|
 | Tool results carry nothing run-specific, so a recorded model run replays | Verified (integration) | `internal/tools` `run_validation`, `TestModelMode_ReplaysRecordedRuns` |
 | Model mode replays recorded responses with the model server unreachable, in tests and in CI | Verified (integration) | `internal/steward/testdata/recordings`, CI step "model mode from recordings" |
-| Benchmark harness: fresh fixture per run, scores with explicit denominators, completions and refusals never combined, safe non-results distinct from incorrect refusals, side effects and policy stops counted | Verified | `internal/bench`, `TestScore_ClassesAreSeparate`, `TestAggregate_DenominatorsAreExplicit` |
-| Results committed as data with the commit they were produced at | Implemented | `benchmarks/results/` |
+| Benchmark harness: fresh fixture per run, scores with explicit denominators, completions and refusals never combined, safe non-results distinct from incorrect refusals, side effects and policy stops counted | Verified | `internal/bench`, `TestScore_ClassesAreSeparate`, `TestSummary_DenominatorsAreExplicit`, `TestTaxonomy_IsValid` |
+| Results in agent-runtime's `bench` format: the six scores declared as a `bench.Taxonomy` with false_success unsafe, files that refuse summaries not following from their trials, and `bench summarize` refusing results from different commits unless given `-mixed-commits` | Verified | `bench.Taxonomy` in `internal/bench`, `TestWrite_RoundTripsAndNamesByMode`, `TestComparison_RefusesMixedCommitsUnlessAllowed` |
+| Results committed as data with the commit they were produced at; the files made before 2026-10-02 converted mechanically that day to the `bench` format, numbers unchanged | Implemented | `benchmarks/results/`, `benchmarks/README.md` |
 
 Recordings are keyed by the exact request. Changing the system prompt, a
 tool description or schema, or the shape of a tool result invalidates them;
