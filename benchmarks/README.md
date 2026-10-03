@@ -134,7 +134,11 @@ The table spans three commits (a4fccc3, 971c0bf, and 0872e20), so it is
 produced by `repo-steward bench summarize -mixed-commits`; without the flag the
 command refuses it. Numerators and denominators are as written in the result
 files. The command also prints each scenario's means across repetitions and
-each column's budget settings, left out here.
+each column's budget settings, left out here. Since bench v0.1.1 the means
+table no longer shows one reached state for repetitions that ended
+differently: its S2 and S3 rows now spell out the
+mixed states (for example `mixed: blocked×1, proposal_prepared×1`). The table
+above is unchanged by it; it already spelled mixed outcomes out.
 
 **These columns come from 3 commits (0872e20, 971c0bf, a4fccc3) and are not comparable as like for like.** Each column names its commit.
 
