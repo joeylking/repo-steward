@@ -94,7 +94,7 @@ real model's decisions on these eleven scenarios, and how many calls and how
 much time that takes. They do not measure repair quality on real
 repositories, and they say nothing about any model that has not been run.
 
-Two things sit beside these results:
+Three things sit beside these results:
 
 - Hidden oracle checks are part of the scoring. The agent never sees them,
   and a proposal that fails one is scored a false success.
@@ -104,6 +104,10 @@ Two things sit beside these results:
   and say nothing about repair. They are not part of the table below; the
   main [README](../README.md#smoke-scenarios-against-public-modules)
   describes them.
+- Three repair scenarios on real public repositories, also in
+  `internal/smoke`, are run by a local model on demand. Their first
+  measurement, on 2026-10-03, repaired nothing in nine runs; see
+  [Repair on real repositories](#repair-on-real-repositories).
 
 A larger corpus is planned and does not exist yet.
 
@@ -181,7 +185,9 @@ Observations, from the event logs of these runs:
   dependency-source requests, which the consecutive-failure limit ended.
   On S4M it again rewrote files one at a time, and this time the run ended
   at step 28 rather than at the 40-step limit, because three consecutive
-  replies were cut off by the 4096-token output cap and a cut-off reply is
+  replies were cut off by the 2048-token output cap the agent requests per
+  call (corrected on 2026-10-03 from 4096, which is the runtime's per-call
+  limit, not what the request asks for) and a cut-off reply is
   now a failed step. On S2 the second repeat is a new incorrect refusal:
   after its `main.go` edit left two findings it read `main_test.go`, tried
   to write it, was denied because test files are protected, and called
@@ -238,3 +244,83 @@ one prompt: the 2026-09-20 files superseded earlier ones when the validator
 began reporting test setup failures as conclusive package findings and the
 system prompt gained readiness and signature guidance, and the prompt has
 not changed since.
+
+## Repair on real repositories
+
+On 2026-10-03 the model-driven repair was run for the first time on real
+public Go code rather than on the synthetic fixtures. Three repositories
+were pinned where upgrading one direct dependency to one newer version
+breaks the build and a small edit to non-test source repairs it. Each break
+was confirmed first with `maintain -mode baseline`, which ended `regressed`
+(exit 4) after a clean baseline in the no-network sandbox.
+
+| Scenario | Repository and pinned commit | Upgrade | What breaks | A correct repair |
+|---|---|---|---|---|
+| `mcp-openweather-arguments` | [mschneider82/mcp-openweather](https://github.com/mschneider82/mcp-openweather) `e032683574a0` | `github.com/mark3labs/mcp-go` v0.26.0 → v0.29.0 | v0.29.0 changed `CallToolRequest.Params.Arguments` from `map[string]any` to `any`; three lines in `main.go` index it. No tests. | Read the arguments through `request.GetArguments()` (or a checked type assertion) on three lines. |
+| `awsoremod-mcp-arguments` | [awsoremod/mcp](https://github.com/awsoremod/mcp) `eda957c9bff7` | `github.com/mark3labs/mcp-go` v0.28.0 → v0.29.0 | The same change; twelve lines of generic parameter helpers in `pkg/aw/server.go` index the arguments, breaking three packages. Has tests, which need no change. | The same, on twelve lines of one file. |
+| `dictionary-ollama-format` | [allof-dev/dictionary](https://github.com/allof-dev/dictionary) `192b5dcd881f` | `github.com/ollama/ollama` v0.4.7 → v0.5.0 | v0.5.0 changed `api.GenerateRequest.Format` from `string` to `json.RawMessage`; `Format: "json"` in `cmd/translate/main.go` no longer compiles. No tests. | ``Format: json.RawMessage(`"json"`)``, one line. `json.RawMessage("json")` also compiles but is not valid JSON and fails when the request is marshalled, so the declaration's hidden oracle rejects it. |
+
+The model was qwen3:30b-a3b through Ollama on an Apple M5 Max, with the
+default limits of model mode (40 steps, 80 model calls; the agent asks for
+at most 2048 output tokens per call). Each scenario ran three times: twice
+through `maintain -mode model -record`, and once through the new
+`TestRepair` in `internal/smoke`, at commit b65380d with the sandbox fix
+from 4bce215. The `maintain` output of every run is in
+[real-repair/2026-10-03](real-repair/2026-10-03/); these runs are not
+scored by `bench` and are not part of the table above.
+
+| Scenario | Run | Outcome | Model calls | Steps | Output tokens | Wall time (s) | What the model did after `run_validation` reported the break |
+|---|---|---|---|---|---|---|---|
+| mcp-openweather-arguments | cli 1 | limit_exhausted | 6 | 6 | 4768 | 69 | Asked for three dependency files by guessed paths (`params.go`, `request.go`, `request/params.go`); none exist, three failures in a row ended the run. |
+| mcp-openweather-arguments | cli 2 | limit_exhausted | 7 | 7 | 6928 | 83 | Read `main.go`, guessed `mcp/request.go`, wrote a reply cut off by the output cap, guessed `request.go`; three failures in a row. |
+| mcp-openweather-arguments | TestRepair | limit_exhausted | 6 | 6 | 4768 | 77 | The same as cli 1. |
+| awsoremod-mcp-arguments | cli 1 | limit_exhausted | 9 | 9 | 10169 | 220 | Two guessed dependency paths failed, then read `pkg/aw/server.go`, then three replies of prose deliberation cut off by the output cap before any tool call. |
+| awsoremod-mcp-arguments | cli 2 | limit_exhausted | 8 | 8 | 9198 | 208 | Read `pkg/aw/server.go` and the dependency's `mcp/types.go`, then three cut-off replies. |
+| awsoremod-mcp-arguments | TestRepair | limit_exhausted | 9 | 9 | 10169 | 251 | The same as cli 1. |
+| dictionary-ollama-format | cli 1 | limit_exhausted | 7 | 7 | 8937 | 237 | Read `cmd/translate/main.go`, then three cut-off replies. |
+| dictionary-ollama-format | cli 2 | limit_exhausted | 7 | 7 | 8345 | 160 | The same. |
+| dictionary-ollama-format | TestRepair | limit_exhausted | 7 | 7 | 8345 | 220 | The same. |
+
+Every run ended `limit_exhausted` on the limit of three consecutive failed
+steps. **No run repaired anything: 0 of 9.** No run called `write_file`, so
+no edit was attempted, no proposal was made, and nothing was denied by
+policy. Every run left the operator's checkout unmodified (checked with
+`git status` after each run, and by `TestRepair`). Every run did select the
+pinned version, apply the upgrade, and run validation, which reported the
+break correctly.
+
+What the logs show, and what they do not:
+
+- Two failure modes account for all nine runs. On mcp-openweather the model
+  asked `read_dependency_source` for files at guessed paths instead of
+  listing the module's directory, which the tool supports; the definition it
+  needed is in `mcp/tools.go`. On the other two it read the broken file and
+  then deliberated in prose until each of three replies hit the 2048-token
+  cap. In the dictionary replies it misnumbered the file's lines and
+  reasoned about the wrong statement. These are the same two patterns the
+  synthetic results above record for this model and for Claude Sonnet 5.
+- `write_file` takes a file's full content. `pkg/aw/server.go` is 6983
+  bytes, so writing it back in one reply under a 2048-token cap may not fit
+  even with no deliberation. This was not measured, because no run got as
+  far as trying.
+- The three runs per scenario are not three independent samples. The model
+  runs at temperature 0: the TestRepair run of awsoremod and of
+  mcp-openweather repeated cli 1 call for call, and the dictionary TestRepair
+  run repeated cli 2.
+- Two recorded runs (cli 1 of mcp-openweather and of awsoremod) were
+  replayed once each with the model server unreachable, against network
+  acquisition into a fresh data directory, and reproduced the same outcome
+  and call count (the `replay-of-cli-1` files). One replay each is not proof
+  that replay is deterministic, and the recordings are not committed, so
+  these scenarios are not in the CI smoke job.
+
+Caveats: three scenarios, nine runs, one local model, one prompt. All
+three breaks are type changes that the compiler reports precisely, two of
+them are the same mcp-go change, and two of the repositories have no tests.
+A model that repairs these would show little about harder breaks; a model
+that fails them, as this one did, shows that the synthetic results above do
+not carry over to real code for this model under these limits. Nothing here
+says anything about any other model.
+
+To run them again, see [Repair scenarios](../README.md#repair-scenarios-on-real-repositories)
+in the main README.

@@ -133,8 +133,11 @@ rules, the dates, and the per-scenario results.
 
 Five further scenarios run the no-model pipeline against real public
 projects, see
-[Smoke scenarios](#smoke-scenarios-against-public-modules). It has also
-run once for real, see Status below.
+[Smoke scenarios](#smoke-scenarios-against-public-modules). Three more ask
+the local model to repair a real break in a real project; in its first
+nine runs it repaired none, see
+[Repair scenarios](#repair-scenarios-on-real-repositories). repo-steward
+has also run once for real, see Status below.
 
 ## What it supports
 
@@ -171,8 +174,9 @@ module. The whole path described above exists and is tested.
 - **Publication:** an approval bound to the proposal's hash, and a push and
   a pull request that are journaled, so an interrupted run is reconciled
   against GitHub and nothing is sent twice.
-- **Evidence:** committed benchmark results over eleven scenarios, and five
-  smoke scenarios against real public modules.
+- **Evidence:** committed benchmark results over eleven scenarios, five
+  smoke scenarios against real public modules, and three repair scenarios
+  on real repositories, which the local model has not yet repaired.
 
 No development, test, or CI path makes a paid model call. The one paid
 provider exists for explicit measurements under a spending cap, see
@@ -484,7 +488,7 @@ target whose go directive exceeds the repository's pinned toolchain, and a
 repository whose test suite reaches the network and therefore fails its
 baseline in the sandbox. All five run the baseline pipeline, with no model,
 so they exercise the sandbox, the gates, and validation on real code and
-say nothing about repair. They need the network and the toolchain images
+say nothing about repair; the repair scenarios below do. They need the network and the toolchain images
 the targets declare, so they run under their own tag and in a separate
 on-demand and weekly workflow, not on every push.
 
@@ -497,3 +501,35 @@ the build check passed `-o` unconditionally, which `go build` refuses for
 a library-only module, and a `go.mod` under a directory the go tool
 ignores, such as `_examples`, was refused as a nested module. Both are
 fixed and covered by unit tests.
+
+## Repair scenarios on real repositories
+
+Three further scenarios, under `internal/smoke/testdata/repair`, pin a
+public repository where upgrading one dependency breaks the build and a
+small change to non-test source repairs it: two are mcp-go v0.29.0's change
+of `CallToolRequest.Params.Arguments` to `any` (in mschneider82/mcp-openweather
+and awsoremod/mcp), one is ollama v0.5.0's change of `GenerateRequest.Format`
+to `json.RawMessage` (in allof-dev/dictionary). `TestRepair` first runs the
+baseline pipeline, which must end `regressed`, then lets a local model try
+the repair. A run that ends without a proposal passes and is logged, since
+a failed repair is a result; a proposal must pass every check a correct one
+would, including hidden oracles, or the test fails. The test needs a model,
+so it is skipped unless `REPO_STEWARD_SMOKE_MODEL` names one, and only an
+`ollama:` model is accepted; neither `TestSmoke` nor the smoke workflow runs
+it. Only one scenario may run against an engine at a time, because each run
+reaps every container carrying the sandbox label.
+
+```sh
+REPO_STEWARD_SMOKE_MODEL=ollama:qwen3:30b-a3b REPO_STEWARD_SMOKE_OUT=$HOME/tmp/repair \
+  go test -tags smoke -count=1 -p 1 -v -timeout 2h -run TestRepair ./internal/smoke/
+```
+
+The first measurement, on 2026-10-03 with qwen3:30b-a3b, repaired nothing:
+0 of 9 runs, each ending after three consecutive failed steps, with no edit
+attempted and the checkout untouched. The results and their caveats are in
+[benchmarks/README.md](benchmarks/README.md#repair-on-real-repositories).
+Measuring them exposed a sandbox defect: the kill, log, and removal calls
+shared one 30-second budget that started when the container was created,
+so any command running longer than 30 seconds, such as acquisition over
+the network, failed with its output unread. Each call now gets its own
+budget, covered by a unit test.

@@ -196,6 +196,17 @@ v10.30.5, schollz/progressbar v3.19.1. A scenario fails if its tag moves
 off the pinned commit. The workflow is `.github/workflows/smoke.yml`,
 on demand and weekly.
 
+## Repair scenarios on real repositories
+
+| Control or capability | Status | Reference |
+|---|---|---|
+| A sandbox command that runs longer than 30 seconds still has its output collected and its container removed: kill, log, and removal each get their own budget instead of one started at container creation | Verified | `sandbox.Docker.Run`, `TestRun_LongCommandStillCollectsLogsAndRemoves` |
+| Repair scenarios declared like the smoke scenarios, with allowed and required files, hidden oracles, and a model-call cap; the break is proven by a baseline run ending `regressed` before the model runs | Implemented | `internal/smoke/testdata/repair`, `TestRepair` (smoke tag, skipped unless `REPO_STEWARD_SMOKE_MODEL` names an `ollama:` model; not in CI) |
+| A proposal from a repair scenario is held to its file set, its oracles, clean conclusive post-validation bound to the proposal tree, the pinned parent, and an untouched checkout | Implemented, not yet exercised | `checkRepair` in `internal/smoke/repair_test.go`; no run has produced a proposal to check |
+| Breaks confirmed on real code with the baseline pipeline: mcp-go v0.29.0 in mschneider82/mcp-openweather and awsoremod/mcp, ollama v0.5.0 in allof-dev/dictionary, each `regressed` after a clean no-network baseline | Observed on 2026-10-03 | `TestRepair` baseline step, `maintain -mode baseline` |
+| Model-driven repair of those breaks by qwen3:30b-a3b | Not achieved: 0 of 9 runs (3 per scenario) repaired; all ended `limit_exhausted` after three consecutive failed steps, no edit attempted, checkout untouched | `benchmarks/README.md` "Repair on real repositories", `benchmarks/real-repair/2026-10-03/` |
+| Recorded runs of these scenarios replay with the model server unreachable and network acquisition | Observed once each for two runs, not a gated test; recordings not committed | `benchmarks/real-repair/2026-10-03/*-replay-of-cli-1.json` |
+
 ## Not claimed
 
 The sandbox reduces risk from untrusted build behaviour on operator-selected
