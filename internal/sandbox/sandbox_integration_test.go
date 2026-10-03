@@ -53,6 +53,10 @@ func newSandbox(t *testing.T, proxy bool) (*sandbox.Docker, sandbox.Config) {
 	if err := sb.Probe(ctx); err != nil {
 		t.Fatal(err)
 	}
+	// The execute profile runs only against a fresh build cache.
+	if sb, err = sb.WithFreshBuildCache(); err != nil {
+		t.Fatal(err)
+	}
 	return sb, cfg
 }
 
@@ -109,6 +113,7 @@ func TestExecute_NoNetwork(t *testing.T) {
 
 func TestExecute_SourceAndCacheReadOnly(t *testing.T) {
 	sb, cfg := newSandbox(t, false)
+	gocache := sb.ExecuteCacheDir()
 	res := run(t, sb, sandbox.Execute, `touch /work/x 2>&1; touch /cache/x 2>&1; touch /usr/x 2>&1; touch /gocache/ok && echo GOCACHE_WRITABLE; touch /tmp/ok && echo TMP_WRITABLE`)
 	out := string(res.Stdout) + string(res.Stderr)
 	if strings.Count(out, "Read-only file system") < 3 {
@@ -120,8 +125,39 @@ func TestExecute_SourceAndCacheReadOnly(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(cfg.SourceDir, "x")); err == nil {
 		t.Fatal("source directory was modified")
 	}
-	if _, err := os.Stat(filepath.Join(cfg.BuildCacheDir, "ok")); err != nil {
+	if _, err := os.Stat(filepath.Join(gocache, "ok")); err != nil {
 		t.Fatal("build cache write did not reach the host:", err)
+	}
+}
+
+// Code executed in one validation writes into its build cache; a later
+// validation, and the acquire profile, see an empty cache of their own, and
+// nothing acquire writes reaches an execute cache. The data directory above
+// these caches is owner-only (0700), as lock.CheckLocal makes it, so this
+// also shows the engine mounts world-writable caches below such a parent.
+func TestExecute_BuildCacheFreshPerValidation(t *testing.T) {
+	sb, cfg := newSandbox(t, false)
+	if fi, err := os.Stat(filepath.Dir(cfg.BuildCacheDir)); err != nil || fi.Mode().Perm() != 0o700 {
+		t.Fatalf("test root %v %v, want owner-only", fi.Mode(), err)
+	}
+	res := run(t, sb, sandbox.Execute, `echo poisoned > /gocache/marker && echo WROTE`)
+	if !strings.Contains(string(res.Stdout), "WROTE") {
+		t.Fatalf("first validation could not write its cache:\n%s%s", res.Stdout, res.Stderr)
+	}
+	if _, err := os.Stat(filepath.Join(sb.ExecuteCacheDir(), "marker")); err != nil {
+		t.Fatal("marker did not reach the host:", err)
+	}
+	res = run(t, sb, sandbox.Acquire, `test -e /gocache/marker && echo SEEN || echo ABSENT; echo acquired > /gocache/acquire-marker && echo WROTE`)
+	if out := string(res.Stdout); !strings.Contains(out, "ABSENT") || !strings.Contains(out, "WROTE") {
+		t.Fatalf("acquire sees the execute cache or cannot write its own:\n%s%s", out, res.Stderr)
+	}
+	next, err := sb.WithFreshBuildCache()
+	if err != nil {
+		t.Fatal(err)
+	}
+	res = run(t, next, sandbox.Execute, `ls -A /gocache | wc -l; test -e /gocache/marker && echo SEEN || echo ABSENT`)
+	if out := string(res.Stdout); !strings.Contains(out, "ABSENT") || strings.TrimSpace(strings.SplitN(out, "\n", 2)[0]) != "0" {
+		t.Fatalf("second validation's build cache is not empty:\n%s%s", out, res.Stderr)
 	}
 }
 

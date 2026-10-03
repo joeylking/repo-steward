@@ -298,6 +298,10 @@ func (s *Session) Validate(ctx context.Context, stepID string) (*validate.Run, s
 	if err != nil {
 		return nil, "", err
 	}
+	// Each validation gets a build cache no earlier validation has written.
+	if sb, err = sb.WithFreshBuildCache(); err != nil {
+		return nil, "", err
+	}
 	vr, err := validate.Baseline(ctx, sb, validate.Options{Kind: "post", TreeHash: tree, ToolchainDigest: s.Profile.Toolchain.Digest, CheckTimeout: s.CheckTimeout, RunID: s.RunID, StepID: stepID})
 	if err != nil {
 		return nil, "", err

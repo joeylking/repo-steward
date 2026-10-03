@@ -11,7 +11,9 @@
 //	         via -modfile. Source read-only, staging and module cache
 //	         writable, network as for acquire. Executes no repository code.
 //	execute  build, vet, test, and offline go list. Source and module cache
-//	         read-only, no network, build cache writable, tmpfs /tmp.
+//	         read-only, no network, tmpfs /tmp, and a writable build cache
+//	         that is new for each validation and never mounted by acquire
+//	         or mutate.
 package sandbox
 
 import (
@@ -80,8 +82,11 @@ type Config struct {
 	SourceDir string
 	// CacheDir holds the module cache; writable in acquire, read-only in execute.
 	CacheDir string
-	// BuildCacheDir holds the Go build cache; writable in every profile and
-	// discarded by the caller at the end of a run.
+	// BuildCacheDir is the root of the run's Go build caches, discarded by
+	// the caller at the end of a run. The acquire and mutate profiles mount
+	// its "acquire" subdirectory. The execute profile mounts only a fresh
+	// subdirectory made by WithFreshBuildCache, so code executed in one
+	// validation cannot leave anything in the cache a later one reads.
 	BuildCacheDir string
 	// StagingDir, when set, is mounted read-write at /staging in the mutate
 	// profile. It holds the go.mod and go.sum copies that -modfile targets.
@@ -159,6 +164,9 @@ type Docker struct {
 	// cleanup overrides dockerapi.WaitTimeout as the budget of each
 	// post-run engine call; zero means the default. Tests shorten it.
 	cleanup time.Duration
+	// execCache is the execute profile's build cache, set only by
+	// WithFreshBuildCache. Without it the execute profile refuses to run.
+	execCache string
 }
 
 func (d *Docker) cleanupTimeout() time.Duration {
@@ -175,8 +183,13 @@ func NewDocker(cfg Config, socket string) (*Docker, error) {
 		return nil, err
 	}
 	// The module and build caches are written by an unprivileged container
-	// user, so they must be world-writable on the host.
-	for _, dir := range []string{cfg.CacheDir, cfg.BuildCacheDir} {
+	// user, so they must be world-writable on the host. The root holding
+	// the build caches is not mounted and stays owner-only; the data
+	// directory above all of them is owner-only too (lock.CheckLocal).
+	if err := os.MkdirAll(cfg.BuildCacheDir, 0o700); err != nil {
+		return nil, err
+	}
+	for _, dir := range []string{cfg.CacheDir, acquireCache(cfg)} {
 		if err := os.MkdirAll(dir, 0o777); err != nil {
 			return nil, err
 		}
@@ -198,17 +211,42 @@ func NewDocker(cfg Config, socket string) (*Docker, error) {
 // sharing everything else. The pipeline uses it to validate each candidate
 // snapshot; tools never call it.
 func (d *Docker) WithSource(dir string) *Docker {
-	c := d.cfg
-	c.SourceDir = dir
-	return &Docker{cfg: c, client: d.client, cleanup: d.cleanup}
+	n := *d
+	n.cfg.SourceDir = dir
+	return &n
 }
 
 // WithStaging returns a sandbox whose mutate profile mounts dir at /staging.
 func (d *Docker) WithStaging(dir string) *Docker {
-	c := d.cfg
-	c.StagingDir = dir
-	return &Docker{cfg: c, client: d.client, cleanup: d.cleanup}
+	n := *d
+	n.cfg.StagingDir = dir
+	return &n
 }
+
+// WithFreshBuildCache returns a sandbox whose execute profile mounts a new,
+// empty build cache under BuildCacheDir that no container has written.
+// Every validation calls it once, so build, vet, and test within one
+// validation share a cache and nothing executed in an earlier validation
+// can reach a later one. The name is random: a path is never reused within
+// a run, because VM-backed engines cache path lookups.
+func (d *Docker) WithFreshBuildCache() (*Docker, error) {
+	dir, err := os.MkdirTemp(d.cfg.BuildCacheDir, "execute-")
+	if err != nil {
+		return nil, err
+	}
+	if err := os.Chmod(dir, 0o777); err != nil {
+		return nil, err
+	}
+	n := *d
+	n.execCache = dir
+	return &n, nil
+}
+
+// ExecuteCacheDir is the host directory the execute profile mounts at
+// /gocache, or empty when the sandbox has none. Tests use it.
+func (d *Docker) ExecuteCacheDir() string { return d.execCache }
+
+func acquireCache(c Config) string { return filepath.Join(c.BuildCacheDir, "acquire") }
 
 // Client exposes the engine client for tests and reaping.
 func (d *Docker) Client() *dockerapi.Client { return d.client }
@@ -221,7 +259,8 @@ var ErrMountUnavailable = errors.New("sandbox: host directories are not visible 
 
 // Probe verifies that the cache and source directories are really shared
 // with the engine and that the container user can write to the caches. It
-// runs one short execute-profile and one acquire-profile container.
+// runs one short execute-profile container, against a fresh build cache it
+// then removes, and one acquire-profile container.
 func (d *Docker) Probe(ctx context.Context) error {
 	// Marker names carry a nonce: VM-backed engines cache directory
 	// lookups, and a name that was recently absent can stay invisible for
@@ -244,7 +283,11 @@ func (d *Docker) Probe(ctx context.Context) error {
 	}
 	gocacheMarker := ".repo-steward-probe-" + nonce
 	script := "cat /cache/" + markerName + " && echo && test -e /work/" + shellQuote(first) + " && echo SRC_OK && echo ok > /gocache/" + gocacheMarker + " && echo GOCACHE_OK"
-	res, err := d.Run(ctx, probeSpec(Execute, script))
+	exec, err := d.WithFreshBuildCache()
+	if err != nil {
+		return err
+	}
+	res, err := exec.Run(ctx, probeSpec(Execute, script))
 	if err != nil {
 		return err
 	}
@@ -256,17 +299,22 @@ func (d *Docker) Probe(ctx context.Context) error {
 		return fmt.Errorf("%w: source directory %s", ErrMountUnavailable, d.cfg.SourceDir)
 	}
 	if !strings.Contains(out, "GOCACHE_OK") {
-		return fmt.Errorf("sandbox: build cache %s is not writable by the container user: %s", d.cfg.BuildCacheDir, strings.TrimSpace(string(res.Stderr)))
+		return fmt.Errorf("sandbox: build cache %s is not writable by the container user: %s", exec.execCache, strings.TrimSpace(string(res.Stderr)))
 	}
-	os.Remove(filepath.Join(d.cfg.BuildCacheDir, gocacheMarker))
+	os.Remove(filepath.Join(exec.execCache, gocacheMarker))
+	os.Remove(exec.execCache)
 	cacheMarker := ".repo-steward-probe-w-" + nonce
-	res, err = d.Run(ctx, probeSpec(Acquire, "echo ok > /cache/"+cacheMarker+" && echo CACHE_OK"))
+	res, err = d.Run(ctx, probeSpec(Acquire, "echo ok > /cache/"+cacheMarker+" && echo CACHE_OK && echo ok > /gocache/"+cacheMarker+" && echo GOCACHE_OK"))
 	if err != nil {
 		return err
 	}
 	os.Remove(filepath.Join(d.cfg.CacheDir, cacheMarker))
+	os.Remove(filepath.Join(acquireCache(d.cfg), cacheMarker))
 	if !strings.Contains(string(res.Stdout), "CACHE_OK") {
 		return fmt.Errorf("sandbox: module cache %s is not writable by the container user: %s", d.cfg.CacheDir, strings.TrimSpace(string(res.Stderr)))
+	}
+	if !strings.Contains(string(res.Stdout), "GOCACHE_OK") {
+		return fmt.Errorf("sandbox: build cache %s is not writable by the container user: %s", acquireCache(d.cfg), strings.TrimSpace(string(res.Stderr)))
 	}
 	return nil
 }
@@ -369,7 +417,7 @@ func (d *Docker) hostConfig(p Profile) (dockerapi.HostConfig, error) {
 		hc.Binds = []string{
 			d.cfg.SourceDir + ":/work:ro",
 			d.cfg.CacheDir + ":/cache:rw",
-			d.cfg.BuildCacheDir + ":/gocache:rw",
+			acquireCache(d.cfg) + ":/gocache:rw",
 		}
 		if p == Mutate {
 			if d.cfg.StagingDir == "" {
@@ -384,10 +432,13 @@ func (d *Docker) hostConfig(p Profile) (dockerapi.HostConfig, error) {
 			hc.NetworkMode = "bridge"
 		}
 	case Execute:
+		if d.execCache == "" {
+			return hc, errors.New("sandbox: execute profile requires a fresh build cache (WithFreshBuildCache)")
+		}
 		hc.Binds = []string{
 			d.cfg.SourceDir + ":/work:ro",
 			d.cfg.CacheDir + ":/cache:ro",
-			d.cfg.BuildCacheDir + ":/gocache:rw",
+			d.execCache + ":/gocache:rw",
 		}
 		hc.NetworkMode = "none"
 	default:

@@ -237,7 +237,13 @@ func mustBlob(ctx context.Context, ws *workspace.Workspace, tree, path string) [
 	return out
 }
 
+// execOut runs one toolchain command in the execute profile against a
+// build cache of its own.
 func execOut(ctx context.Context, sb *sandbox.Docker, argv ...string) (string, error) {
+	sb, err := sb.WithFreshBuildCache()
+	if err != nil {
+		return "", err
+	}
 	res, err := sb.Run(ctx, sandbox.ExecSpec{Profile: sandbox.Execute, Argv: argv, Timeout: 5 * time.Minute, StepID: "readiness"})
 	if err != nil {
 		return "", err

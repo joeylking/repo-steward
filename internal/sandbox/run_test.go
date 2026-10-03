@@ -84,9 +84,10 @@ func TestRun_LongCommandStillCollectsLogsAndRemoves(t *testing.T) {
 	f := &fakeEngine{wait: 300 * time.Millisecond}
 	sock := serveFake(t, f)
 	d := &Docker{
-		cfg:     Config{Image: "img", SourceDir: "/s", CacheDir: "/c", BuildCacheDir: "/b"},
-		client:  dockerapi.New(sock),
-		cleanup: 100 * time.Millisecond,
+		cfg:       Config{Image: "img", SourceDir: "/s", CacheDir: "/c", BuildCacheDir: "/b"},
+		client:    dockerapi.New(sock),
+		cleanup:   100 * time.Millisecond,
+		execCache: "/b/execute-1",
 	}
 	res, err := d.Run(context.Background(), ExecSpec{Profile: Execute, Argv: []string{"true"}, Timeout: 5 * time.Second})
 	if err != nil {

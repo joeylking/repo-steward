@@ -218,7 +218,11 @@ func Run(ctx context.Context, opts Options) (*Report, error) {
 
 	// Baseline validation.
 	t = time.Now()
-	rep.Baseline, err = validate.Baseline(ctx, sb, validate.Options{Kind: "baseline", TreeHash: rep.TreeHash, ToolchainDigest: prof.Toolchain.Digest, CheckTimeout: opts.CheckTimeout, StepID: "baseline"})
+	vsb, err := sb.WithFreshBuildCache()
+	if err != nil {
+		return nil, err
+	}
+	rep.Baseline, err = validate.Baseline(ctx, vsb, validate.Options{Kind: "baseline", TreeHash: rep.TreeHash, ToolchainDigest: prof.Toolchain.Digest, CheckTimeout: opts.CheckTimeout, StepID: "baseline"})
 	if err != nil {
 		return nil, err
 	}

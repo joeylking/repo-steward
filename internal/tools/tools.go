@@ -759,7 +759,13 @@ func noSymlinks(root *os.Root, rel string) error {
 	return nil
 }
 
+// sbExec runs one toolchain command in the execute profile against a build
+// cache of its own.
 func sbExec(ctx context.Context, sb *sandbox.Docker, argv ...string) (string, error) {
+	sb, err := sb.WithFreshBuildCache()
+	if err != nil {
+		return "", err
+	}
 	res, err := sb.Run(ctx, sandbox.ExecSpec{Profile: sandbox.Execute, Argv: argv, Timeout: 5 * time.Minute, StepID: "tools"})
 	if err != nil {
 		return "", err

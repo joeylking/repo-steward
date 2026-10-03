@@ -489,6 +489,11 @@ func (r *run) candidateSnapshot(ctx context.Context) (string, string, error) {
 // accepted evidence for tree. In baseline mode there is no step to wait
 // for, so acceptance is immediate.
 func (r *run) validate(ctx context.Context, sb *sandbox.Docker, tree, kind string) (*validate.Run, string, error) {
+	// Each validation gets a build cache no earlier validation has written.
+	sb, err := sb.WithFreshBuildCache()
+	if err != nil {
+		return nil, "", err
+	}
 	vr, err := validate.Baseline(ctx, sb, validate.Options{Kind: kind, TreeHash: tree, ToolchainDigest: r.profile.Toolchain.Digest, CheckTimeout: r.opts.CheckTimeout, RunID: r.id, StepID: kind})
 	if err != nil {
 		return nil, "", err
