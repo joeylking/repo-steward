@@ -258,9 +258,12 @@ go run ./cmd/repo-steward maintain ~/tmp/breaking-minor -mode scripted -scenario
 
 `maintain` exits 0 when a proposal was prepared or published, 2 when
 unsupported, 3 on baseline problems, 5 when the run paused for an approval,
-and 4 for any other explained non-result such as a regression introduced by
-the upgrade or a run that reported itself blocked. Every command exits 1 on
-an error, such as a bad flag or an unreachable engine.
+6 when the upgrade could not be fetched because the module proxy or checksum
+database was unreachable or failed (outcome `acquisition_failed`, with the
+toolchain's message in the detail; a later run may succeed), and 4 for any
+other explained non-result such as a regression introduced by the upgrade
+or a run that reported itself blocked. Every command exits 1 on an error,
+such as a bad flag or an unreachable engine.
 
 ```sh
 # A paused run is decided and continued in separate processes. approve and

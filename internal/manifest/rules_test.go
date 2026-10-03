@@ -132,3 +132,43 @@ func TestOpError_RequiresNewerToolchain(t *testing.T) {
 		t.Fatal("false positive")
 	}
 }
+
+// The samples are the go command's own stderr (go 1.22, captured in the
+// toolchain image) for an unreachable proxy or checksum database, and for
+// failures that are about the module and must keep their gate outcome.
+func TestOpError_AcquisitionFailed(t *testing.T) {
+	transport := map[string]string{
+		"no network":       `go: github.com/google/uuid@v1.6.0: Get "https://proxy.golang.org/github.com/google/uuid/@v/v1.6.0.mod": dial tcp: lookup proxy.golang.org on 192.168.5.1:53: dial udp 192.168.5.1:53: connect: network is unreachable`,
+		"no such host":     `go: github.com/google/uuid@v1.6.0: Get "https://proxy.nonexistent.invalid/github.com/google/uuid/@v/v1.6.0.mod": dial tcp: lookup proxy.nonexistent.invalid on 192.168.5.1:53: no such host`,
+		"refused":          `go: github.com/google/uuid@v1.6.0: Get "http://127.0.0.1:9/github.com/google/uuid/@v/v1.6.0.mod": dial tcp 127.0.0.1:9: connect: connection refused`,
+		"dial timeout":     `go: github.com/google/uuid@v1.6.1: Get "http://10.255.255.1/github.com/google/uuid/@v/v1.6.1.info": dial tcp 10.255.255.1:80: i/o timeout`,
+		"tls":              `go: github.com/google/uuid@v1.6.0: Get "https://self-signed.badssl.com/github.com/google/uuid/@v/v1.6.0.mod": tls: failed to verify certificate: x509: certificate signed by unknown authority`,
+		"checksum db":      `go: github.com/google/uuid@v1.6.0: verifying go.mod: github.com/google/uuid@v1.6.0/go.mod: Get "https://sum.nonexistent.invalid/lookup/github.com/google/uuid@v1.6.0": dial tcp: lookup sum.nonexistent.invalid on 192.168.5.1:53: no such host`,
+		"proxy 500":        `go: github.com/google/uuid@v1.6.0: reading http://127.0.0.1:8010/github.com/google/uuid/@v/v1.6.0.mod: 500 Internal Server Error`,
+		"proxy 502":        `go: github.com/google/uuid@v1.6.0: reading http://127.0.0.1:8012/github.com/google/uuid/@v/v1.6.0.mod: 502 Bad Gateway`,
+		"proxy 503":        `go: github.com/google/uuid@v1.6.0: reading http://127.0.0.1:8013/github.com/google/uuid/@v/v1.6.0.mod: 503 Service Unavailable`,
+		"proxy 504":        `go: github.com/google/uuid@v1.6.0: reading http://127.0.0.1:8014/github.com/google/uuid/@v/v1.6.0.mod: 504 Gateway Timeout`,
+		"handshake (http)": `go: example.com/lib@v1.2.4: Get "https://proxy.golang.org/example.com/lib/@v/v1.2.4.info": net/http: TLS handshake timeout`,
+	}
+	for name, stderr := range transport {
+		if !(&OpError{Stderr: stderr}).AcquisitionFailed() {
+			t.Errorf("%s: not classified as an acquisition failure", name)
+		}
+	}
+	refusal := map[string]string{
+		"not found":        "go: github.com/google/uuid@v9.9.9: reading https://proxy.golang.org/github.com/google/uuid/@v/v9.9.9.info: 404 Not Found\n\tserver response: not found: github.com/google/uuid@v9.9.9: invalid version: unknown revision v9.9.9",
+		"gone":             `go: github.com/google/uuid@v1.6.0: reading http://127.0.0.1:8020/github.com/google/uuid/@v/v1.6.0.mod: 410 Gone`,
+		"lookup disabled":  `go: github.com/google/uuid@v1.6.0: module lookup disabled by GOPROXY=off`,
+		"newer toolchain":  "go: example.com/lib@v2.0.0 requires go >= 1.25 (running go 1.22.12; GOTOOLCHAIN=local)",
+		"checksum":         "verifying example.com/lib@v1.2.4: checksum mismatch\n\tdownloaded: h1:x\n\tgo.sum:     h1:y\n\nSECURITY ERROR",
+		"module not found": "go: module example.com/lib: not found",
+	}
+	for name, stderr := range refusal {
+		if (&OpError{Stderr: stderr}).AcquisitionFailed() {
+			t.Errorf("%s: wrongly classified as an acquisition failure", name)
+		}
+	}
+	if (&OpError{Stderr: transport["refused"], TimedOut: true}).AcquisitionFailed() {
+		t.Error("a container timeout is classified")
+	}
+}

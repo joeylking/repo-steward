@@ -388,8 +388,8 @@ func dollars(flag, name string) (agentrt.Micros, error) {
 }
 
 // report prints the result and exits with its outcome code: 0 proposal
-// prepared, 2 unsupported, 3 baseline problems, 5 awaiting approval, 4 any
-// other explained non-result.
+// prepared, 2 unsupported, 3 baseline problems, 5 awaiting approval, 6 the
+// upgrade could not be fetched, 4 any other explained non-result.
 func report(res *steward.Result, err error) error {
 	if res != nil {
 		printJSON(res)
@@ -405,6 +405,8 @@ func report(res *steward.Result, err error) error {
 		os.Exit(3)
 	case steward.OutcomeAwaitingApproval:
 		os.Exit(5)
+	case steward.OutcomeAcquisitionFailed:
+		os.Exit(6)
 	default:
 		os.Exit(4)
 	}

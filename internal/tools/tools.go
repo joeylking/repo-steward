@@ -360,6 +360,11 @@ func (t *applyUpgradeTool) Call(ctx context.Context, c agentrt.ToolCall) (agentr
 		if errors.As(err, &oe) && oe.RequiresNewerToolchain() {
 			return agentrt.ToolResult{}, fmt.Errorf("requires_newer_toolchain: %s", oe.Stderr)
 		}
+		// The model cannot repair an unreachable proxy, so the run ends
+		// with its own outcome instead of a refusal it might act on.
+		if errors.As(err, &oe) && oe.AcquisitionFailed() {
+			return agentrt.ToolResult{}, agentrt.ErrAbortRun{Detail: "acquisition_failed: " + oe.Stderr}
+		}
 		return agentrt.ToolResult{}, err
 	}
 	closure, err := manifest.Closure(ctx, sb, st, target)

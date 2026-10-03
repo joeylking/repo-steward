@@ -523,6 +523,9 @@ func outcomeOf(rr agentrt.Run, s *session.Session) (string, map[string]any) {
 			if strings.Contains(rr.ReasonDetail, "proposal invalidated") {
 				return "proposal_invalidated", detail
 			}
+			if strings.HasPrefix(rr.ReasonDetail, OutcomeAcquisitionFailed+":") {
+				return OutcomeAcquisitionFailed, detail
+			}
 		}
 		return OutcomeFailed, detail
 	}

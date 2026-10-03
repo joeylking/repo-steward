@@ -90,10 +90,14 @@ const (
 	OutcomeBaselineInconclusive   = "baseline_inconclusive"
 	OutcomeAdmissionRefused       = "admission_refused"
 	OutcomeRequiresNewerToolchain = "requires_newer_toolchain"
-	OutcomeNormalizationRefused   = "normalization_refused"
-	OutcomeRegressed              = "regressed"
-	OutcomeInconclusive           = "validation_inconclusive"
-	OutcomeNotReady               = "not_ready"
+	// OutcomeAcquisitionFailed means the toolchain could not fetch from the
+	// module proxy or checksum database while staging; nothing was decided
+	// about the upgrade, and a later run may succeed.
+	OutcomeAcquisitionFailed    = "acquisition_failed"
+	OutcomeNormalizationRefused = "normalization_refused"
+	OutcomeRegressed            = "regressed"
+	OutcomeInconclusive         = "validation_inconclusive"
+	OutcomeNotReady             = "not_ready"
 )
 
 // Result is the structured outcome of a run.
@@ -346,10 +350,7 @@ func (r *run) pipeline(ctx context.Context) (string, error) {
 		var oe *manifest.OpError
 		if errors.As(err, &oe) {
 			res.Detail = map[string]any{"stderr": oe.Stderr}
-			if oe.RequiresNewerToolchain() {
-				return OutcomeRequiresNewerToolchain, nil
-			}
-			return OutcomeAdmissionRefused, nil
+			return stageOutcome(oe), nil
 		}
 		return "", err
 	}
@@ -392,6 +393,9 @@ func (r *run) pipeline(ctx context.Context) (string, error) {
 		var oe *manifest.OpError
 		if errors.As(err, &oe) {
 			res.Detail = map[string]any{"stderr": oe.Stderr, "tree": tree1}
+			if oe.AcquisitionFailed() {
+				return OutcomeAcquisitionFailed, nil
+			}
 			return OutcomeNormalizationRefused, nil
 		}
 		return "", err
@@ -466,6 +470,19 @@ func (r *run) pipeline(ctx context.Context) (string, error) {
 	res.Proposal = p
 	r.mark("proposal", t)
 	return OutcomeProposalPrepared, nil
+}
+
+// stageOutcome maps a toolchain failure while staging the upgrade to an
+// outcome. Only a failure that is neither a toolchain gap nor a failure to
+// fetch is an admission refusal.
+func stageOutcome(oe *manifest.OpError) string {
+	switch {
+	case oe.RequiresNewerToolchain():
+		return OutcomeRequiresNewerToolchain
+	case oe.AcquisitionFailed():
+		return OutcomeAcquisitionFailed
+	}
+	return OutcomeAdmissionRefused
 }
 
 func (r *run) snapshotDir(tree string) string {

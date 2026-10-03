@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -367,6 +368,44 @@ func (e *OpError) Error() string {
 // target needs a newer Go than the pinned image provides.
 func (e *OpError) RequiresNewerToolchain() bool {
 	return strings.Contains(e.Stderr, "requires go >=") || strings.Contains(e.Stderr, "requires go ") && strings.Contains(e.Stderr, "running go ")
+}
+
+// transportFailures are fragments of the toolchain's messages when the
+// module proxy or checksum database could not be reached or answered with
+// a server error. They name the network layer, never a module, so a
+// refusal about the module itself does not match.
+var transportFailures = []string{
+	"dial tcp ", "dial tcp:", "dial udp ", // lookup, refused, unreachable, i/o timeout
+	": no such host",
+	"connect: connection refused",
+	"connect: network is unreachable",
+	"connection reset by peer",
+	"i/o timeout",
+	"TLS handshake timeout",
+	"Client.Timeout exceeded",
+	"tls: failed to verify certificate",
+	"x509: ",
+}
+
+// proxyServerError matches the toolchain's report of a 5xx answer from the
+// module proxy, e.g. "reading https://proxy.golang.org/...: 502 Bad Gateway".
+var proxyServerError = regexp.MustCompile(`reading \S+: 5\d\d `)
+
+// AcquisitionFailed reports whether the toolchain failed because it could
+// not fetch from the module proxy or checksum database: a DNS, connection,
+// timeout, or TLS failure, or a proxy server error. It says nothing about
+// whether the operation would have been admitted. A timeout of the
+// container itself is not classified, because its cause is unknown.
+func (e *OpError) AcquisitionFailed() bool {
+	if e.TimedOut || e.RequiresNewerToolchain() {
+		return false
+	}
+	for _, f := range transportFailures {
+		if strings.Contains(e.Stderr, f) {
+			return true
+		}
+	}
+	return proxyServerError.MatchString(e.Stderr)
 }
 
 func readDir(dir string) (Manifests, error) {
