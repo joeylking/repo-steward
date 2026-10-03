@@ -249,6 +249,76 @@ func (d *Docker) WithFreshBuildCache() (*Docker, error) {
 // /gocache, or empty when the sandbox has none. Tests use it.
 func (d *Docker) ExecuteCacheDir() string { return d.execCache }
 
+// RemoveBuildCaches deletes BuildCacheDir and everything under it. With a
+// native Linux engine the files in a build cache belong to the container
+// user and the operator cannot delete them, so what the host cannot remove
+// is emptied by a container running as that user first. VM-backed engines
+// map ownership to the operator and never need the container.
+func (d *Docker) RemoveBuildCaches(ctx context.Context) error {
+	root := d.cfg.BuildCacheDir
+	if removeTree(root) {
+		return nil
+	}
+	if err := d.emptyBuildCaches(ctx); err != nil {
+		return err
+	}
+	if !removeTree(root) {
+		return fmt.Errorf("sandbox: build cache %s could not be removed", root)
+	}
+	return nil
+}
+
+// emptyBuildCaches deletes the contents of every directory under
+// BuildCacheDir from inside one container. The directories themselves
+// stay: they are mount points, and the operator owns them.
+func (d *Docker) emptyBuildCaches(ctx context.Context) error {
+	entries, err := os.ReadDir(d.cfg.BuildCacheDir)
+	if err != nil {
+		return err
+	}
+	hc, err := d.hostConfig(Acquire)
+	if err != nil {
+		return err
+	}
+	hc.NetworkMode = "none"
+	hc.Binds = []string{d.cfg.SourceDir + ":/work:ro"}
+	for _, e := range entries {
+		if e.IsDir() {
+			hc.Binds = append(hc.Binds, filepath.Join(d.cfg.BuildCacheDir, e.Name())+":/clean/"+strconv.Itoa(len(hc.Binds))+":rw")
+		}
+	}
+	if len(hc.Binds) == 1 {
+		return nil
+	}
+	script := "chmod -R u+rwx /clean/* 2>/dev/null; find /clean -mindepth 2 -delete"
+	res, err := d.run(ctx, ExecSpec{Profile: Acquire, Argv: []string{"sh", "-c", script}, Timeout: 2 * time.Minute, OutputCap: DefaultOutputCap, StepID: "cleanup"}, hc)
+	if err != nil {
+		return err
+	}
+	if res.TimedOut || res.ExitCode != 0 {
+		return fmt.Errorf("sandbox: emptying build caches: exit %d: %s", res.ExitCode, strings.TrimSpace(string(res.Stderr)))
+	}
+	return nil
+}
+
+// removeTree deletes a tree whose entries may have been made read-only and
+// reports whether it is gone.
+func removeTree(dir string) bool {
+	filepath.WalkDir(dir, func(p string, e os.DirEntry, err error) error {
+		if err == nil {
+			if e.IsDir() {
+				os.Chmod(p, 0o755)
+			} else {
+				os.Chmod(p, 0o644)
+			}
+		}
+		return nil
+	})
+	os.RemoveAll(dir)
+	_, err := os.Lstat(dir)
+	return os.IsNotExist(err)
+}
+
 func acquireCache(c Config) string { return filepath.Join(c.BuildCacheDir, "acquire") }
 
 // Client exposes the engine client for tests and reaping.
@@ -466,6 +536,12 @@ func (d *Docker) Run(ctx context.Context, spec ExecSpec) (ExecResult, error) {
 	if err != nil {
 		return res, err
 	}
+	return d.run(ctx, spec, hc)
+}
+
+// run executes spec in a container with the given host configuration.
+func (d *Docker) run(ctx context.Context, spec ExecSpec, hc dockerapi.HostConfig) (ExecResult, error) {
+	var res ExecResult
 	// In-container fallback timeout: only matters if this process dies.
 	inner := int(spec.Timeout.Seconds()) + 5
 	cmd := append([]string{"timeout", "-s", "KILL", strconv.Itoa(inner)}, spec.Argv...)

@@ -193,6 +193,9 @@ func Run(ctx context.Context, opts Options) (*Report, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Runs before removeAll above: on a native Linux engine only the
+	// container user can delete what a container wrote.
+	defer sb.RemoveBuildCaches(context.WithoutCancel(ctx))
 	if err := sb.EnsureImage(ctx, opts.AllowPull); err != nil {
 		return nil, err
 	}

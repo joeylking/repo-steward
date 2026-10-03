@@ -278,3 +278,37 @@ func TestReapOrphans(t *testing.T) {
 		}
 	}
 }
+
+// With a native Linux engine the operator cannot delete what the container
+// user wrote into a build cache. The container path empties every cache,
+// read-only directories included, and the tree can then be removed.
+func TestRemoveBuildCaches_EmptiesWhatContainersWrote(t *testing.T) {
+	sb, cfg := newSandbox(t, false)
+	res := run(t, sb, sandbox.Execute, `mkdir -p /gocache/ab/locked && echo x > /gocache/ab/locked/f && chmod 555 /gocache/ab/locked /gocache/ab && echo WROTE`)
+	if !strings.Contains(string(res.Stdout), "WROTE") {
+		t.Fatalf("execute could not write its cache:\n%s%s", res.Stdout, res.Stderr)
+	}
+	res = run(t, sb, sandbox.Acquire, `echo y > /gocache/acquired && echo WROTE`)
+	if !strings.Contains(string(res.Stdout), "WROTE") {
+		t.Fatalf("acquire could not write its cache:\n%s%s", res.Stdout, res.Stderr)
+	}
+	if err := sb.EmptyBuildCaches(ctx); err != nil {
+		t.Fatal(err)
+	}
+	caches, err := os.ReadDir(cfg.BuildCacheDir)
+	if err != nil || len(caches) < 2 {
+		t.Fatalf("caches %v %v, want the acquire and execute directories", caches, err)
+	}
+	for _, c := range caches {
+		left, err := os.ReadDir(filepath.Join(cfg.BuildCacheDir, c.Name()))
+		if err != nil || len(left) != 0 {
+			t.Fatalf("%s not emptied: %v %v", c.Name(), left, err)
+		}
+	}
+	if err := sb.RemoveBuildCaches(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Lstat(cfg.BuildCacheDir); !os.IsNotExist(err) {
+		t.Fatalf("build cache root still present: %v", err)
+	}
+}

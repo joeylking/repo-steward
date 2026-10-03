@@ -334,7 +334,7 @@ func (r *run) pipeline(ctx context.Context) (string, error) {
 	if outcome, err := r.prelude(ctx, "baseline"); err != nil || outcome != "" {
 		return outcome, err
 	}
-	defer removeAll(r.buildCache)
+	defer r.removeBuildCaches()
 	ws, sb, prof, baseRun, baseID := r.ws, r.sb, r.profile, r.baseRun, r.baseID
 	target, ok := Select(r.cands)
 	if !ok {
@@ -604,6 +604,20 @@ func configHash(o Options, p *repo.Profile) string {
 	})
 	s := sha256.Sum256(b)
 	return hex.EncodeToString(s[:])
+}
+
+// removeBuildCaches deletes the run's build caches when the run ends. It
+// goes through the sandbox, because on a native Linux engine only the
+// container user can delete what a container wrote.
+func (r *run) removeBuildCaches() {
+	if r.sb != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+		defer cancel()
+		if r.sb.RemoveBuildCaches(ctx) == nil {
+			return
+		}
+	}
+	removeAll(r.buildCache)
 }
 
 func removeAll(dir string) {

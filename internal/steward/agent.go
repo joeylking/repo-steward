@@ -131,7 +131,7 @@ func runAgent(ctx context.Context, opts Options, mode string, agent agentrt.Agen
 		r.mark("total", r.start)
 		return r.res, r.store.FinishTask(ctx, r.id, outcome, r.res.Detail)
 	}
-	defer removeAll(r.buildCache)
+	defer r.removeBuildCaches()
 	if err := r.store.SetTaskContext(ctx, r.id, persist(r.opts), r.cands); err != nil {
 		return nil, err
 	}
@@ -369,7 +369,7 @@ func Resume(ctx context.Context, ro ResumeOptions) (*Result, error) {
 	if err := r.reattach(ctx, tk); err != nil {
 		return nil, err
 	}
-	defer removeAll(r.buildCache)
+	defer r.removeBuildCaches()
 	rt, err := agentrt.OpenStore(dbPath)
 	if err != nil {
 		return nil, err
