@@ -289,7 +289,12 @@ func Stage(ctx context.Context, sb *sandbox.Docker, ws *workspace.Workspace, sta
 	}
 	id := newID()
 	dir := filepath.Join(stagingRoot, id)
-	if err := os.MkdirAll(dir, 0o777); err != nil {
+	// The staging directory is written by the unprivileged container user,
+	// so it is world-writable; the root above it is owner-only.
+	if err := os.MkdirAll(stagingRoot, 0o700); err != nil {
+		return nil, err
+	}
+	if err := os.Mkdir(dir, 0o777); err != nil {
 		return nil, err
 	}
 	if err := os.Chmod(dir, 0o777); err != nil {

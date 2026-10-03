@@ -58,9 +58,13 @@ func markerFixture(t *testing.T) (repo, proxy, data string) {
 }
 
 // checkCachesRemoved asserts that the run left none of its build caches
-// behind.
+// behind and that the data directory above every world-writable cache and
+// staging directory is owner-only.
 func checkCachesRemoved(t *testing.T, data, runID string) {
 	t.Helper()
+	if fi, err := os.Stat(data); err != nil || fi.Mode().Perm() != 0o700 {
+		t.Fatalf("data directory %v %v, want 0700", fi.Mode(), err)
+	}
 	entries, err := os.ReadDir(filepath.Join(data, "runs", runID))
 	if err != nil {
 		t.Fatal(err)

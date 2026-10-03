@@ -7,6 +7,7 @@ package lock
 import (
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -71,10 +72,10 @@ func (l *Lock) Release() error {
 // advisory locks are unreliable.
 var ErrNotLocal = errors.New("lock: directory is not on a local filesystem")
 
-// CheckLocal verifies that dir is on a local filesystem. It creates dir if
-// necessary.
+// CheckLocal verifies that dir is on a local filesystem and owner-only
+// (see Private). It creates dir if necessary.
 func CheckLocal(dir string) error {
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := Private(dir); err != nil {
 		return err
 	}
 	name, err := fsTypeName(dir)
@@ -84,6 +85,50 @@ func CheckLocal(dir string) error {
 	switch name {
 	case "nfs", "nfs4", "smbfs", "cifs", "smb2", "afpfs", "webdav", "fuse.sshfs":
 		return fmt.Errorf("%w: %s is %s", ErrNotLocal, dir, name)
+	}
+	return nil
+}
+
+// ErrInsecureDir is returned by Private for a data directory that another
+// account owns or could write. The sandbox makes the caches and staging
+// directories below the data directory world-writable for the container
+// user, so the data directory is what keeps other local accounts out.
+type ErrInsecureDir struct {
+	Path   string
+	Mode   fs.FileMode
+	Reason string
+}
+
+func (e ErrInsecureDir) Error() string {
+	return fmt.Sprintf("lock: %s is %s, %s; repo-steward keeps its data directory accessible to its owner only because the caches below it are world-writable: chmod 700 %s and chown it to the user that runs repo-steward", e.Path, e.Mode, e.Reason, e.Path)
+}
+
+// Private makes dir an owner-only directory. A missing dir is created with
+// mode 0700. An existing one owned by another account, or that group or
+// others can write, is refused with ErrInsecureDir; one they can only read
+// or enter is tightened to 0700.
+func Private(dir string) error {
+	if err := os.MkdirAll(filepath.Dir(dir), 0o755); err != nil {
+		return err
+	}
+	if err := os.Mkdir(dir, 0o700); err != nil && !errors.Is(err, fs.ErrExist) {
+		return err
+	}
+	fi, err := os.Stat(dir)
+	if err != nil {
+		return err
+	}
+	if !fi.IsDir() {
+		return fmt.Errorf("lock: %s is not a directory", dir)
+	}
+	if st, ok := fi.Sys().(*syscall.Stat_t); ok && int(st.Uid) != os.Getuid() {
+		return ErrInsecureDir{Path: dir, Mode: fi.Mode(), Reason: "owned by another user"}
+	}
+	if fi.Mode().Perm()&0o022 != 0 {
+		return ErrInsecureDir{Path: dir, Mode: fi.Mode(), Reason: "writable by group or others"}
+	}
+	if fi.Mode().Perm()&0o077 != 0 {
+		return os.Chmod(dir, 0o700)
 	}
 	return nil
 }

@@ -190,6 +190,9 @@ func NewDocker(cfg Config, socket string) (*Docker, error) {
 		return nil, err
 	}
 	for _, dir := range []string{cfg.CacheDir, acquireCache(cfg)} {
+		if err := os.MkdirAll(filepath.Dir(dir), 0o700); err != nil {
+			return nil, err
+		}
 		if err := os.MkdirAll(dir, 0o777); err != nil {
 			return nil, err
 		}

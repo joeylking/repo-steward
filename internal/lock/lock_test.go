@@ -3,6 +3,7 @@ package lock_test
 import (
 	"bufio"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -127,5 +128,61 @@ func TestLock_KilledHolderReleases(t *testing.T) {
 func TestCheckLocal_TempDir(t *testing.T) {
 	if err := lock.CheckLocal(filepath.Join(t.TempDir(), "data")); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// The data directory is created owner-only; an existing one that group or
+// others can only read or enter is tightened, and one they can write is
+// refused with an error naming the path, its mode, and the fix.
+func TestPrivate_CreatesTightensOrRefuses(t *testing.T) {
+	root := t.TempDir()
+	mode := func(p string) os.FileMode {
+		t.Helper()
+		fi, err := os.Stat(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return fi.Mode().Perm()
+	}
+	created := filepath.Join(root, "a", "data")
+	if err := lock.CheckLocal(created); err != nil {
+		t.Fatal(err)
+	}
+	if m := mode(created); m != 0o700 {
+		t.Fatalf("created %v, want 0700", m)
+	}
+	for _, m := range []os.FileMode{0o755, 0o750, 0o705, 0o744} {
+		dir := filepath.Join(root, fmt.Sprintf("tighten-%o", m))
+		os.Mkdir(dir, 0o700)
+		os.Chmod(dir, m)
+		if err := lock.Private(dir); err != nil {
+			t.Fatalf("%v: %v", m, err)
+		}
+		if got := mode(dir); got != 0o700 {
+			t.Fatalf("%v tightened to %v, want 0700", m, got)
+		}
+	}
+	for _, m := range []os.FileMode{0o777, 0o775, 0o757, 0o720, 0o702} {
+		dir := filepath.Join(root, fmt.Sprintf("refuse-%o", m))
+		os.Mkdir(dir, 0o700)
+		os.Chmod(dir, m)
+		err := lock.CheckLocal(dir)
+		var insecure lock.ErrInsecureDir
+		if !errors.As(err, &insecure) || insecure.Path != dir {
+			t.Fatalf("%v: error %v, want ErrInsecureDir for %s", m, err, dir)
+		}
+		for _, want := range []string{dir, (m | os.ModeDir).String(), "chmod 700 " + dir} {
+			if !strings.Contains(err.Error(), want) {
+				t.Fatalf("%v: error %q does not name %q", m, err, want)
+			}
+		}
+		if got := mode(dir); got != m {
+			t.Fatalf("refused directory changed from %v to %v", m, got)
+		}
+	}
+	file := filepath.Join(root, "file")
+	os.WriteFile(file, nil, 0o600)
+	if err := lock.Private(file); err == nil {
+		t.Fatal("a file accepted as the data directory")
 	}
 }
