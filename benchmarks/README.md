@@ -264,8 +264,9 @@ The model was qwen3:30b-a3b through Ollama on an Apple M5 Max, with the
 default limits of model mode (40 steps, 80 model calls; the agent asks for
 at most 2048 output tokens per call). Each scenario ran three times: twice
 through `maintain -mode model -record`, and once through the new
-`TestRepair` in `internal/smoke`, at commit b65380d with the sandbox fix
-from 4bce215. The `maintain` output of every run is in
+`TestRepair` in `internal/smoke`. The `maintain` runs used a binary built
+at 4bce215, which carries the sandbox fix, and TestRepair ran at b65380d;
+the two commits differ only in `internal/smoke`. The `maintain` output of every run is in
 [real-repair/2026-10-03](real-repair/2026-10-03/); these runs are not
 scored by `bench` and are not part of the table above.
 
