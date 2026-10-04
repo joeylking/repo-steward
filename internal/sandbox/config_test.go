@@ -136,3 +136,131 @@ func TestFreshBuildCache_IsolatesValidations(t *testing.T) {
 		t.Fatalf("WithSource dropped the execute cache: %s", got)
 	}
 }
+
+// The tools and database mounts are optional: absent, every profile mounts
+// exactly what it did before; present, only execute mounts them, and only
+// read-only. Relative paths are refused by Validate and WithScanMounts.
+func TestScanMounts_ExecuteOnlyAndReadOnly(t *testing.T) {
+	for name, mutate := range map[string]func(*Config){
+		"relative tools":  func(c *Config) { c.ToolsDir = "tools" },
+		"relative vulndb": func(c *Config) { c.VulnDBDir = "db" },
+	} {
+		c := Config{Image: "img", SourceDir: "/s", CacheDir: "/c", BuildCacheDir: "/b"}
+		mutate(&c)
+		if err := c.Validate(); err == nil {
+			t.Errorf("%s: expected error", name)
+		}
+	}
+	c := Config{Image: "img", SourceDir: "/s", CacheDir: "/c", BuildCacheDir: "/b", ToolsDir: "/t", VulnDBDir: "/v"}
+	if err := c.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	d := &Docker{cfg: c, execCache: "/b/execute-1", tool: &toolDirs{bin: "/b/tool-bin-1", mod: "/b/tool-mod-1", cache: "/b/tool-cache-1"}}
+	hc, err := d.hostConfig(Execute)
+	if err != nil || strings.Join(hc.Binds, " ") != "/s:/work:ro /c:/cache:ro /b/execute-1:/gocache:rw /t:/tools:ro /v:/vulndb:ro" {
+		t.Fatalf("execute binds = %v, %v", hc.Binds, err)
+	}
+	for _, p := range []Profile{Acquire, Mutate, Tool} {
+		hc, err := d.WithStaging("/st").hostConfig(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, b := range hc.Binds {
+			if strings.HasPrefix(b, "/t:") || strings.HasPrefix(b, "/v:") {
+				t.Fatalf("%s mounts %s", p, b)
+			}
+		}
+	}
+	if _, err := d.WithScanMounts("rel", ""); err == nil {
+		t.Fatal("WithScanMounts accepted a relative path")
+	}
+	plain := &Docker{cfg: Config{Image: "img", SourceDir: "/s", CacheDir: "/c", BuildCacheDir: "/b"}, execCache: "/b/execute-1"}
+	scan, err := plain.WithScanMounts("/t2", "/v2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if hc, _ := scan.hostConfig(Execute); strings.Join(hc.Binds[3:], " ") != "/t2:/tools:ro /v2:/vulndb:ro" {
+		t.Fatalf("WithScanMounts binds = %v", hc.Binds)
+	}
+	if hc, _ := plain.hostConfig(Execute); len(hc.Binds) != 3 {
+		t.Fatalf("WithScanMounts changed the original: %v", hc.Binds)
+	}
+}
+
+// The tool profile builds a trusted tool from the public proxy: no source,
+// none of the repository's caches, its own fresh directories, network on,
+// and proxy.golang.org with sum.golang.org even in fixture mode, under the
+// same hardening as every other profile.
+func TestToolProfile_IsolatedFromTheRepository(t *testing.T) {
+	root := t.TempDir()
+	cfg := Config{Image: "img", SourceDir: "/s", CacheDir: filepath.Join(root, "mod"), BuildCacheDir: filepath.Join(root, "gocache"), ProxyDir: "/p", ToolsDir: "/t", VulnDBDir: "/v"}
+	d, err := NewDocker(cfg, filepath.Join(root, "no.sock"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := d.hostConfig(Tool); err == nil {
+		t.Fatal("tool profile without WithToolBuild must fail")
+	}
+	b1, err := d.WithToolBuild()
+	if err != nil {
+		t.Fatal(err)
+	}
+	b2, err := d.WithToolBuild()
+	if err != nil {
+		t.Fatal(err)
+	}
+	hc, err := b1.hostConfig(Tool)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hc.Binds) != 3 {
+		t.Fatalf("tool binds = %v", hc.Binds)
+	}
+	targets := map[string]string{}
+	for _, b := range hc.Binds {
+		parts := strings.Split(b, ":")
+		if len(parts) != 3 || parts[2] != "rw" {
+			t.Fatalf("bind %q", b)
+		}
+		if filepath.Dir(parts[0]) != cfg.BuildCacheDir {
+			t.Fatalf("tool bind %s is not a fresh directory under the build cache root", parts[0])
+		}
+		fi, err := os.Stat(parts[0])
+		if err != nil || fi.Mode().Perm() != 0o777 {
+			t.Fatalf("%s: %v %v, want 0777 for the container user", parts[0], fi, err)
+		}
+		if entries, _ := os.ReadDir(parts[0]); len(entries) != 0 {
+			t.Fatalf("%s not empty", parts[0])
+		}
+		targets[parts[1]] = parts[0]
+	}
+	if targets["/tools"] != b1.ToolOutputDir() || targets["/cache"] == "" || targets["/gocache"] == "" {
+		t.Fatalf("tool mounts = %v", targets)
+	}
+	for _, b := range hc.Binds {
+		for _, forbidden := range []string{cfg.SourceDir + ":", cfg.CacheDir + ":", "/p:", "/t:", "/v:", acquireCache(cfg) + ":"} {
+			if strings.HasPrefix(b, forbidden) {
+				t.Fatalf("tool profile mounts %s", b)
+			}
+		}
+	}
+	if b2.ToolOutputDir() == b1.ToolOutputDir() {
+		t.Fatal("two tool builds share an output directory")
+	}
+	if hc.NetworkMode != "bridge" || !hc.ReadonlyRootfs || len(hc.CapDrop) != 1 || hc.CapDrop[0] != "ALL" || hc.Memory == 0 || hc.PidsLimit == nil || *hc.PidsLimit == 0 || hc.NanoCPUs == 0 {
+		t.Fatalf("tool host config = %+v", hc)
+	}
+	env := strings.Join(b1.env(Tool), " ")
+	for _, want := range []string{"GOPROXY=https://proxy.golang.org", "GOSUMDB=sum.golang.org", "GOBIN=/tools", "GOTOOLCHAIN=local", "CGO_ENABLED=0", "GOPRIVATE= ", "GONOSUMDB= "} {
+		if !strings.Contains(env+" ", want) {
+			t.Fatalf("tool env lacks %q: %s", want, env)
+		}
+	}
+	if strings.Contains(env, "file:///proxy") || strings.Contains(env, "GOSUMDB=off") {
+		t.Fatalf("tool env follows the fixture proxy: %s", env)
+	}
+	// The other profiles are unchanged by a tool build.
+	if hc, _ := b1.hostConfig(Acquire); strings.Contains(strings.Join(hc.Binds, " "), "tool-") {
+		t.Fatalf("acquire mounts a tool directory: %v", hc.Binds)
+	}
+}

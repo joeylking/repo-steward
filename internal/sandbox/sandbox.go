@@ -10,10 +10,24 @@
 //	mutate   go get and go mod tidy against a staging copy of the manifests
 //	         via -modfile. Source read-only, staging and module cache
 //	         writable, network as for acquire. Executes no repository code.
-//	execute  build, vet, test, and offline go list. Source and module cache
-//	         read-only, no network, tmpfs /tmp, and a writable build cache
-//	         that is new for each validation and never mounted by acquire
-//	         or mutate.
+//	execute  build, vet, test, offline go list, and the vulnerability
+//	         scanner. Source and module cache read-only, no network, tmpfs
+//	         /tmp, and a writable build cache that is new for each
+//	         validation and never mounted by acquire or mutate. When
+//	         configured, a tools directory at /tools and a vulnerability
+//	         database at /vulndb, both read-only.
+//	tool     go install of a trusted tool from the public module proxy, such
+//	         as the vulnerability scanner. No source, not the repository's
+//	         module cache, its own module and build caches, a writable
+//	         /tools as GOBIN, network on, and always proxy.golang.org with
+//	         sum.golang.org, even when the run uses a fixture proxy: the
+//	         tool is unrelated to the repository's dependencies. Every
+//	         directory it mounts is new for the build and lives under the
+//	         run's build cache root, so the end-of-run cleanup removes it.
+//
+// No container ever writes the configured tools or database directories:
+// only execute mounts them, and only read-only. What the tool profile
+// builds is copied out by the host.
 package sandbox
 
 import (
@@ -36,6 +50,15 @@ const (
 	Acquire Profile = "acquire"
 	Mutate  Profile = "mutate"
 	Execute Profile = "execute"
+	Tool    Profile = "tool"
+)
+
+// The tool profile's module proxy and checksum database. They are fixed:
+// a tool is fetched from the public proxy whatever the run is configured
+// with, because it has nothing to do with the repository's dependencies.
+const (
+	ToolGoProxy = "https://proxy.golang.org"
+	ToolGoSumDB = "sum.golang.org"
 )
 
 // Label marks every container the sandbox creates, for orphan reaping.
@@ -99,6 +122,12 @@ type Config struct {
 	GoProxy string
 	// GoSumDB is used when ProxyDir is empty.
 	GoSumDB string
+	// ToolsDir, when set, is mounted read-only at /tools in the execute
+	// profile. It holds tools the host has verified, such as the scanner.
+	ToolsDir string
+	// VulnDBDir, when set, is a vulnerability database mounted read-only at
+	// /vulndb in the execute profile.
+	VulnDBDir string
 	// User is the uid:gid inside containers.
 	User string
 	// Resource limits.
@@ -139,6 +168,9 @@ func (c *Config) Validate() error {
 	} else if !filepath.IsAbs(c.ProxyDir) {
 		return errors.New("sandbox: proxy directory must be absolute")
 	}
+	if err := checkScanMounts(c.ToolsDir, c.VulnDBDir); err != nil {
+		return err
+	}
 	if c.User == "" {
 		c.User = "65534:65534"
 	}
@@ -167,6 +199,22 @@ type Docker struct {
 	// execCache is the execute profile's build cache, set only by
 	// WithFreshBuildCache. Without it the execute profile refuses to run.
 	execCache string
+	// tool holds the tool profile's directories, set only by WithToolBuild.
+	// Without them the tool profile refuses to run.
+	tool *toolDirs
+}
+
+// toolDirs are the three directories one tool build mounts: its output at
+// /tools, and its own module and build caches.
+type toolDirs struct{ bin, mod, cache string }
+
+func checkScanMounts(tools, vulndb string) error {
+	for name, dir := range map[string]string{"tools": tools, "vulnerability database": vulndb} {
+		if dir != "" && !filepath.IsAbs(dir) {
+			return fmt.Errorf("sandbox: %s directory must be absolute: %s", name, dir)
+		}
+	}
+	return nil
 }
 
 func (d *Docker) cleanupTimeout() time.Duration {
@@ -243,6 +291,49 @@ func (d *Docker) WithFreshBuildCache() (*Docker, error) {
 	n := *d
 	n.execCache = dir
 	return &n, nil
+}
+
+// WithScanMounts returns a sandbox whose execute profile also mounts tools
+// at /tools and vulndb at /vulndb, both read-only. An empty argument leaves
+// that mount out.
+func (d *Docker) WithScanMounts(tools, vulndb string) (*Docker, error) {
+	if err := checkScanMounts(tools, vulndb); err != nil {
+		return nil, err
+	}
+	n := *d
+	n.cfg.ToolsDir, n.cfg.VulnDBDir = tools, vulndb
+	return &n, nil
+}
+
+// WithToolBuild returns a sandbox whose tool profile mounts a new, empty
+// output directory at /tools and new, empty module and build caches, all
+// under BuildCacheDir with random names. Each tool build calls it once.
+// What the build writes belongs, on a native Linux engine, to the container
+// user; RemoveBuildCaches removes it with the build caches.
+func (d *Docker) WithToolBuild() (*Docker, error) {
+	var dirs []string
+	for _, prefix := range []string{"tool-bin-", "tool-mod-", "tool-cache-"} {
+		dir, err := os.MkdirTemp(d.cfg.BuildCacheDir, prefix)
+		if err != nil {
+			return nil, err
+		}
+		if err := os.Chmod(dir, 0o777); err != nil {
+			return nil, err
+		}
+		dirs = append(dirs, dir)
+	}
+	n := *d
+	n.tool = &toolDirs{bin: dirs[0], mod: dirs[1], cache: dirs[2]}
+	return &n, nil
+}
+
+// ToolOutputDir is the host directory the tool profile mounts at /tools,
+// or empty when the sandbox has none.
+func (d *Docker) ToolOutputDir() string {
+	if d.tool == nil {
+		return ""
+	}
+	return d.tool.bin
 }
 
 // ExecuteCacheDir is the host directory the execute profile mounts at
@@ -466,6 +557,8 @@ func (d *Docker) env(p Profile) []string {
 		}
 	case Execute:
 		env = append(env, "GOFLAGS=-mod=readonly", "GOPROXY=off", "GOSUMDB=off")
+	case Tool:
+		env = append(env, "GOFLAGS=", "GOPROXY="+ToolGoProxy, "GOSUMDB="+ToolGoSumDB, "GOBIN=/tools")
 	}
 	return env
 }
@@ -513,7 +606,25 @@ func (d *Docker) hostConfig(p Profile) (dockerapi.HostConfig, error) {
 			d.cfg.CacheDir + ":/cache:ro",
 			d.execCache + ":/gocache:rw",
 		}
+		if d.cfg.ToolsDir != "" {
+			hc.Binds = append(hc.Binds, d.cfg.ToolsDir+":/tools:ro")
+		}
+		if d.cfg.VulnDBDir != "" {
+			hc.Binds = append(hc.Binds, d.cfg.VulnDBDir+":/vulndb:ro")
+		}
 		hc.NetworkMode = "none"
+	case Tool:
+		// No source, no repository module cache, no configured tools or
+		// database directory: only what WithToolBuild made for this build.
+		if d.tool == nil {
+			return hc, errors.New("sandbox: tool profile requires fresh tool directories (WithToolBuild)")
+		}
+		hc.Binds = []string{
+			d.tool.bin + ":/tools:rw",
+			d.tool.mod + ":/cache:rw",
+			d.tool.cache + ":/gocache:rw",
+		}
+		hc.NetworkMode = "bridge"
 	default:
 		return hc, fmt.Errorf("sandbox: unknown profile %q", p)
 	}
@@ -545,11 +656,16 @@ func (d *Docker) run(ctx context.Context, spec ExecSpec, hc dockerapi.HostConfig
 	// In-container fallback timeout: only matters if this process dies.
 	inner := int(spec.Timeout.Seconds()) + 5
 	cmd := append([]string{"timeout", "-s", "KILL", strconv.Itoa(inner)}, spec.Argv...)
+	// The tool profile mounts no source; it works in its tmpfs.
+	workDir := "/work"
+	if spec.Profile == Tool {
+		workDir = "/tmp"
+	}
 	cfg := dockerapi.ContainerConfig{
 		Image:      d.cfg.Image,
 		Cmd:        cmd,
 		Env:        d.env(spec.Profile),
-		WorkingDir: "/work",
+		WorkingDir: workDir,
 		User:       d.cfg.User,
 		Labels: map[string]string{
 			Label:              "1",

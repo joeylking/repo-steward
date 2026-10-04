@@ -312,3 +312,71 @@ func TestRemoveBuildCaches_EmptiesWhatContainersWrote(t *testing.T) {
 		t.Fatalf("build cache root still present: %v", err)
 	}
 }
+
+// The tools and database directories are read-only to code the execute
+// profile runs, and no other profile mounts them at all.
+func TestExecute_ToolsAndVulnDBReadOnly(t *testing.T) {
+	sb, cfg := newSandbox(t, true)
+	root := filepath.Dir(cfg.SourceDir)
+	tools, db := filepath.Join(root, "tools"), filepath.Join(root, "vulndb")
+	for _, dir := range []string{tools, db} {
+		os.MkdirAll(dir, 0o755)
+		os.WriteFile(filepath.Join(dir, "marker"), []byte("m\n"), 0o644)
+	}
+	scan, err := sb.WithScanMounts(tools, db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res := run(t, scan, sandbox.Execute, `cat /tools/marker /vulndb/marker; for d in /tools /vulndb; do touch $d/x 2>&1; rm -f $d/marker 2>&1; done; echo DONE`)
+	out := string(res.Stdout) + string(res.Stderr)
+	if !strings.HasPrefix(string(res.Stdout), "m\nm\n") || !strings.Contains(out, "DONE") {
+		t.Fatalf("execute cannot read the mounts:\n%s", out)
+	}
+	if strings.Count(out, "Read-only file system") < 4 {
+		t.Fatalf("expected four read-only failures:\n%s", out)
+	}
+	for _, dir := range []string{tools, db} {
+		entries, _ := os.ReadDir(dir)
+		if len(entries) != 1 || entries[0].Name() != "marker" {
+			t.Fatalf("%s changed: %v", dir, entries)
+		}
+	}
+	res = run(t, scan, sandbox.Acquire, `test -e /tools && echo TOOLS; test -e /vulndb && echo VULNDB; echo DONE`)
+	if out := string(res.Stdout); strings.Contains(out, "TOOLS") || strings.Contains(out, "VULNDB") || !strings.Contains(out, "DONE") {
+		t.Fatalf("acquire sees the scan mounts:\n%s", out)
+	}
+}
+
+// A tool build sees no source and none of the repository's caches, uses the
+// public proxy even in fixture mode, and leaves its output in a directory
+// the host reads.
+func TestTool_IsolatedProfile(t *testing.T) {
+	sb, cfg := newSandbox(t, true)
+	os.MkdirAll(filepath.Join(cfg.CacheDir, "mod"), 0o777)
+	os.WriteFile(filepath.Join(cfg.CacheDir, "mod", "repo-marker"), []byte("r"), 0o644)
+	tb, err := sb.WithToolBuild()
+	if err != nil {
+		t.Fatal(err)
+	}
+	res := run(t, tb, sandbox.Tool, `pwd; test -e /work && echo WORK; test -e /proxy && echo PROXY; test -e /cache/mod/repo-marker && echo REPOCACHE; echo GOPROXY=$GOPROXY GOSUMDB=$GOSUMDB GOBIN=$GOBIN; id -u; touch /usr/x 2>&1; echo built > /tools/out && echo OUT; echo c > /gocache/c && echo C; mkdir -p /cache/mod && echo m > /cache/mod/m && echo M`)
+	out := string(res.Stdout) + string(res.Stderr)
+	for _, bad := range []string{"WORK", "PROXY", "REPOCACHE"} {
+		if strings.Contains(out, bad+"\n") {
+			t.Fatalf("tool profile sees %s:\n%s", bad, out)
+		}
+	}
+	for _, want := range []string{"/tmp\n", "GOPROXY=https://proxy.golang.org GOSUMDB=sum.golang.org GOBIN=/tools", "\n65534\n", "Read-only file system", "OUT", "C\n", "M\n"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("missing %q in:\n%s", want, out)
+		}
+	}
+	if b, err := os.ReadFile(filepath.Join(tb.ToolOutputDir(), "out")); err != nil || string(b) != "built\n" {
+		t.Fatalf("tool output not readable on the host: %q %v", b, err)
+	}
+	if _, err := os.Stat(filepath.Join(cfg.CacheDir, "mod", "m")); err == nil {
+		t.Fatal("tool build wrote the repository's module cache")
+	}
+	if err := sb.RemoveBuildCaches(ctx); err != nil {
+		t.Fatal(err)
+	}
+}
