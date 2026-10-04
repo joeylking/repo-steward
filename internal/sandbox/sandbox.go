@@ -375,7 +375,14 @@ func (d *Docker) emptyBuildCaches(ctx context.Context) error {
 	hc.Binds = []string{d.cfg.SourceDir + ":/work:ro"}
 	for _, e := range entries {
 		if e.IsDir() {
-			hc.Binds = append(hc.Binds, filepath.Join(d.cfg.BuildCacheDir, e.Name())+":/clean/"+strconv.Itoa(len(hc.Binds))+":rw")
+			dir := filepath.Join(d.cfg.BuildCacheDir, e.Name())
+			// The host's own removal attempt tightens every directory it
+			// walks; the container user must be able to write this one to
+			// delete what is in it.
+			if err := os.Chmod(dir, 0o777); err != nil {
+				return err
+			}
+			hc.Binds = append(hc.Binds, dir+":/clean/"+strconv.Itoa(len(hc.Binds))+":rw")
 		}
 	}
 	if len(hc.Binds) == 1 {

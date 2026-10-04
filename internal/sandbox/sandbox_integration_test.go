@@ -292,6 +292,14 @@ func TestRemoveBuildCaches_EmptiesWhatContainersWrote(t *testing.T) {
 	if !strings.Contains(string(res.Stdout), "WROTE") {
 		t.Fatalf("acquire could not write its cache:\n%s%s", res.Stdout, res.Stderr)
 	}
+	// RemoveBuildCaches tries the host first, and that attempt leaves every
+	// directory it walked at 0755; the container path must still work.
+	filepath.WalkDir(cfg.BuildCacheDir, func(p string, e os.DirEntry, err error) error {
+		if err == nil && e.IsDir() {
+			os.Chmod(p, 0o755)
+		}
+		return nil
+	})
 	if err := sb.EmptyBuildCaches(ctx); err != nil {
 		t.Fatal(err)
 	}
