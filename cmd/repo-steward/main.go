@@ -1,6 +1,6 @@
-// Command repo-steward is the CLI. Milestone 0 provides fixture setup,
-// snapshot construction, and the no-model inspect workflow; maintain, runs,
-// approve, and reject arrive with later milestones.
+// Command repo-steward is the CLI: fixture setup, snapshot construction,
+// the no-model inspect and vulns reports, and maintenance runs with their
+// approvals.
 package main
 
 import (
@@ -36,6 +36,7 @@ import (
 	"github.com/joeylking/repo-steward/internal/snapshot"
 	"github.com/joeylking/repo-steward/internal/steward"
 	"github.com/joeylking/repo-steward/internal/task"
+	"github.com/joeylking/repo-steward/internal/vuln"
 )
 
 func main() {
@@ -58,7 +59,9 @@ const usage = `usage:
   repo-steward inspect <repo-path> [-data-dir DIR] [-fixture-proxy DIR] [-pull] [-allow-major] [-dependency MODULE[@VERSION]] [-check-timeout DURATION]
   repo-steward fixture list
   repo-steward fixture setup <name> [-dest DIR]
+  repo-steward vulns <repo-path> [-data-dir DIR] [-fixture-proxy DIR] [-vulndb DIR] [-pull] [-scan-timeout DURATION]
   repo-steward fixture proxy [-dest DIR]
+  repo-steward fixture vulndb [-dest DIR]
   repo-steward snapshot build <repo-path> [-dest DIR] [-max-files N] [-max-bytes N]
 `
 
@@ -73,6 +76,9 @@ func run(args []string) error {
 	}
 	if args[0] == "maintain" {
 		return runMaintain(ctx, args[1:])
+	}
+	if args[0] == "vulns" {
+		return runVulns(ctx, args[1:])
 	}
 	switch args[0] {
 	case "resume":
@@ -161,6 +167,35 @@ func run(args []string) error {
 			return err
 		}
 		return printJSON(map[string]any{"dir": ix.Dir, "goproxy": modproxy.URL(ix.Dir), "modules": ix.Modules})
+	case "fixture vulndb":
+		fs := flag.NewFlagSet("fixture vulndb", flag.ContinueOnError)
+		dest := fs.String("dest", "", "destination directory, which must not exist (default: vulndb in a new temporary directory)")
+		if err := fs.Parse(args[2:]); err != nil {
+			return err
+		}
+		if *dest == "" {
+			d, err := os.MkdirTemp("", "repo-steward-vulndb-")
+			if err != nil {
+				return err
+			}
+			*dest = filepath.Join(d, "vulndb")
+		}
+		dir, err := filepath.Abs(*dest)
+		if err != nil {
+			return err
+		}
+		if err := vuln.WriteFixtureDB(dir); err != nil {
+			return err
+		}
+		id, err := vuln.Identify(dir, vuln.Limits{})
+		if err != nil {
+			return err
+		}
+		ids := []string{}
+		for _, a := range vuln.FixtureAdvisories() {
+			ids = append(ids, a.ID)
+		}
+		return printJSON(map[string]any{"dir": dir, "snapshot_id": id.Hash, "modified": id.Modified, "advisories": ids})
 	case "snapshot build":
 		arg, rest, err := positional(args[2:], "snapshot build: expected a repository path")
 		if err != nil {
@@ -252,6 +287,38 @@ func runInspect(ctx context.Context, args []string) error {
 		os.Exit(2)
 	case inspect.OutcomeBaselineFailing, inspect.OutcomeBaselineInconclusive:
 		os.Exit(3)
+	}
+	return nil
+}
+
+// runVulns scans a repository for known vulnerabilities and prints the
+// report on stdout and a summary on stderr. It changes nothing. Exit status
+// 0 means a conclusive scan with no third-party findings, 2 an unsupported
+// repository, 3 an inconclusive scan, 4 third-party findings present.
+func runVulns(ctx context.Context, args []string) error {
+	repoPath, rest, err := positional(args, "vulns: expected a repository path")
+	if err != nil {
+		return err
+	}
+	fs := flag.NewFlagSet("vulns", flag.ContinueOnError)
+	dataDir := fs.String("data-dir", "", "data directory (default: $XDG_DATA_HOME/repo-steward or ~/.local/share/repo-steward)")
+	proxyDir := fs.String("fixture-proxy", "", "file-based module proxy directory for the repository's dependencies; disables network and checksum database for them (fixtures only)")
+	vulnDB := fs.String("vulndb", "", "use this vulnerability database directory instead of fetching https://vuln.go.dev")
+	pull := fs.Bool("pull", false, "pull the pinned toolchain image if it is not present (one-time bootstrap)")
+	scanTimeout := fs.Duration("scan-timeout", 10*time.Minute, "timeout for the scan")
+	if err := fs.Parse(rest); err != nil {
+		return err
+	}
+	rep, err := inspect.Vulns(ctx, inspect.VulnOptions{RepoPath: repoPath, DataDir: *dataDir, FixtureProxyDir: *proxyDir, VulnDBDir: *vulnDB, AllowPull: *pull, ScanTimeout: *scanTimeout})
+	if err != nil {
+		return err
+	}
+	if err := printJSON(rep); err != nil {
+		return err
+	}
+	fmt.Fprint(os.Stderr, rep.Summary())
+	if code := rep.ExitCode(); code != 0 {
+		os.Exit(code)
 	}
 	return nil
 }

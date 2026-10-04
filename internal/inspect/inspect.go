@@ -117,94 +117,27 @@ func Run(ctx context.Context, opts Options) (*Report, error) {
 	}
 	defer exec.Release()
 
-	// Git facts.
-	g := gitx.New(repoPath)
-	if rep.HeadCommit, err = g.RevParse(ctx, "HEAD"); err != nil {
-		return nil, fmt.Errorf("inspect: %s is not a Git repository with commits: %w", repoPath, err)
-	}
-	if rep.TreeHash, err = g.RevParse(ctx, "HEAD^{tree}"); err != nil {
-		return nil, err
-	}
-	status, err := g.Run(ctx, "status", "--porcelain")
+	h, err := readHead(ctx, repoPath, opts.DataDir, opts.Limits, mark)
 	if err != nil {
 		return nil, err
 	}
-	rep.WorktreeDirty = len(strings.TrimSpace(string(status))) > 0
-
-	// Listing and refusals that precede materialization.
-	t := time.Now()
-	entries, err := snapshot.List(ctx, g, rep.TreeHash, opts.Limits)
-	if err != nil {
-		if r := repo.RefusalForListError(err); r != "" {
-			rep.Outcome = OutcomeUnsupported
-			rep.Refusals = []string{r}
-			mark("total", start)
-			return rep, nil
-		}
-		return nil, err
-	}
-	snapDir, err := ensureSnapshot(ctx, g, rep.TreeHash, filepath.Join(opts.DataDir, "snapshots", rep.TreeHash), entries, opts.Limits)
-	if err != nil {
-		return nil, err
-	}
-	var total int64
-	for _, e := range entries {
-		total += e.Size
-	}
-	rep.Snapshot = &SnapshotSummary{Dir: snapDir, FileCount: len(entries), TotalBytes: total, Verified: true}
-	mark("snapshot", t)
-
-	// Profile.
-	t = time.Now()
-	prof, err := repo.Inspect(snapDir, entries)
-	if err != nil {
-		return nil, err
-	}
-	rep.Profile = prof
-	mark("profile", t)
-	if !prof.Supported() {
+	rep.HeadCommit, rep.TreeHash, rep.WorktreeDirty, rep.Snapshot, rep.Profile = h.headCommit, h.treeHash, h.dirty, h.snapshot, h.profile
+	if h.refusals != nil {
 		rep.Outcome = OutcomeUnsupported
-		rep.Refusals = prof.Refusals
+		rep.Refusals = h.refusals
 		mark("total", start)
 		return rep, nil
 	}
+	prof := h.profile
 
 	// Sandbox.
-	t = time.Now()
-	key, err := module.EscapePath(prof.ModulePath)
+	t := time.Now()
+	sb, cleanup, err := startSandbox(ctx, "inspect", opts.DataDir, h, opts.FixtureProxyDir, opts.Socket, opts.AllowPull)
 	if err != nil {
 		return nil, err
 	}
-	buildCache := filepath.Join(opts.DataDir, "tmp", "inspect-"+strconv.Itoa(os.Getpid())+"-"+strconv.FormatInt(time.Now().UnixNano(), 36))
-	defer removeAll(buildCache)
-	cfg := sandbox.Config{
-		Image:         prof.Toolchain.Ref(),
-		SourceDir:     snapDir,
-		CacheDir:      filepath.Join(opts.DataDir, "cache", "mod", filepath.FromSlash(key)),
-		BuildCacheDir: buildCache,
-	}
-	if opts.FixtureProxyDir != "" {
-		if cfg.ProxyDir, err = filepath.Abs(opts.FixtureProxyDir); err != nil {
-			return nil, err
-		}
-	}
-	rep.ImageRef = cfg.Image
-	sb, err := sandbox.NewDocker(cfg, opts.Socket)
-	if err != nil {
-		return nil, err
-	}
-	// Runs before removeAll above: on a native Linux engine only the
-	// container user can delete what a container wrote.
-	defer sb.RemoveBuildCaches(context.WithoutCancel(ctx))
-	if err := sb.EnsureImage(ctx, opts.AllowPull); err != nil {
-		return nil, err
-	}
-	if _, err := sb.ReapOrphans(ctx); err != nil {
-		return nil, err
-	}
-	if err := sb.Probe(ctx); err != nil {
-		return nil, err
-	}
+	defer cleanup()
+	rep.ImageRef = prof.Toolchain.Ref()
 	mark("sandbox", t)
 
 	// Dependencies: populate the cache, then discover.
@@ -240,6 +173,117 @@ func Run(ctx context.Context, opts Options) (*Report, error) {
 	}
 	mark("total", start)
 	return rep, nil
+}
+
+// head is what both workflows learn before the sandbox starts.
+type head struct {
+	headCommit, treeHash string
+	dirty                bool
+	snapshot             *SnapshotSummary
+	profile              *repo.Profile
+	// refusals is non-nil when the repository is unsupported.
+	refusals []string
+}
+
+// readHead reads HEAD's facts, materializes and verifies its tree, and
+// profiles it. A tree or profile refusal is returned in head.refusals.
+func readHead(ctx context.Context, repoPath, dataDir string, limits snapshot.Limits, mark func(string, time.Time)) (*head, error) {
+	h := &head{}
+	g := gitx.New(repoPath)
+	var err error
+	if h.headCommit, err = g.RevParse(ctx, "HEAD"); err != nil {
+		return nil, fmt.Errorf("inspect: %s is not a Git repository with commits: %w", repoPath, err)
+	}
+	if h.treeHash, err = g.RevParse(ctx, "HEAD^{tree}"); err != nil {
+		return nil, err
+	}
+	status, err := g.Run(ctx, "status", "--porcelain")
+	if err != nil {
+		return nil, err
+	}
+	h.dirty = len(strings.TrimSpace(string(status))) > 0
+
+	// Listing and refusals that precede materialization.
+	t := time.Now()
+	entries, err := snapshot.List(ctx, g, h.treeHash, limits)
+	if err != nil {
+		if r := repo.RefusalForListError(err); r != "" {
+			h.refusals = []string{r}
+			return h, nil
+		}
+		return nil, err
+	}
+	snapDir, err := ensureSnapshot(ctx, g, h.treeHash, filepath.Join(dataDir, "snapshots", h.treeHash), entries, limits)
+	if err != nil {
+		return nil, err
+	}
+	var total int64
+	for _, e := range entries {
+		total += e.Size
+	}
+	h.snapshot = &SnapshotSummary{Dir: snapDir, FileCount: len(entries), TotalBytes: total, Verified: true}
+	mark("snapshot", t)
+
+	t = time.Now()
+	prof, err := repo.Inspect(snapDir, entries)
+	if err != nil {
+		return nil, err
+	}
+	h.profile = prof
+	mark("profile", t)
+	if !prof.Supported() {
+		h.refusals = prof.Refusals
+		if h.refusals == nil {
+			h.refusals = []string{}
+		}
+	}
+	return h, nil
+}
+
+// startSandbox starts the sandbox for a supported head: image present,
+// orphans reaped, mounts probed. cleanup removes the run's build caches,
+// through a container when the host cannot, and must be called.
+func startSandbox(ctx context.Context, name, dataDir string, h *head, fixtureProxy, socket string, allowPull bool) (*sandbox.Docker, func(), error) {
+	key, err := module.EscapePath(h.profile.ModulePath)
+	if err != nil {
+		return nil, nil, err
+	}
+	buildCache := filepath.Join(dataDir, "tmp", name+"-"+strconv.Itoa(os.Getpid())+"-"+strconv.FormatInt(time.Now().UnixNano(), 36))
+	cfg := sandbox.Config{
+		Image:         h.profile.Toolchain.Ref(),
+		SourceDir:     h.snapshot.Dir,
+		CacheDir:      filepath.Join(dataDir, "cache", "mod", filepath.FromSlash(key)),
+		BuildCacheDir: buildCache,
+	}
+	if fixtureProxy != "" {
+		if cfg.ProxyDir, err = filepath.Abs(fixtureProxy); err != nil {
+			return nil, nil, err
+		}
+	}
+	sb, err := sandbox.NewDocker(cfg, socket)
+	if err != nil {
+		removeAll(buildCache)
+		return nil, nil, err
+	}
+	// RemoveBuildCaches runs before removeAll: on a native Linux engine
+	// only the container user can delete what a container wrote.
+	cleanup := func() {
+		sb.RemoveBuildCaches(context.WithoutCancel(ctx))
+		removeAll(buildCache)
+	}
+	if err := sb.EnsureImage(ctx, allowPull); err != nil {
+		cleanup()
+		return nil, nil, err
+	}
+	if _, err := sb.ReapOrphans(ctx); err != nil {
+		cleanup()
+		return nil, nil, err
+	}
+	if err := sb.Probe(ctx); err != nil {
+		cleanup()
+		return nil, nil, err
+	}
+	return sb, cleanup, nil
 }
 
 // removeAll deletes a tree the toolchain may have made read-only.
