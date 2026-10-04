@@ -8,9 +8,10 @@
 // The scanner is govulncheck built from golang.org/x/vuln inside each
 // toolchain image, because the images do not ship it and containers run
 // with GOTOOLCHAIN=local, so each image can build only the releases whose
-// go directive it satisfies. It is built in the acquire profile through the
-// module proxy and checksum database, and runs in the execute profile with
-// no network against a database directory mounted read-only.
+// go directive it satisfies. internal/vulnscan builds it in the sandbox's
+// tool profile through the public module proxy and checksum database, and
+// runs it in the execute profile with no network, with the scanner and the
+// database mounted read-only.
 package vuln
 
 import (
@@ -70,13 +71,12 @@ func ScannerFor(goMinor string) (ScannerPin, error) {
 	return ScannerPin{}, fmt.Errorf("vuln: no scanner pinned for go %s", goMinor)
 }
 
-// InstallArgv is the acquire-profile command that builds the scanner into
+// InstallArgv is the tool-profile command that builds the scanner into
 // gobin, an absolute path inside the container that the profile mounts
-// writable. The acquire environment already sets GOTOOLCHAIN=local,
-// CGO_ENABLED=0, a proxy without direct fallback, and the checksum
-// database; -trimpath makes the binary independent of container paths, so
-// two builds in the same image are byte-identical. GOFLAGS=-mod=mod from
-// the profile is harmless: go install pkg@version ignores the main module.
+// writable. The tool environment already sets GOTOOLCHAIN=local,
+// CGO_ENABLED=0, the public proxy without direct fallback, and the
+// checksum database; -trimpath makes the binary independent of container
+// paths, so two builds in the same image are byte-identical.
 func (p ScannerPin) InstallArgv(gobin string) []string {
 	return []string{"env", "GOBIN=" + gobin, "go", "install", "-trimpath", ScannerPackage + "@" + p.Version}
 }
