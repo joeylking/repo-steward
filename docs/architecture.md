@@ -60,11 +60,25 @@ recipe under its own ref; its record carries a hash over the whole body.
 | acquire | read-only | writable | yes, proxy only by configuration | no |
 | mutate | read-only, plus a writable staging copy of the manifests | writable | as acquire | no |
 | execute | read-only | read-only | none, enforced by the engine | yes |
+| tool | none | its own, fresh per build | yes, proxy.golang.org and sum.golang.org only by configuration | no; builds a pinned tool such as the scanner |
+
+When a scan is configured, execute also mounts the scanner directory at
+`/tools` and the vulnerability database at `/vulndb`, both read-only. No
+container writes either: the host copies what the tool profile built.
 
 Containers are created with an empty environment, an unprivileged user,
 dropped capabilities, a read-only root, tmpfs `/tmp`, resource limits, and
 an in-container timeout. A probe fails hard when the engine cannot see the
 host directories.
+
+## Vulnerability report
+
+`vulns` (`inspect.Vulns`, with provisioning and the scan in `vulnscan`)
+snapshots and profiles HEAD as `inspect` does, provisions the database and
+the pinned scanner, verifies both on the host, scans in execute, and reports
+findings split into third-party and standard library. It only reports;
+`internal/vuln` holds the pins, the parser, and the database handling and
+runs nothing.
 
 ## Runs and recovery
 

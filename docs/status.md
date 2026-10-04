@@ -223,6 +223,34 @@ interleaving test binaries built before and after the change,
 before (nine runs, median 6.0) and 9.2 to 9.8 seconds after (six runs,
 median 9.3).
 
+## Vulnerability report (VA-2)
+
+This batch wires the vulnerability groundwork into the sandbox and adds a
+report. It only reports: nothing selects, prioritizes, or fixes an upgrade
+by advisory, no scan evidence is stored in the task store, and no pull
+request text mentions advisories yet.
+
+| Control or capability | Status | Reference |
+|---|---|---|
+| Execute profile mounts a tools directory at `/tools` and a database at `/vulndb`, both read-only, only when configured; every existing run mounts exactly what it did before; no other profile mounts them | Verified | `TestScanMounts_ExecuteOnlyAndReadOnly`, `TestConfigValidate`; `TestExecute_ToolsAndVulnDBReadOnly` (integration) |
+| Tool profile for trusted builds: no source, not the repository's module cache, fresh module, build, and output directories under the run's build cache root, `/tools` writable as GOBIN, network on, proxy.golang.org and sum.golang.org always (fixture proxy ignored), same hardening as every profile | Verified | `TestToolProfile_IsolatedFromTheRepository`; `TestTool_IsolatedProfile` (integration) |
+| Scanner built once per image digest and pinned version, copied out by the host into `tools/govulncheck-<version>-<digest>/` (binary 0555) with its identity recorded; reused afterwards without building | Verified | `TestEnsureScanner_BuildsOnceThenReuses`; `TestVulns_FixtureAdvisoryThenUpgradeRemovesIt` (integration, `built_this_run` false on the second run) |
+| Before every scan the scanner binary is checked on the host against its recorded sha256 and the pin with the image's exact Go version; a mismatch is a hard error, never a rebuild | Verified | `TestEnsureScanner_MismatchIsRefusedNotRebuilt`, `TestEnsureScanner_BadBuildPersistsNothing`; `TestScan_TamperedInputsRefusedBeforeScan`, `TestVulns_TamperedScannerRefused` (integration) |
+| Database fetched from https://vuln.go.dev into a content-addressed directory and reused while unchanged; `-vulndb DIR` identified and checked, never fetched; the snapshot verified immediately before every scan | Verified | `TestLocalDatabase`; `TestVulns_PublicDatabase` (integration, network), `TestVulns_MalformedDatabaseRefused`, `TestScan_TamperedInputsRefusedBeforeScan` (integration) |
+| Scan in the execute profile with a fresh build cache, no network, a 64 MB output cap, a timeout, and every field of `Expect` filled (scanner version, `file:///vulndb`, database modified time, the Go version read in the same sandbox); the scanner and database must be visible in the container or the run fails | Verified (integration) | `vulnscan.Scan`, `TestScan_FixtureAdvisoryThroughMounts` |
+| `vulns` reports GO-TEST-0001 at symbol level with its call path for patch-safe, and the standard-library advisory separately; after the baseline pipeline upgrades lib to v1.2.4 it is gone | Verified (integration) | `TestVulns_FixtureAdvisoryThenUpgradeRemovesIt`; CI step "vulnerability report on fixtures" |
+| Report shape: findings split into third-party and standard library, sorted by module then id, aliases listed once; scanner version and sha256, database snapshot id and modified time, image, tree hash, Go version, conclusive and reason verbatim; a summary on stderr that says standard-library findings cannot be fixed today | Verified | `TestVulnReport_SplitsStdlibAndExits4`, `TestVulnReport_StdlibOnlyIsClean`, `TestVulnReport_AliasesListedOnce` |
+| Exit codes: 0 conclusive with no third-party findings, 2 unsupported, 3 inconclusive, 4 third-party findings, 1 errors | Verified | `TestVulnReport_ExitCodes`, `TestVulnReport_InconclusiveExits3`, `TestVulns_UnsupportedStopsBeforeDatabaseAndSandbox`; `TestVulns_InconclusiveExits3` (integration) |
+| An unsupported repository or a malformed `-vulndb` is refused before any container or download | Verified | `TestVulns_UnsupportedStopsBeforeDatabaseAndSandbox`, `TestVulns_BadDatabaseRefusedBeforeSandbox` |
+| `fixture vulndb -dest DIR` writes the synthetic database | Implemented, run in CI | `cmd/repo-steward`, CI "quick start smoke" |
+| On native Linux Docker the binary `go install` writes as the container user is readable by the host, so it can be inspected and copied; files the tool build leaves in its caches are removed through a container | Verified on colima (virtiofs) only; CI's integration job on native Linux is the proof and has not yet run this change | `TestVulns_FixtureAdvisoryThenUpgradeRemovesIt`, `TestTool_IsolatedProfile` (integration) |
+
+Measured on 2026-10-04 on colima: a cold `vulns` run on patch-safe with the
+fixture database took 11.9 seconds, 10.6 of them building the scanner; a
+warm run took 1.0 second. Fetching the public database added about 1.2
+seconds per run; on the public database of 2026-10-01, patch-safe has no
+third-party findings and 52 standard-library findings for go1.22.12.
+
 ## Not claimed
 
 The sandbox reduces risk from untrusted build behaviour on operator-selected

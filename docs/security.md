@@ -25,6 +25,8 @@ which risks are accepted. Every control carries a status: **Required**
 | Host process to repository content | host code | every file | parsed manifests, file contents delivered to the model as data |
 | Host to `execute` containers | host | repository and dependency code | read-only snapshot and cache in; exit code and output out |
 | Host to `acquire` and `mutate` containers | host and the Go toolchain | manifests and the network | manifests in; cache and staging files out |
+| Host to the `tool` container | host, the Go toolchain, proxy.golang.org with sum.golang.org | | nothing from the repository in; the built scanner binary out, copied by the host |
+| Vulnerability scanner and database to the host | the pinned scanner release and the snapshot as identified | the binary and database files on disk between provisioning and use, and the scanner's output | binary and database mounted read-only into `execute`; JSON findings out, parsed fail-closed |
 | Host to model | transport | model output | prompt with repository excerpts out; decisions in, validated and policed |
 | Host to GitHub | transport and service | content | release notes and pull request bodies in as data; push and pull request out under approval |
 | Host to data directory | both | | trusted as the operator's filesystem |
@@ -33,7 +35,8 @@ which risks are accepted. Every control carries a status: **Required**
 
 Repository files including README, comments, test data, ignore rules, and
 manifests; dependency source and its manifests; compiler and test output,
-which quotes repository strings; model output; pull request bodies and
+which quotes repository strings; the vulnerability scanner's output, which
+quotes repository symbols and file names; model output; pull request bodies and
 branch names read during reconciliation.
 
 ## Controls
@@ -68,6 +71,11 @@ branch names read during reconciliation.
 | Local data directory tampering | Hashes catch corruption and code bugs only | Accepted | |
 | `steward.db` readable or writable by another account | Created owner-only (0600) by whichever of the runtime store or repo-steward's own task store opens it first; an existing database or WAL sidecar that group or others can write, or a WAL file owned by another account, is refused until fixed (`agentrt.ErrInsecureMode`), reported as one sentence naming the file, its mode, and the fix | Verified | upstream `agent-runtime` (`store_test.go`); `task.Open`'s `createOwnerOnly` |
 | Container engine socket access | None; the operator already holds it | Accepted | |
+| A scanner binary other than the pinned release is used | Built per image digest and pinned version in the `tool` profile from proxy.golang.org, checked against sum.golang.org; the host copies it into the data directory with its sha256 and build information recorded; before every scan the binary's sha256 must equal the record and its build information must match the pin (version, module sum, the image's exact Go version, linux, `-trimpath`, CGO_ENABLED=0, nothing replaced); a mismatch is an error, nothing is scanned or rebuilt | Verified | `TestEnsureScanner_MismatchIsRefusedNotRebuilt`, `TestEnsureScanner_BadBuildPersistsNothing`, `TestScan_TamperedInputsRefusedBeforeScan`, `TestVulns_TamperedScannerRefused` (integration), `TestCheck_Mismatches` |
+| A database other than the identified snapshot is read | Fetched archives refused on any entry outside the fixed layout, links, oversize entries, or inconsistent indexes; snapshots content-addressed and reused only when they verify; a `-vulndb` directory is identified and checked the same way and never written; the snapshot's content hash and modified time are verified immediately before every scan, and the scanner's own report of the database and its modified time must match | Verified | `TestFetch_Refusals`, `TestFetch_RefusesTamperedExistingSnapshot`, `TestIdentify_Refusals`, `TestVerify_DetectsChanges`, `TestLocalDatabase`, `TestScan_TamperedInputsRefusedBeforeScan`, `TestVulns_MalformedDatabaseRefused` (integration), `TestVulns_PublicDatabase` (integration, network) |
+| Repository or dependency code changes the scanner or the database | Only `execute` mounts them, read-only; `acquire` and `mutate` do not mount them; the persistent copies are written by the host only | Verified (integration) | `TestScanMounts_ExecuteOnlyAndReadOnly`, `TestExecute_ToolsAndVulnDBReadOnly`, `TestScan_ExecuteCannotWriteScannerOrDatabase` |
+| The scanner build is steered by the repository or the run's configuration | The `tool` profile mounts no source, not the repository's module cache, no configured tools or database directory, and fresh module, build, and output directories of its own; it always uses proxy.golang.org and sum.golang.org, including when the run uses a fixture proxy; same read-only root, dropped capabilities, unprivileged user, limits, and environment built from scratch as every profile. Network egress is not OS-enforced, as for `acquire` | Verified | `TestToolProfile_IsolatedFromTheRepository`, `TestTool_IsolatedProfile` (integration) |
+| A scan that did not complete is read as "no vulnerabilities" | The output is parsed fail-closed: timeout, truncation (the cap is raised to 64 MB per stream), non-zero exit, malformed or unknown messages, a config that does not name the expected scanner version, database, database modified time, and Go version, or no sign the analysis finished, make the scan inconclusive, which `vulns` reports with the reason and exit 3. One gap remains: a stream cut exactly at a message boundary after the analysis reported finishing cannot be detected, and can only drop findings, never add them | Verified, with the gap | `TestParse_ProcessFailures`, `TestParse_MalformedStreams`, `TestParse_EveryTruncation`, `TestParse_ExpectMismatches`, `TestVulnReport_InconclusiveExits3`, `TestVulns_InconclusiveExits3` (integration) |
 
 ## What this project does not claim
 
@@ -85,6 +93,10 @@ repository content from whichever model provider is configured.
 - The Go module cache under the data directory is created read-only by
   the toolchain; removing a data directory needs the permissions restored
   first.
+- The scanner and database directories under the data directory are named
+  by content (image digest and version; database modified time and hash)
+  and are never deleted and recreated in a run. A scanner directory that
+  fails verification is left for the operator to remove.
 - Model recordings are tied to the exact prompt and tool shapes. The
   runtime's renderer reproduces the previous renderer byte for byte, so the
   recordings committed before it replay unchanged.

@@ -176,6 +176,10 @@ its benchmarks with agent-runtime's `bench` module. The whole path described abo
 - **Evidence:** committed benchmark results over eleven scenarios, five
   smoke scenarios against real public modules, and three repair scenarios
   on real repositories, which the local model has not yet repaired.
+- **Vulnerability report:** `vulns` scans a repository with a pinned
+  govulncheck against a verified snapshot of the Go vulnerability database
+  and reports what it finds. It only reports: nothing yet selects or fixes
+  an upgrade by advisory. See [What vulns does](#what-vulns-does).
 
 No development, test, or CI path makes a paid model call. The one paid
 provider exists for explicit measurements under a spending cap, see
@@ -205,8 +209,12 @@ Where to read more:
   `providers/anthropic/v0.2.0`.
 - A Docker-compatible engine reachable over a unix socket (Docker Desktop,
   OrbStack, Colima, or Rancher Desktop) for every command that builds or
-  tests code: `inspect`, `maintain`, `resume`, and `bench run`. `fixture`
-  and `snapshot` commands need no engine.
+  tests code: `inspect`, `vulns`, `maintain`, `resume`, and `bench run`.
+  `fixture` and `snapshot` commands need no engine.
+- For `vulns`, network access to proxy.golang.org and sum.golang.org the
+  first time each toolchain image is used, to build the scanner, and to
+  https://vuln.go.dev on every run unless `-vulndb` names a database
+  directory.
 - With a VM-backed engine on macOS, the data directory and the repository
   must be under a shared path. Colima shares `$HOME` by default; the default
   data directory, `~/.local/share/repo-steward`, is under `$HOME` for that
@@ -240,6 +248,22 @@ go run ./cmd/repo-steward inspect ~/tmp/patch-safe -fixture-proxy ~/tmp/proxy
 `inspect` prints a JSON report and exits 0 when the baseline is clean, 2 when
 the repository is unsupported, and 3 when the baseline fails or is
 inconclusive.
+
+```sh
+# Vulnerability report: scan with the pinned govulncheck against a synthetic
+# database that plants advisories in the fixture modules. Building the
+# scanner needs proxy.golang.org once per toolchain image.
+go build -o ~/tmp/repo-steward ./cmd/repo-steward
+~/tmp/repo-steward fixture vulndb -dest ~/tmp/vulndb
+~/tmp/repo-steward vulns ~/tmp/patch-safe -fixture-proxy ~/tmp/proxy -vulndb ~/tmp/vulndb
+```
+
+`vulns` prints a JSON report on stdout and a short summary on stderr, and
+exits 0 when the scan is conclusive and finds nothing in third-party
+dependencies, 2 when the repository is unsupported, 3 when the scan is
+inconclusive, and 4 when third-party findings are present. Findings in the
+standard library alone exit 0, because they follow the toolchain image and
+repo-steward cannot act on them.
 
 ```sh
 # Baseline maintenance: pick the smallest eligible upgrade, apply it under
@@ -336,7 +360,9 @@ Everything a run needs to be inspected or resumed lives under the data
 directory: `steward.db` holds the runtime's runs, steps, approvals, and
 events alongside the tasks, promotions, validation records, and proposals;
 `runs/<id>/` holds the scratch clone, snapshots, and staging; `cache/mod/`
-holds the module cache per module path. A run's options and candidate
+holds the module cache per module path; `tools/` holds the scanner built
+for each toolchain image, and `vulndb/` the fetched vulnerability database
+snapshots, each in a directory named by its content. A run's options and candidate
 facts are persisted at start so `resume` reconstructs the session under
 the same configuration. Directories are never deleted and recreated at the
 same path within a run, because VM-backed engines cache path lookups.
@@ -356,6 +382,49 @@ what could be upgraded, and whether the unchanged code passes its checks.
    with per-version eligibility from policy (acquire profile).
 6. Runs build, vet, and test with no network, read-only source and cache,
    and reports each check as pass, fail, or inconclusive (execute profile).
+
+## What vulns does
+
+`vulns` changes nothing. It reports the known vulnerabilities that affect a
+repository at HEAD, and stops there: this release only reports, and nothing
+in repo-steward selects, prioritizes, or fixes an upgrade by advisory yet.
+
+1. Snapshots and profiles HEAD exactly as `inspect` does; an unsupported
+   repository is refused before any network or container use.
+2. Provisions the database: by default it downloads `vulndb.zip` from
+   https://vuln.go.dev, validates and extracts it into
+   `vulndb/vulndb-<modified>-<hash>/` under the data directory, and reuses
+   that directory while the database is unchanged. `-vulndb DIR` uses an
+   existing directory instead, which is identified and checked but never
+   fetched or written. `fixture vulndb -dest DIR` writes the synthetic
+   database for the fixture modules.
+3. Starts the sandbox and populates the module cache (acquire profile).
+4. Provisions the scanner: govulncheck at the version pinned for the
+   image's Go minor, built once per image digest in the tool profile, which
+   sees no repository source and none of its caches and always fetches from
+   proxy.golang.org with sum.golang.org, even with `-fixture-proxy`. The
+   host copies the binary to `tools/govulncheck-<version>-<image digest>/`
+   with a record of its sha256 and build information.
+5. Immediately before the scan, checks the scanner on the host (sha256 as
+   recorded, version, module sum, the image's exact Go version, linux,
+   `-trimpath`, no cgo, no replaced modules) and the database (content hash
+   and modified time as identified). Any mismatch is an error and nothing
+   is scanned or rebuilt; remove the scanner's directory to rebuild it.
+6. Runs the scanner in the execute profile, with no network, read-only
+   source and module cache, a fresh build cache, and the scanner and the
+   database mounted read-only, and parses its output fail-closed: anything
+   unexpected makes the scan inconclusive, and an inconclusive scan says
+   nothing about vulnerabilities.
+
+The report splits findings into third-party dependencies and the standard
+library. Each finding has its advisory id and aliases, summary, module,
+found version, fixed version or none, the level the scanner reached
+(module, package, or symbol), and for symbol-level findings one call path.
+Standard-library findings follow the toolchain image's Go version, not the
+repository's dependencies; repo-steward never changes the go directive, so
+it cannot fix them today and lists them for information only. The report
+also names the scanner version and sha256, the database snapshot id and
+modified time, the image, the tree hash, and the Go version.
 
 ## What maintain does in baseline mode
 
@@ -476,7 +545,10 @@ go test -tags faultinject ./internal/manifest/ ./internal/proposal/
 
 Integration tests need the engine and the pinned image and never pull.
 Packages run serially because `inspect` reaps every container carrying the
-sandbox label. The fault-injection tests crash a child process at each
+sandbox label. The `internal/vulnscan` tests also need the network: they
+build govulncheck once per test binary through proxy.golang.org and
+sum.golang.org, and one of them fetches https://vuln.go.dev. Without the
+network they fail with a message saying so. The fault-injection tests crash a child process at each
 journaled point and recover in the parent; they need no engine.
 
 ## Smoke scenarios against public modules
