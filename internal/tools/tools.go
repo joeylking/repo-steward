@@ -599,6 +599,10 @@ func (t *validateTool) Call(ctx context.Context, c agentrt.ToolCall) (agentrt.To
 	}, summary)
 }
 
+// NotReadyPrefix opens prepare_proposal's error when readiness fails; the
+// failures follow as JSON.
+const NotReadyPrefix = "not ready: "
+
 type prepareTool struct{ s *session.Session }
 
 func (t *prepareTool) Spec() agentrt.ToolSpec {
@@ -627,24 +631,31 @@ func (t *prepareTool) Call(ctx context.Context, c agentrt.ToolCall) (agentrt.Too
 	if err != nil {
 		return agentrt.ToolResult{}, err
 	}
+	// The approval this step was resumed under, if the operator approved
+	// a repair no test exercises; readiness accepts it only for its tree.
+	grant, err := t.s.UnexercisedGrant(ctx, c.StepID)
+	if err != nil {
+		return agentrt.ToolResult{}, err
+	}
 	ready, err := proposal.Evaluate(ctx, proposal.Inputs{
 		RunID: t.s.RunID, Workspace: t.s.WS, Store: t.s.Store, Sandbox: sb, SnapshotDir: snapDir, Target: target, Baseline: t.s.Baseline,
 		ConfigHash: t.s.ConfigHash, ToolchainDigest: t.s.Profile.Toolchain.Digest,
 		Scope:          proposal.ScopeLimits{MaxFiles: t.s.Scope.FilesHard, MaxLines: t.s.Scope.LinesHard},
 		ProtectedGlobs: t.s.Profile.ProtectedGlobs, StagingRoot: t.s.StagingRoot, StepDone: t.s.StepDone,
+		ModulePath: t.s.Profile.ModulePath, Unexercised: grant,
 	})
 	if err != nil {
 		return agentrt.ToolResult{}, err
 	}
 	if !ready.Ready {
 		b, _ := json.Marshal(ready.Failures)
-		return agentrt.ToolResult{}, fmt.Errorf("not ready: %s", b)
+		return agentrt.ToolResult{}, fmt.Errorf("%s%s", NotReadyPrefix, b)
 	}
 	title := strings.TrimSpace(a.Title)
 	if title == "" {
 		title = fmt.Sprintf("Upgrade %s to %s", target.Module, target.Version)
 	}
-	body := strings.TrimSpace(a.Summary) + "\n\n" + deterministicBody(target, ready)
+	body := proposal.CoverageWarning(ready) + strings.TrimSpace(a.Summary) + "\n\n" + deterministicBody(target, ready)
 	p, err := proposal.Freeze(ctx, proposal.FreezeInput{
 		RunID: t.s.RunID, StepID: c.StepID, Workspace: t.s.WS, Store: t.s.Store, Readiness: ready, Target: target,
 		BaseRef: t.s.BaseRef, HeadRef: names.HeadRef(target), Title: title, Body: body,
@@ -672,6 +683,9 @@ func deterministicBody(target manifest.Target, ready *proposal.Readiness) string
 	fmt.Fprintf(&b, "Dependency: %s\nTo: %s\n\nValidated tree: %s\nFiles changed: %d\n", target.Module, target.Version, ready.TreeHash, len(ready.ChangeSet.Files))
 	for _, f := range ready.ChangeSet.Files {
 		fmt.Fprintf(&b, "- %s (+%d -%d)\n", f.Path, f.Added, f.Removed)
+	}
+	if c := proposal.CoverageSummary(ready); c != "" {
+		b.WriteString("\n" + c)
 	}
 	return b.String()
 }

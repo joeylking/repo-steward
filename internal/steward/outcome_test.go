@@ -1,12 +1,15 @@
 package steward
 
 import (
+	"encoding/json"
 	"testing"
 
 	agentrt "github.com/joeylking/agent-runtime"
 
 	"github.com/joeylking/repo-steward/internal/manifest"
 	"github.com/joeylking/repo-steward/internal/session"
+	"github.com/joeylking/repo-steward/internal/steward/names"
+	"github.com/joeylking/repo-steward/internal/tools"
 )
 
 // A proxy that cannot be reached while staging the upgrade ends the run
@@ -32,5 +35,50 @@ func TestStageOutcome_AcquisitionFailureIsNotARefusal(t *testing.T) {
 	rr.ReasonDetail = "something else"
 	if got, _ := outcomeOf(rr, &session.Session{}); got != OutcomeFailed {
 		t.Fatalf("other tool abort mapped to %s", got)
+	}
+}
+
+// A run that ends without a proposal because readiness refused its repair
+// only for want of test coverage, with the tree unchanged since, is named
+// repair_not_exercised; any other last refusal, a later edit, or an outcome
+// that is not a give-up keeps the runtime's outcome.
+func TestNotExercised(t *testing.T) {
+	step := func(tool string, status agentrt.StepStatus, errText string) agentrt.Step {
+		st := agentrt.Step{Status: status, Decision: &agentrt.Decision{Kind: agentrt.DecideToolCall, Tool: tool}}
+		if errText != "" {
+			b, _ := json.Marshal(map[string]string{"tool": tool, "error": errText})
+			st.Observation = &agentrt.Observation{Kind: agentrt.ObserveToolError, Content: b}
+		} else {
+			st.Observation = &agentrt.Observation{Kind: agentrt.ObserveToolResult, Content: []byte(`{}`)}
+		}
+		return st
+	}
+	notExercisedErr := tools.NotReadyPrefix + `[{"code":"repair_not_exercised","detail":"main.go:16 (no test executes it)"}]`
+	otherErr := tools.NotReadyPrefix + `[{"code":"repair_not_exercised","detail":"x"},{"code":"scope_exceeded","detail":"y"}]`
+	edit := step(names.EditFile, agentrt.StepDone, "")
+	refused := step(names.Prepare, agentrt.StepFailed, notExercisedErr)
+	blocked := step(names.Blocked, agentrt.StepDone, "")
+	cases := []struct {
+		name    string
+		outcome string
+		steps   []agentrt.Step
+		want    string
+	}{
+		{"gave up", OutcomeBlocked, []agentrt.Step{edit, refused, blocked}, OutcomeRepairNotExercised},
+		{"limit", OutcomeLimitExhausted, []agentrt.Step{edit, refused, refused, refused}, OutcomeRepairNotExercised},
+		{"edited after", OutcomeBlocked, []agentrt.Step{edit, refused, edit, blocked}, OutcomeBlocked},
+		{"other failures too", OutcomeBlocked, []agentrt.Step{edit, step(names.Prepare, agentrt.StepFailed, otherErr), blocked}, OutcomeBlocked},
+		{"never prepared", OutcomeBlocked, []agentrt.Step{edit, blocked}, OutcomeBlocked},
+		{"rejected", OutcomeApprovalRejected, []agentrt.Step{edit, refused}, OutcomeApprovalRejected},
+		{"scope", OutcomeScopeExceeded, []agentrt.Step{edit, refused}, OutcomeScopeExceeded},
+	}
+	for _, c := range cases {
+		got, detail := notExercised(c.outcome, map[string]any{}, c.steps)
+		if got != c.want {
+			t.Errorf("%s: %s, want %s", c.name, got, c.want)
+		}
+		if got == OutcomeRepairNotExercised && (detail["run_outcome"] != c.outcome || detail["not_exercised"] != "main.go:16 (no test executes it)") {
+			t.Errorf("%s: detail %v", c.name, detail)
+		}
 	}
 }

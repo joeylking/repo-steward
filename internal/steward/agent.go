@@ -27,6 +27,7 @@ import (
 	"github.com/joeylking/repo-steward/internal/scenario"
 	"github.com/joeylking/repo-steward/internal/session"
 	"github.com/joeylking/repo-steward/internal/snapshot"
+	"github.com/joeylking/repo-steward/internal/steward/names"
 	"github.com/joeylking/repo-steward/internal/task"
 	"github.com/joeylking/repo-steward/internal/tools"
 	"github.com/joeylking/repo-steward/internal/validate"
@@ -84,10 +85,13 @@ type persistedOptions struct {
 	FixtureProxy  bool                 `json:"fixture_proxy"`
 	Model         *ModelSpec           `json:"model,omitempty"`
 	Destination   *publish.Destination `json:"destination,omitempty"`
+	// AskUnexercised is omitted when off, so the persisted options of a run
+	// without it are what they were.
+	AskUnexercised bool `json:"ask_unexercised,omitempty"`
 }
 
 func persist(o Options) persistedOptions {
-	return persistedOptions{Policy: o.Policy, Author: o.Author, CheckTimeout: o.CheckTimeout, Limits: o.Limits, Scope: o.Scope, ScopeConfig: o.ScopeConfig, Budgets: o.Budgets, RuntimeLimits: o.RuntimeLimits, FixtureProxy: o.FixtureProxyDir != "", Model: o.Model, Destination: o.Destination}
+	return persistedOptions{Policy: o.Policy, Author: o.Author, CheckTimeout: o.CheckTimeout, Limits: o.Limits, Scope: o.Scope, ScopeConfig: o.ScopeConfig, Budgets: o.Budgets, RuntimeLimits: o.RuntimeLimits, FixtureProxy: o.FixtureProxyDir != "", Model: o.Model, Destination: o.Destination, AskUnexercised: o.AskUnexercised}
 }
 
 func runAgent(ctx context.Context, opts Options, mode string, agent agentrt.Agent) (*Result, error) {
@@ -170,7 +174,7 @@ func (r *run) driver(rt *agentrt.Store, agent agentrt.Agent) (*session.Session, 
 		RunID: r.id, Store: r.store, Runtime: rt, WS: r.ws, SB: r.sb, Profile: r.profile, Candidates: r.cands, Policy: opts.Policy,
 		Baseline: r.baseRun, BaselineID: r.baseID, ConfigHash: r.configHash, RunDir: r.runDir, StagingRoot: r.stagingRoot,
 		ModCacheDir: r.modCacheDir, Limits: opts.Limits, Scope: opts.ScopeConfig, Budgets: opts.Budgets, Author: opts.Author,
-		CheckTimeout: opts.CheckTimeout, BaseRef: r.ws.BaseRef,
+		CheckTimeout: opts.CheckTimeout, BaseRef: r.ws.BaseRef, AskUnexercised: opts.AskUnexercised,
 	}
 	var pub *publish.Publisher
 	if r.opts.Publish {
@@ -257,6 +261,11 @@ func (r *run) finalize(ctx context.Context, rt *agentrt.Store, sess *session.Ses
 		}
 	}
 	r.res.Outcome, r.res.Detail = outcomeOf(rr, sess)
+	if rr.Status.Terminal() {
+		if steps, err := rt.ListSteps(ctx, rr.ID); err == nil {
+			r.res.Outcome, r.res.Detail = notExercised(r.res.Outcome, r.res.Detail, steps)
+		}
+	}
 	if sess.Outcome != nil && sess.Outcome.Code == "proposal_prepared" {
 		if p, ok := sess.Outcome.Detail.(*proposal.Proposal); ok {
 			r.res.Proposal = p
@@ -348,7 +357,7 @@ func Resume(ctx context.Context, ro ResumeOptions) (*Result, error) {
 	opts := Options{SourcePath: tk.SourcePath, DataDir: ro.DataDir, FixtureProxyDir: ro.FixtureProxyDir, AllowPull: ro.AllowPull, Socket: ro.Socket,
 		Policy: po.Policy, Author: po.Author, CheckTimeout: po.CheckTimeout, Limits: po.Limits, Scope: po.Scope, ScopeConfig: po.ScopeConfig,
 		Budgets: po.Budgets, RuntimeLimits: po.RuntimeLimits, Observer: ro.Observer, Model: po.Model, Prices: ro.Prices,
-		Publish: po.Destination != nil, Destination: po.Destination, GitHubToken: ro.GitHubToken}
+		Publish: po.Destination != nil, Destination: po.Destination, GitHubToken: ro.GitHubToken, AskUnexercised: po.AskUnexercised}
 	if err := applyDefaults(&opts); err != nil {
 		return nil, err
 	}
@@ -535,6 +544,61 @@ func outcomeOf(rr agentrt.Run, s *session.Session) (string, map[string]any) {
 		return OutcomeFailed, detail
 	}
 	return OutcomeFailed, detail
+}
+
+// notExercised names the outcome of a run that ended without a proposal
+// because its last readiness evaluation refused the repair only for want
+// of test coverage, and nothing changed the tree afterwards: the model
+// gave up, or a limit ended the run, with a validated repair that no test
+// exercises. The outcome the runtime reached is kept in the detail as
+// run_outcome. Every other outcome is returned unchanged.
+func notExercised(outcome string, detail map[string]any, steps []agentrt.Step) (string, map[string]any) {
+	switch outcome {
+	case OutcomeBlocked, OutcomeLimitExhausted, OutcomeLoopDetected, OutcomeBudgetExhausted, OutcomeEndedWithoutProposal:
+	default:
+		return outcome, detail
+	}
+	var last []proposal.Failure
+	for _, st := range steps {
+		if st.Decision == nil || st.Status != agentrt.StepDone && st.Status != agentrt.StepFailed {
+			continue
+		}
+		switch st.Decision.Tool {
+		case names.WriteFile, names.EditFile, names.Normalize, names.ApplyUpgrade:
+			if st.Status == agentrt.StepDone {
+				last = nil
+			}
+		case names.Prepare:
+			last = nil
+			if st.Observation == nil || st.Observation.Kind != agentrt.ObserveToolError {
+				continue
+			}
+			var o struct{ Error string }
+			if json.Unmarshal(st.Observation.Content, &o) != nil {
+				continue
+			}
+			raw, ok := strings.CutPrefix(o.Error, tools.NotReadyPrefix)
+			if !ok || json.Unmarshal([]byte(raw), &last) != nil {
+				last = nil
+			}
+		}
+	}
+	if len(last) == 0 {
+		return outcome, detail
+	}
+	var why []string
+	for _, f := range last {
+		if f.Code != proposal.CodeNotExercised {
+			return outcome, detail
+		}
+		why = append(why, f.Detail)
+	}
+	if detail == nil {
+		detail = map[string]any{}
+	}
+	detail["run_outcome"] = outcome
+	detail["not_exercised"] = strings.Join(why, "; ")
+	return OutcomeRepairNotExercised, detail
 }
 
 // applyDefaults fills Options for any mode.

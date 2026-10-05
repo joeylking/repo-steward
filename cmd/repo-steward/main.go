@@ -365,8 +365,12 @@ func runMaintain(ctx context.Context, args []string) error {
 	selectFlag := fs.String("select", steward.SelectSmallest, "how -mode baseline picks the upgrade: smallest (the smallest eligible upgrade of a direct dependency) or vulnerable (scan for known vulnerabilities and pick the lowest eligible upgrade that clears them)")
 	vulnDB := fs.String("vulndb", "", "with -select vulnerable: use this vulnerability database directory instead of fetching https://vuln.go.dev")
 	scanTimeout := fs.Duration("scan-timeout", 10*time.Minute, "with -select vulnerable: timeout for each scan")
+	askUnexercised := fs.Bool("ask-unexercised", false, "agent modes: when the repository's tests do not execute the source a repair changed, pause for an approval bound to that exact tree instead of ending the run as repair_not_exercised; an approved proposal says in its body that it was approved without test coverage")
 	if err := fs.Parse(rest); err != nil {
 		return err
+	}
+	if *askUnexercised && *mode == "baseline" {
+		return fmt.Errorf("maintain: -ask-unexercised applies to -mode scripted and -mode model; baseline mode never changes source")
 	}
 	switch *selectFlag {
 	case steward.SelectSmallest:
@@ -388,7 +392,7 @@ func runMaintain(ctx context.Context, args []string) error {
 		return fmt.Errorf("maintain: -min-age must not be negative")
 	}
 	pol.MinAge = *minAge
-	opts := steward.Options{SourcePath: repoPath, DataDir: *dataDir, FixtureProxyDir: *proxyDir, AllowPull: *pull, Policy: pol, Author: ident, CheckTimeout: *checkTimeout}
+	opts := steward.Options{SourcePath: repoPath, DataDir: *dataDir, FixtureProxyDir: *proxyDir, AllowPull: *pull, Policy: pol, Author: ident, CheckTimeout: *checkTimeout, AskUnexercised: *askUnexercised}
 	if *selectFlag == steward.SelectVulnerable {
 		opts.Select, opts.VulnDBDir, opts.ScanTimeout = steward.SelectVulnerable, *vulnDB, *scanTimeout
 	}

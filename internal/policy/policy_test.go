@@ -30,6 +30,10 @@ type fakeFacts struct {
 	scope     session.ScopeConfig
 	budgets   session.Budgets
 	proposal  *policy.ProposalFacts
+	// ask is the -ask-unexercised flag; unexercised what the current tree
+	// lacks, nil when its changed source is verified.
+	ask         bool
+	unexercised *policy.UnexercisedFacts
 }
 
 func (f *fakeFacts) Phase(context.Context) (string, error) { return f.phase, nil }
@@ -76,6 +80,11 @@ func (f *fakeFacts) CurrentProposal(context.Context) (*policy.ProposalFacts, boo
 		return nil, false, nil
 	}
 	return f.proposal, true, nil
+}
+
+func (f *fakeFacts) AskUnexercised() bool { return f.ask }
+func (f *fakeFacts) Unexercised(context.Context) (*policy.UnexercisedFacts, bool, error) {
+	return f.unexercised, f.unexercised != nil, nil
 }
 
 func facts() *fakeFacts {
@@ -308,6 +317,78 @@ func TestNever(t *testing.T) {
 			}
 		})
 	}
+}
+
+// unexercised is a candidate tree whose changed line no test executes.
+func unexercised(tree string) *policy.UnexercisedFacts {
+	return &policy.UnexercisedFacts{Tree: tree, Unexercised: []string{"main.go:16 (no test executes it)"}, Blocks: 2, Executed: 1,
+		Diff: "--- a/main.go\n+++ b/main.go\n@@ -16 +16 @@\n-\tfmt.Println(greeting(\"steward\"))\n+\tfmt.Println(greeting(\"x\"))\n"}
+}
+
+const prepare = `{"title":"t","summary":"s"}`
+
+// A repair no test exercises: without -ask-unexercised prepare_proposal
+// runs and readiness refuses the tree (TestCheck_* in internal/coverage,
+// TestScripted_S2U_UnexercisedRepairIsNotReady); with it, the request is
+// held for an approval whose capability names the tree, so an approval of
+// one tree can never run the request on another.
+func TestPrepare_UnexercisedRepair(t *testing.T) {
+	f := facts()
+	f.phase = session.PhaseRepair
+	f.unexercised = unexercised("t1")
+	granted := agentrt.RunView{Approvals: []agentrt.Approval{{Kind: policy.KindUnexercisedRepair, Status: agentrt.ApprovalApproved}}}
+	testkit.CheckPolicy(t, policy.New(f), allTools(), []testkit.PolicyCase{
+		{Name: "flag off", Tool: names.Prepare, Args: prepare, Want: agentrt.Allow},
+	})
+	f.ask = true
+	testkit.CheckPolicy(t, policy.New(f), allTools(), []testkit.PolicyCase{
+		{Name: "flag on", Tool: names.Prepare, Args: prepare, Want: agentrt.RequireApproval, Kind: policy.KindUnexercisedRepair, Capability: `"tree":"t1"`, Presentation: `main.go:16 (no test executes it)`},
+		{Name: "flag on, diff shown", Tool: names.Prepare, Args: prepare, Want: agentrt.RequireApproval, Kind: policy.KindUnexercisedRepair, Presentation: `greeting(\"x\")`},
+		// A grant is matched by the runtime against the approval's hash;
+		// the policy itself never allows the request.
+		{Name: "flag on, granted", Tool: names.Prepare, Args: prepare, View: granted, Want: agentrt.RequireApproval, Kind: policy.KindUnexercisedRepair},
+	})
+	f.unexercised = unexercised("t2")
+	testkit.CheckPolicy(t, policy.New(f), allTools(), []testkit.PolicyCase{
+		{Name: "another tree", Tool: names.Prepare, Args: prepare, Want: agentrt.RequireApproval, Kind: policy.KindUnexercisedRepair, Capability: `"tree":"t2"`},
+	})
+	// Verified, or nothing to approve: readiness decides.
+	f.unexercised = nil
+	testkit.CheckPolicy(t, policy.New(f), allTools(), []testkit.PolicyCase{
+		{Name: "flag on, exercised", Tool: names.Prepare, Args: prepare, Want: agentrt.Allow},
+	})
+}
+
+// With -ask-unexercised and a tree whose changed source no test exercises,
+// prepare_proposal, the only tool that freezes a proposal, is never allowed
+// by the policy under any arguments or grants, the approval of its own kind
+// included; and nothing is ever published without a publication approval.
+func TestNever_FreezesAnUnexercisedRepair(t *testing.T) {
+	views := []agentrt.RunView{
+		{},
+		{Approvals: []agentrt.Approval{{Kind: policy.KindUnexercisedRepair, Status: agentrt.ApprovalApproved}}},
+		{Approvals: []agentrt.Approval{{Kind: policy.KindScopeExpansion, Status: agentrt.ApprovalApproved}}},
+		{Approvals: []agentrt.Approval{{Kind: policy.KindPublication, Status: agentrt.ApprovalApproved}}},
+	}
+	f := facts()
+	f.phase = session.PhaseRepair
+	f.ask = true
+	f.unexercised = unexercised("t1")
+	p := policy.New(f)
+	testkit.Never(t, p, prepareTools(), agentrt.LocalMutation, agentrt.Allow, testkit.Fuzz{Count: 32}, views...)
+	testkit.Never(t, p, allTools(), agentrt.RemoteMutation, agentrt.Allow, testkit.Fuzz{Count: 16}, views...)
+}
+
+// prepareTools is prepare_proposal alone, so that Never's local-mutation
+// class means exactly freezing a proposal.
+func prepareTools() []agentrt.Tool {
+	var out []agentrt.Tool
+	for _, tl := range allTools() {
+		if tl.Spec().Name == names.Prepare {
+			out = append(out, tl)
+		}
+	}
+	return out
 }
 
 // writeTools are write_file and edit_file alone, so that Never's

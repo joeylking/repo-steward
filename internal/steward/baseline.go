@@ -94,6 +94,10 @@ type Options struct {
 	// Now is the clock the version cooldown (Policy.MinAge) is judged by;
 	// nil means time.Now. Tests set it.
 	Now func() time.Time
+	// AskUnexercised applies to agent modes: a repair whose changed source
+	// no test exercises pauses for an operator's approval, bound to the
+	// candidate tree, instead of ending the run as repair_not_exercised.
+	AskUnexercised bool
 }
 
 func (o Options) now() time.Time {
@@ -123,6 +127,11 @@ const (
 	OutcomeRegressed            = "regressed"
 	OutcomeInconclusive         = "validation_inconclusive"
 	OutcomeNotReady             = "not_ready"
+	// OutcomeRepairNotExercised means the agent's repair built, vetted, and
+	// passed the tests, but the tests do not verifiably execute the source
+	// it changed, so readiness refused it and the run ended without a
+	// proposal.
+	OutcomeRepairNotExercised = "repair_not_exercised"
 )
 
 // Result is the structured outcome of a run.
@@ -536,7 +545,7 @@ func (r *run) pipeline(ctx context.Context) (string, error) {
 	ready, err := proposal.Evaluate(ctx, proposal.Inputs{
 		RunID: r.id, Workspace: ws, Store: r.store, Sandbox: sb2, SnapshotDir: snap2, Target: target, Baseline: baseRun,
 		ConfigHash: r.configHash, ToolchainDigest: prof.Toolchain.Digest, Scope: r.opts.Scope, ProtectedGlobs: prof.ProtectedGlobs, StagingRoot: stagingRoot,
-		Vuln: vcheck,
+		Vuln: vcheck, ModulePath: prof.ModulePath,
 	})
 	if err != nil {
 		return "", err
