@@ -44,7 +44,10 @@ type Readiness struct {
 	Manifest     *manifest.Verification `json:"manifest,omitempty"`
 	ChangeSet    workspace.ChangeSet    `json:"change_set"`
 	Failures     []Failure              `json:"failures,omitempty"`
-	EvaluatedAt  time.Time              `json:"evaluated_at"`
+	// Vulnerabilities is the scan evidence, present only when the run
+	// selected its upgrade to fix advisories.
+	Vulnerabilities *ScanEvidence `json:"vulnerabilities,omitempty"`
+	EvaluatedAt     time.Time     `json:"evaluated_at"`
 }
 
 // ScopeLimits bound the source diff. Manifests are exempt; the manifest
@@ -75,6 +78,8 @@ type Inputs struct {
 	// StepDone reports whether the runtime step that produced a validation
 	// record completed. Records flagged Accepted need no step.
 	StepDone func(ctx context.Context, stepID string) bool
+	// Vuln, when set, adds the vulnerability rules (CheckScans).
+	Vuln *VulnCheck
 }
 
 // Failure codes.
@@ -201,6 +206,17 @@ func Evaluate(ctx context.Context, in Inputs) (*Readiness, error) {
 	}
 	if in.Scope.MaxLines > 0 && lines > in.Scope.MaxLines {
 		fail(CodeScope, "%d lines changed, limit %d", lines, in.Scope.MaxLines)
+	}
+
+	// 4. Vulnerability evidence, when the upgrade was chosen to fix advisories.
+	if in.Vuln != nil {
+		scans, err := in.Store.ListScans(ctx, in.RunID)
+		if err != nil {
+			return nil, err
+		}
+		ev, fails := CheckScans(scans, ScanBinding{BaseTree: in.Workspace.BaseTree, CandidateTree: tree, ConfigHash: in.ConfigHash, ToolchainDigest: in.ToolchainDigest}, *in.Vuln)
+		r.Vulnerabilities = ev
+		r.Failures = append(r.Failures, fails...)
 	}
 	r.Ready = len(r.Failures) == 0
 	return r, nil
