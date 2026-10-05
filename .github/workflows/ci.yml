@@ -107,6 +107,27 @@ jobs:
           test "$rc" = 3
           grep -q '"built_this_run": false' "$RUNNER_TEMP/vulns-timeout.json"
           grep -q '"reason": "scanner timed out"' "$RUNNER_TEMP/vulns-timeout.json"
+      - name: vulnerable selection on fixtures
+        # maintain -select vulnerable through the command line: the advisory
+        # fix is proposed and exits 0, an advisory with no fix exits 4, and
+        # an agent mode refuses the flag with exit 1 before anything runs.
+        # The data directory of the previous step already holds the scanner.
+        run: |
+          "$RUNNER_TEMP/repo-steward" maintain "$RUNNER_TEMP/patch-safe" -mode baseline -select vulnerable -vulndb "$RUNNER_TEMP/vulndb" -author "CI <ci@example.invalid>" -data-dir "$RUNNER_TEMP/data-vulns" -fixture-proxy "$RUNNER_TEMP/proxy" > "$RUNNER_TEMP/vsel.json"
+          grep -q '"outcome": "proposal_prepared"' "$RUNNER_TEMP/vsel.json"
+          grep -q 'GO-TEST-0001' "$RUNNER_TEMP/vsel.json"
+          grep -q '"resolved": \[' "$RUNNER_TEMP/vsel.json"
+          "$RUNNER_TEMP/repo-steward" fixture setup moved-package -dest "$RUNNER_TEMP/moved-package"
+          set +e
+          "$RUNNER_TEMP/repo-steward" maintain "$RUNNER_TEMP/moved-package" -mode baseline -select vulnerable -vulndb "$RUNNER_TEMP/vulndb" -author "CI <ci@example.invalid>" -data-dir "$RUNNER_TEMP/data-vulns" -fixture-proxy "$RUNNER_TEMP/proxy" > "$RUNNER_TEMP/vnofix.json"; rc=$?
+          set -e
+          test "$rc" = 4
+          grep -q '"outcome": "no_fix_available"' "$RUNNER_TEMP/vnofix.json"
+          set +e
+          "$RUNNER_TEMP/repo-steward" maintain "$RUNNER_TEMP/patch-safe" -mode scripted -scenario S1 -select vulnerable -author "CI <ci@example.invalid>" -data-dir "$RUNNER_TEMP/data-vulns" -fixture-proxy "$RUNNER_TEMP/proxy" 2> "$RUNNER_TEMP/vrefuse.txt"; rc=$?
+          set -e
+          test "$rc" = 1
+          grep -q 'not yet supported in -mode scripted' "$RUNNER_TEMP/vrefuse.txt"
       - name: scripted agent scenarios
         run: |
           "$RUNNER_TEMP/repo-steward" maintain "$RUNNER_TEMP/breaking-minor" -mode scripted -scenario S2 -author "CI <ci@example.invalid>" -data-dir "$RUNNER_TEMP/data-s2" -fixture-proxy "$RUNNER_TEMP/proxy" | tee "$RUNNER_TEMP/s2.json"
