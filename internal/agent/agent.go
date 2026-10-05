@@ -14,6 +14,7 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -33,15 +34,38 @@ type Facts struct {
 // Agent decides by asking the model.
 type Agent struct {
 	Facts Facts
-	// RecentResults is how many of the latest tool results are rendered in
-	// full; older ones are reduced to their one-line summary to bound the
-	// context. Zero means the default.
+	// HistoryBytes bounds the tool results rendered in full: the latest
+	// results are rendered in full while their rendered size fits, the
+	// latest always; every older one is reduced to its one-line summary.
+	// Zero means DefaultHistoryBytes.
+	HistoryBytes int
+	// RecentResults, when positive, also caps how many of the latest
+	// results are rendered in full. Zero means no cap beyond HistoryBytes.
 	RecentResults int
-	// MaxOutputTokens per request. Zero means the default.
+	// MaxOutputTokens per request. Zero means DefaultMaxOutput.
 	MaxOutputTokens int
 }
 
-const defaultMaxOutput = 2048
+// DefaultMaxOutput is the output cap the agent asks for per request. A
+// thinking model spends its reasoning from the same allowance before the
+// tool call, and a reply cut off there executes nothing; qwen3:30b-a3b used
+// up to about 2000 tokens on steps that succeeded and ran out at 2048 on
+// every step that failed on real repositories. 8192 leaves room for that
+// and a whole-file write, and with the history bound below still fits the
+// 32768-token context the Ollama adapter requests.
+const DefaultMaxOutput = 8192
+
+// DefaultHistoryBytes is about 16000 tokens of rendered tool results at the
+// 3.5 bytes per token measured on Go source and JSON, which with the system
+// prompt, the tool specs, and DefaultMaxOutput stays inside a 32768-token
+// context. Results are dropped oldest first, so a recent file read is not
+// pushed out by a count of steps, and a step that called nothing takes no
+// share.
+const DefaultHistoryBytes = 56000
+
+// maxRenderedBytes caps one rendered result. A file read is a window of at
+// most 20000 bytes plus its line numbers, which fits.
+const maxRenderedBytes = 32000
 
 // System is the fixed system prompt. It never contains repository content.
 const System = `You are a repository maintenance agent performing exactly one dependency upgrade in a Go module.
@@ -56,7 +80,7 @@ Rules you operate under (enforced by the runtime, not by you):
 - run_validation must be the last action before prepare_proposal: readiness requires validation of the exact current tree, and normalize_manifests can change the tree. If prepare_proposal reports validation_not_bound, run run_validation and then prepare_proposal again; that is not a reason to report blocked.
 - If validation keeps failing for reasons you cannot fix within these rules, call report_blocked with the evidence.
 
-Work methodically: read the failing output, read the affected file, read the dependency source for the new API, then write the corrected file in full.`
+Work methodically: read the failing output; read the affected lines; find the dependency's new API with search_files (give module and version to search a dependency) or read_dependency_source, listing a directory rather than guessing a file name; then change only the affected lines with edit_file. Use write_file only to create a file or to replace one entirely.`
 
 // Decide implements agentrt.Agent. A refusal fails the run and a reply
 // without an executable tool call becomes an invalid decision the next
@@ -77,9 +101,9 @@ func (a *Agent) Decide(ctx context.Context, in agentrt.StepInput) (agentrt.Decis
 // labelled head and the content; a step that produced no tool call is
 // answered with the renderer's nudge.
 func (a *Agent) Render(in agentrt.StepInput) []agentrt.Message {
+	full := a.fullResults(in.Steps)
 	return render.Messages(in, render.Options{
-		Opening:       a.opening,
-		RecentResults: a.RecentResults,
+		Opening: a.opening,
 		Assistant: func(st agentrt.Step, id string) []agentrt.ContentBlock {
 			if !calls(st) {
 				return nil // the renderer's own text turn
@@ -89,14 +113,43 @@ func (a *Agent) Render(in agentrt.StepInput) []agentrt.Message {
 			// a rendered conversation and its replay key are unchanged.
 			return []agentrt.ContentBlock{{Type: "tool_use", ToolUseID: id, Name: st.Decision.Tool, Input: render.Args(*st.Decision)}}
 		},
-		Observation: func(st agentrt.Step, id string, full bool) agentrt.ContentBlock {
+		// The renderer's own recent-results window is not used: which
+		// results are full is decided here, by size.
+		Observation: func(st agentrt.Step, id string, _ bool) agentrt.ContentBlock {
 			if !calls(st) {
 				return agentrt.ContentBlock{} // the renderer's own nudge
 			}
 			return agentrt.ContentBlock{Type: "tool_result", ToolUseID: id, Name: st.Decision.Tool,
-				Content: renderObservation(st, full), IsError: st.Observation != nil && st.Observation.Failure()}
+				Content: renderObservation(st, full[st.Index]), IsError: st.Observation != nil && st.Observation.Failure()}
 		},
 	})
+}
+
+// fullResults picks the steps whose results are rendered in full: the
+// latest ones, newest first, while their rendered size fits HistoryBytes,
+// the latest always, and at most RecentResults when that is set. Steps that
+// called no tool have no result and are skipped.
+func (a *Agent) fullResults(steps []agentrt.Step) map[int]bool {
+	budget := a.HistoryBytes
+	if budget <= 0 {
+		budget = DefaultHistoryBytes
+	}
+	full := map[int]bool{}
+	used, n := 0, 0
+	for i := len(steps) - 1; i >= 0; i-- {
+		st := steps[i]
+		if st.Decision == nil || !calls(st) {
+			continue
+		}
+		size := len(renderObservation(st, true))
+		if n > 0 && (used+size > budget || (a.RecentResults > 0 && n >= a.RecentResults)) {
+			break
+		}
+		full[st.Index] = true
+		used += size
+		n++
+	}
+	return full
 }
 
 // calls reports whether a step asked for a tool. Only such a step has an
@@ -132,16 +185,45 @@ func renderObservation(st agentrt.Step, full bool) string {
 	if !full {
 		return head + "\n(older result elided; call the tool again if needed)"
 	}
-	content := string(o.Content)
-	if len(content) > 24000 {
-		content = content[:24000] + "\n...(truncated)"
+	content := body(o.Content)
+	if len(content) > maxRenderedBytes {
+		content = content[:maxRenderedBytes] + "\n...(truncated)"
 	}
 	return head + "\n" + content
+}
+
+// textFields are result fields that carry text written as text: file
+// content, an edited region, a patch. They are rendered after the other
+// fields as plain text, so the model reads source as it is and can copy it
+// exactly, rather than through JSON escapes.
+var textFields = []string{"content", "edited_lines", "patch"}
+
+func body(raw json.RawMessage) string {
+	var fields map[string]json.RawMessage
+	if json.Unmarshal(raw, &fields) != nil {
+		return string(raw)
+	}
+	var texts []string
+	for _, k := range textFields {
+		var text string
+		if v, ok := fields[k]; ok && json.Unmarshal(v, &text) == nil {
+			delete(fields, k)
+			texts = append(texts, k+":\n"+text)
+		}
+	}
+	if len(texts) == 0 {
+		return string(raw)
+	}
+	rest, err := json.Marshal(fields)
+	if err != nil {
+		return string(raw)
+	}
+	return string(rest) + "\n" + strings.Join(texts, "\n")
 }
 
 func (a *Agent) maxOutput() int {
 	if a.MaxOutputTokens > 0 {
 		return a.MaxOutputTokens
 	}
-	return defaultMaxOutput
+	return DefaultMaxOutput
 }

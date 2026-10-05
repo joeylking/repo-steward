@@ -81,7 +81,10 @@ func (m ModelSpec) build() (agentrt.Model, error) {
 	switch m.Provider {
 	case "ollama":
 		// Host comes from OLLAMA_HOST by way of the adapter's default;
-		// thinking mode stays off and the context window is the default.
+		// thinking mode is not requested and the context window is the
+		// adapter's 32768 tokens. A thinking-only model, such as the
+		// qwen3:30b-a3b Ollama serves today (Qwen3 30B A3B Thinking 2507),
+		// reasons in its reply text regardless, from the output allowance.
 		om, err := ollama.New(ollama.Config{Model: m.Name})
 		if err != nil {
 			return nil, err
@@ -115,7 +118,9 @@ func DefaultModelLimits() agentrt.Limits {
 	l := agentrt.DefaultLimits()
 	l.MaxSteps = 40
 	l.MaxModelCalls = 80
-	l.MaxOutputTokensPerCall = 4096
+	// The runtime lowers a request's cap to this, so it must not be below
+	// the agent's own default.
+	l.MaxOutputTokensPerCall = agent.DefaultMaxOutput
 	l.MaxTotalTokens = 2_000_000
 	return l
 }

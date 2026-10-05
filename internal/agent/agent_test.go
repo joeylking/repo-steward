@@ -124,3 +124,55 @@ func TestDecide_PropagatesLimitErrors(t *testing.T) {
 	var d agentrt.Decision
 	_ = json.Unmarshal([]byte(`{}`), &d)
 }
+
+// File text is rendered as written, after the result's other fields, not
+// through JSON escapes; other results are rendered as their JSON.
+func TestRender_TextFieldsArePlain(t *testing.T) {
+	steps := []agentrt.Step{
+		step(0, "read_file", `{"path":"main.go"}`, agentrt.ObserveToolResult, "read main.go lines 1-2 of 2", `{"path":"main.go","content":"     1\tpackage main\n     2\tvar s = \"a&b\"\n"}`),
+		step(1, "git_diff", `{}`, agentrt.ObserveToolResult, "1 file(s) changed", `{"files":[],"lines_added":1}`),
+	}
+	msgs := (&agent.Agent{}).Render(input(steps, nil))
+	got := msgs[2].Content[0].Content
+	want := "[tool_result] read main.go lines 1-2 of 2\n{\"path\":\"main.go\"}\ncontent:\n     1\tpackage main\n     2\tvar s = \"a&b\"\n"
+	if got != want {
+		t.Fatalf("rendered\n%q\nwant\n%q", got, want)
+	}
+	if got := msgs[4].Content[0].Content; !strings.HasSuffix(got, `{"files":[],"lines_added":1}`) {
+		t.Fatalf("json result rendered %q", got)
+	}
+}
+
+// Results are kept in full newest first while they fit the history budget;
+// the newest always is, and a step that called no tool takes no share.
+func TestRender_HistoryBudgetKeepsNewestResults(t *testing.T) {
+	big := `{"content":"` + strings.Repeat("x", 3000) + `"}`
+	steps := []agentrt.Step{
+		step(0, "read_file", `{"path":"a.go"}`, agentrt.ObserveToolResult, "read a.go", big),
+		step(1, "read_file", `{"path":"b.go"}`, agentrt.ObserveToolResult, "read b.go", big),
+		{Index: 2, Status: agentrt.StepFailed, Decision: &agentrt.Decision{Kind: agentrt.KindTruncated, Reason: "cut"},
+			Observation: &agentrt.Observation{Kind: agentrt.ObserveInvalidDecision, Summary: "invalid decision"}},
+		step(3, "read_file", `{"path":"c.go"}`, agentrt.ObserveToolResult, "read c.go", big),
+	}
+	msgs := (&agent.Agent{HistoryBytes: 6500}).Render(input(steps, nil))
+	if len(msgs) != 9 {
+		t.Fatalf("messages = %d", len(msgs))
+	}
+	elided := func(i int) bool { return strings.Contains(msgs[i].Content[0].Content, "elided") }
+	if !elided(2) || elided(4) || elided(8) {
+		t.Fatalf("elided a=%v b=%v c=%v", elided(2), elided(4), elided(8))
+	}
+	// The newest result is full even when it alone exceeds the budget.
+	msgs = (&agent.Agent{HistoryBytes: 10}).Render(input(steps, nil))
+	if !elided(4) || elided(8) {
+		t.Fatalf("tiny budget: b=%v c=%v", elided(4), elided(8))
+	}
+}
+
+func TestSystem_NamesTheEditPath(t *testing.T) {
+	for _, s := range []string{"edit_file", "search_files", "write_file only to create"} {
+		if !strings.Contains(agent.System, s) {
+			t.Errorf("system prompt lacks %q", s)
+		}
+	}
+}
