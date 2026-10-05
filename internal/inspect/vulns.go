@@ -230,7 +230,7 @@ func (r *VulnReport) Summary() string {
 	for _, f := range r.Stdlib {
 		line(f, false)
 	}
-	b.WriteString("This command only reports. Nothing selects or fixes an upgrade by advisory yet.\n")
+	b.WriteString("This command only reports. To act on a third-party finding, run maintain -mode baseline -select vulnerable.\n")
 	return b.String()
 }
 

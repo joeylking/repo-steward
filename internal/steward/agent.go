@@ -91,6 +91,11 @@ func persist(o Options) persistedOptions {
 }
 
 func runAgent(ctx context.Context, opts Options, mode string, agent agentrt.Agent) (*Result, error) {
+	// Selection by vulnerability is baseline-only: the agent's tools,
+	// prompt, and recorded runs know nothing of advisories yet.
+	if err := checkSelect(opts.Select, mode); err != nil {
+		return nil, err
+	}
 	if err := applyDefaults(&opts); err != nil {
 		return nil, err
 	}

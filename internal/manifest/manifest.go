@@ -311,6 +311,17 @@ func VerifyBuildList(base, cand map[string]string, target Target, closure map[st
 	return out
 }
 
+// WorkspaceBuildList lists the build list of the workspace's current
+// manifests from a staging copy that it removes afterwards.
+func WorkspaceBuildList(ctx context.Context, sb *sandbox.Docker, ws *workspace.Workspace, stagingRoot string) (map[string]string, error) {
+	st, err := prepare(ws, stagingRoot, Op{Kind: "list"})
+	if err != nil {
+		return nil, err
+	}
+	defer os.RemoveAll(st.Dir)
+	return BuildList(ctx, sb, st)
+}
+
 // ParseBuildList reads go list -m -json all output into module path ->
 // version, leaving out the main module.
 func ParseBuildList(out []byte) (map[string]string, error) {
@@ -337,17 +348,12 @@ func ParseBuildList(out []byte) (map[string]string, error) {
 	}
 }
 
-// BuildList lists the build list the toolchain selects. With st it lists
-// the staged manifests through -modfile in the mutate profile; without, the
-// manifests in sb's source snapshot in the acquire profile.
+// BuildList lists the build list the toolchain selects for staged
+// manifests, through -modfile in the mutate profile. Listing may record
+// go.sum lines; they land in the staging copy.
 func BuildList(ctx context.Context, sb *sandbox.Docker, st *Staging) (map[string]string, error) {
-	spec := sandbox.ExecSpec{Profile: sandbox.Acquire, Argv: []string{"go", "list", "-m", "-json", "all"}, Timeout: 5 * time.Minute, StepID: "manifest-buildlist", OutputCap: 64 << 20}
-	if st != nil {
-		sb = sb.WithStaging(st.Dir)
-		spec.Profile = sandbox.Mutate
-		spec.Argv = []string{"go", "list", "-m", "-json", "-modfile=/staging/go.mod", "all"}
-	}
-	res, err := sb.Run(ctx, spec)
+	spec := sandbox.ExecSpec{Profile: sandbox.Mutate, Argv: []string{"go", "list", "-m", "-json", "-modfile=/staging/go.mod", "all"}, Timeout: 5 * time.Minute, StepID: "manifest-buildlist", OutputCap: 64 << 20}
+	res, err := sb.WithStaging(st.Dir).Run(ctx, spec)
 	if err != nil {
 		return nil, err
 	}
@@ -384,32 +390,11 @@ type Staging struct {
 // be bound to a materialized snapshot of the workspace's current tree so the
 // toolchain reads exactly the sources the candidate tree contains.
 func Stage(ctx context.Context, sb *sandbox.Docker, ws *workspace.Workspace, stagingRoot string, op Op) (*Staging, error) {
-	before, err := ReadWorkspace(ws)
+	st, err := prepare(ws, stagingRoot, op)
 	if err != nil {
 		return nil, err
 	}
-	id := newID()
-	dir := filepath.Join(stagingRoot, id)
-	// The staging directory is written by the unprivileged container user,
-	// so it is world-writable; the root above it is owner-only.
-	if err := os.MkdirAll(stagingRoot, 0o700); err != nil {
-		return nil, err
-	}
-	if err := os.Mkdir(dir, 0o777); err != nil {
-		return nil, err
-	}
-	if err := os.Chmod(dir, 0o777); err != nil {
-		return nil, err
-	}
-	if err := os.WriteFile(filepath.Join(dir, "go.mod"), before.Mod, 0o666); err != nil {
-		return nil, err
-	}
-	if err := os.WriteFile(filepath.Join(dir, "go.sum"), before.Sum, 0o666); err != nil {
-		return nil, err
-	}
-	os.Chmod(filepath.Join(dir, "go.mod"), 0o666)
-	os.Chmod(filepath.Join(dir, "go.sum"), 0o666)
-	st := &Staging{ID: id, Dir: dir, Op: op, Before: before}
+	dir := st.Dir
 	sbs := sb.WithStaging(dir)
 	var argv []string
 	switch op.Kind {
@@ -447,6 +432,36 @@ func Stage(ctx context.Context, sb *sandbox.Docker, ws *workspace.Workspace, sta
 		st.After = again
 	}
 	return st, nil
+}
+
+// prepare copies the workspace manifests into a fresh staging directory.
+func prepare(ws *workspace.Workspace, stagingRoot string, op Op) (*Staging, error) {
+	before, err := ReadWorkspace(ws)
+	if err != nil {
+		return nil, err
+	}
+	id := newID()
+	dir := filepath.Join(stagingRoot, id)
+	// The staging directory is written by the unprivileged container user,
+	// so it is world-writable; the root above it is owner-only.
+	if err := os.MkdirAll(stagingRoot, 0o700); err != nil {
+		return nil, err
+	}
+	if err := os.Mkdir(dir, 0o777); err != nil {
+		return nil, err
+	}
+	if err := os.Chmod(dir, 0o777); err != nil {
+		return nil, err
+	}
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), before.Mod, 0o666); err != nil {
+		return nil, err
+	}
+	if err := os.WriteFile(filepath.Join(dir, "go.sum"), before.Sum, 0o666); err != nil {
+		return nil, err
+	}
+	os.Chmod(filepath.Join(dir, "go.mod"), 0o666)
+	os.Chmod(filepath.Join(dir, "go.sum"), 0o666)
+	return &Staging{ID: id, Dir: dir, Op: op, Before: before}, nil
 }
 
 // OpError reports a toolchain failure during staging.

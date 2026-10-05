@@ -47,7 +47,7 @@ func main() {
 }
 
 const usage = `usage:
-  repo-steward maintain <repo-path> -mode baseline|scripted|model [-scenario NAME] [-model provider:name] [-record DIR] [-replay DIR] [-max-model-calls N] [-max-cost-usd USD] [-publish [-destination owner/repo] [-github-api URL] [-push-url URL]] [-author "Name <email>"] [-data-dir DIR] [-fixture-proxy DIR] [-pull] [-allow-major] [-dependency MODULE[@VERSION]] [-check-timeout DURATION] [-scope-files-soft N] [-scope-files-hard N] [-scope-lines-soft N] [-scope-lines-hard N] [-trace]
+  repo-steward maintain <repo-path> -mode baseline|scripted|model [-scenario NAME] [-model provider:name] [-record DIR] [-replay DIR] [-max-model-calls N] [-max-cost-usd USD] [-publish [-destination owner/repo] [-github-api URL] [-push-url URL]] [-author "Name <email>"] [-data-dir DIR] [-fixture-proxy DIR] [-pull] [-allow-major] [-dependency MODULE[@VERSION]] [-select smallest|vulnerable [-vulndb DIR] [-scan-timeout DURATION]] [-check-timeout DURATION] [-scope-files-soft N] [-scope-files-hard N] [-scope-lines-soft N] [-scope-lines-hard N] [-trace]
   repo-steward resume <run-id> [-data-dir DIR] [-fixture-proxy DIR] [-trace]
   repo-steward approve <run-id> [-approval ID] [-note TEXT] [-data-dir DIR]
   repo-steward reject <run-id> [-approval ID] [-note TEXT] [-data-dir DIR]
@@ -325,7 +325,8 @@ func runVulns(ctx context.Context, args []string) error {
 
 // runMaintain performs one maintenance run. Exit status 0 means a proposal
 // was prepared, 2 unsupported, 3 baseline problems, 4 an explained
-// non-result after the upgrade was attempted.
+// non-result (including scan_inconclusive, no_vulnerabilities, and
+// no_fix_available in vulnerable selection).
 func runMaintain(ctx context.Context, args []string) error {
 	repoPath, rest, err := positional(args, "maintain: expected a repository path")
 	if err != nil {
@@ -355,8 +356,20 @@ func runMaintain(ctx context.Context, args []string) error {
 	scopeFilesHard := fs.Int("scope-files-hard", 0, "hard limit on changed source files (default 20); crossing it ends the run")
 	scopeLinesSoft := fs.Int("scope-lines-soft", 0, "soft limit on changed source lines (default 200)")
 	scopeLinesHard := fs.Int("scope-lines-hard", 0, "hard limit on changed source lines (default 400)")
+	selectFlag := fs.String("select", steward.SelectSmallest, "how -mode baseline picks the upgrade: smallest (the smallest eligible upgrade of a direct dependency) or vulnerable (scan for known vulnerabilities and pick the lowest eligible upgrade that clears them)")
+	vulnDB := fs.String("vulndb", "", "with -select vulnerable: use this vulnerability database directory instead of fetching https://vuln.go.dev")
+	scanTimeout := fs.Duration("scan-timeout", 10*time.Minute, "with -select vulnerable: timeout for each scan")
 	if err := fs.Parse(rest); err != nil {
 		return err
+	}
+	switch *selectFlag {
+	case steward.SelectSmallest:
+	case steward.SelectVulnerable:
+		if *mode != "baseline" {
+			return fmt.Errorf("maintain: -select vulnerable is not yet supported in -mode %s; use -mode baseline", *mode)
+		}
+	default:
+		return fmt.Errorf("maintain: -select must be smallest or vulnerable, not %q", *selectFlag)
 	}
 	ident, err := resolveAuthor(*author, repoPath)
 	if err != nil {
@@ -366,6 +379,9 @@ func runMaintain(ctx context.Context, args []string) error {
 	pol.AllowMajor = *allowMajor
 	pol.NamedDependency = *dependency
 	opts := steward.Options{SourcePath: repoPath, DataDir: *dataDir, FixtureProxyDir: *proxyDir, AllowPull: *pull, Policy: pol, Author: ident, CheckTimeout: *checkTimeout}
+	if *selectFlag == steward.SelectVulnerable {
+		opts.Select, opts.VulnDBDir, opts.ScanTimeout = steward.SelectVulnerable, *vulnDB, *scanTimeout
+	}
 	if *scopeFilesSoft > 0 || *scopeFilesHard > 0 || *scopeLinesSoft > 0 || *scopeLinesHard > 0 {
 		sc := session.DefaultScope()
 		if *scopeFilesSoft > 0 {

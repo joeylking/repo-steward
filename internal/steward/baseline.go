@@ -39,6 +39,8 @@ import (
 	"github.com/joeylking/repo-steward/internal/steward/names"
 	"github.com/joeylking/repo-steward/internal/task"
 	"github.com/joeylking/repo-steward/internal/validate"
+	"github.com/joeylking/repo-steward/internal/vuln"
+	"github.com/joeylking/repo-steward/internal/vulnscan"
 	"github.com/joeylking/repo-steward/internal/workspace"
 )
 
@@ -76,6 +78,19 @@ type Options struct {
 	// GitHubToken is read from the environment by the command line and
 	// used for API calls and the push. It is never persisted.
 	GitHubToken string
+	// Select is how baseline mode picks its upgrade: SelectSmallest (the
+	// default when empty) or SelectVulnerable. Agent modes refuse
+	// SelectVulnerable.
+	Select string
+	// VulnDBDir is an existing vulnerability database directory used as it
+	// is; otherwise the database is fetched from VulnDBURL
+	// (vuln.DefaultBaseURL when empty) into the data directory. ToolsDir
+	// holds provisioned scanners (default <data dir>/tools). ScanTimeout
+	// bounds each scan. All four apply to SelectVulnerable only.
+	VulnDBDir   string
+	VulnDBURL   string
+	ToolsDir    string
+	ScanTimeout time.Duration
 }
 
 func defaultSnapshotLimits() snapshot.Limits { return snapshot.DefaultLimits() }
@@ -117,8 +132,10 @@ type Result struct {
 	Introduced    []validate.Finding     `json:"introduced,omitempty"`
 	Readiness     *proposal.Readiness    `json:"readiness,omitempty"`
 	Proposal      *proposal.Proposal     `json:"proposal,omitempty"`
-	Run           *RunInfo               `json:"run,omitempty"`
-	Destination   *publish.Destination   `json:"destination,omitempty"`
+	// Vulnerabilities is present only in vulnerable selection.
+	Vulnerabilities *VulnResult          `json:"vulnerabilities,omitempty"`
+	Run             *RunInfo             `json:"run,omitempty"`
+	Destination     *publish.Destination `json:"destination,omitempty"`
 	// Accounting and control counters, filled from the runtime run.
 	ModelCalls    int              `json:"model_calls,omitempty"`
 	InputTokens   int              `json:"input_tokens,omitempty"`
@@ -172,6 +189,10 @@ type run struct {
 	baseRun     *validate.Run
 	baseID      string
 	cands       []deps.Candidate
+	// Vulnerable selection.
+	vdb      *vulnscan.Database
+	scanner  *vulnscan.Scanner
+	baseScan *vuln.Scan
 }
 
 func (r *run) mark(name string, since time.Time) {
@@ -180,6 +201,9 @@ func (r *run) mark(name string, since time.Time) {
 
 // RunBaseline executes the deterministic pipeline.
 func RunBaseline(ctx context.Context, opts Options) (*Result, error) {
+	if err := checkSelect(opts.Select, "baseline"); err != nil {
+		return nil, err
+	}
 	if err := applyDefaults(&opts); err != nil {
 		return nil, err
 	}
@@ -331,14 +355,43 @@ func (r *run) prelude(ctx context.Context, mode string) (string, error) {
 
 func (r *run) pipeline(ctx context.Context) (string, error) {
 	res := r.res
+	vulnerable := r.opts.Select == SelectVulnerable
+	if vulnerable {
+		// The database is identified or fetched before any container
+		// starts, so a bad -vulndb fails first.
+		t := time.Now()
+		db, err := r.openDatabase(ctx)
+		if err != nil {
+			return "", err
+		}
+		r.vdb = db
+		res.Vulnerabilities = &VulnResult{Database: &DatabaseInfo{Source: db.Source, SnapshotID: db.ID.Hash, Modified: db.ID.Modified}}
+		r.mark("database", t)
+	}
 	if outcome, err := r.prelude(ctx, "baseline"); err != nil || outcome != "" {
 		return outcome, err
 	}
 	defer r.removeBuildCaches()
 	ws, sb, prof, baseRun, baseID := r.ws, r.sb, r.profile, r.baseRun, r.baseID
-	target, ok := Select(r.cands)
-	if !ok {
-		return OutcomeNoCandidate, nil
+	var target manifest.Target
+	var vt *deps.VulnTarget
+	var baseBL map[string]string
+	if vulnerable {
+		outcome, sel, err := r.selectVulnerable(ctx)
+		if err != nil || outcome != "" {
+			return outcome, err
+		}
+		vt = sel
+		target = manifest.Target{Module: sel.Module, Version: sel.Version}
+		// The base build list, for the build-list rules at Gate B.
+		if baseBL, err = manifest.WorkspaceBuildList(ctx, sb, ws, r.stagingRoot); err != nil {
+			return "", err
+		}
+	} else {
+		var ok bool
+		if target, ok = Select(r.cands); !ok {
+			return OutcomeNoCandidate, nil
+		}
 	}
 	res.Selected = &target
 	stagingRoot := r.stagingRoot
@@ -408,6 +461,18 @@ func (r *run) pipeline(ctx context.Context) (string, error) {
 	if !nst.Idempotent {
 		norm.AddViolation(manifest.CodeNotTidy, "tidy is not idempotent")
 	}
+	if vulnerable {
+		// The fix must be what the build list selects after tidy, for an
+		// indirect target as for a direct one.
+
+		candBL, err := manifest.BuildList(ctx, sb1, nst)
+		if err != nil {
+			return "", err
+		}
+		for _, v := range manifest.VerifyBuildList(baseBL, candBL, target, closure) {
+			norm.AddViolation(v.Code, v.Detail)
+		}
+	}
 	res.Normalization = &norm
 	if !norm.OK() {
 		os.RemoveAll(nst.Dir)
@@ -442,12 +507,26 @@ func (r *run) pipeline(ctx context.Context) (string, error) {
 		res.Introduced = intro
 		return OutcomeRegressed, nil
 	}
+	var vcheck *proposal.VulnCheck
+	if vulnerable {
+		// The candidate is scanned with the scanner and database of the
+		// base scan; readiness checks both scans' binding.
+		t = time.Now()
+		post, _, err := r.scan(ctx, sb2, tree2, "post")
+		if err != nil {
+			return "", err
+		}
+		res.Vulnerabilities.Post = post
+		r.mark("post_scan", t)
+		vcheck = &proposal.VulnCheck{Targeted: vt.Fixes}
+	}
 
 	// Readiness and freeze.
 	t = time.Now()
 	ready, err := proposal.Evaluate(ctx, proposal.Inputs{
 		RunID: r.id, Workspace: ws, Store: r.store, Sandbox: sb2, SnapshotDir: snap2, Target: target, Baseline: baseRun,
 		ConfigHash: r.configHash, ToolchainDigest: prof.Toolchain.Digest, Scope: r.opts.Scope, ProtectedGlobs: prof.ProtectedGlobs, StagingRoot: stagingRoot,
+		Vuln: vcheck,
 	})
 	if err != nil {
 		return "", err
@@ -459,6 +538,9 @@ func (r *run) pipeline(ctx context.Context) (string, error) {
 	current, _ := currentVersion(baseFacts, target.Module)
 	title := fmt.Sprintf("Upgrade %s from %s to %s", target.Module, current, target.Version)
 	body := proposalBody(target, current, adm, ready, res.Post)
+	if vulnerable {
+		body += "\n" + advisorySection(res.Vulnerabilities, vt, ready, r.baseScan)
+	}
 	p, err := proposal.Freeze(ctx, proposal.FreezeInput{
 		RunID: r.id, Workspace: ws, Store: r.store, Readiness: ready, Target: target,
 		BaseRef: ws.BaseRef, HeadRef: HeadRef(target), Title: title, Body: body,
@@ -598,10 +680,16 @@ func allFindings(r *validate.Run) []validate.Finding {
 
 // configHash binds validation evidence to the configuration it ran under.
 func configHash(o Options, p *repo.Profile) string {
-	b, _ := json.Marshal(map[string]any{
+	m := map[string]any{
 		"check_timeout": o.CheckTimeout.String(), "toolchain": p.Toolchain.Digest, "scope": o.Scope,
 		"protected": p.ProtectedGlobs, "policy": o.Policy, "fixture_proxy": o.FixtureProxyDir != "",
-	})
+	}
+	// Present only when it is not the default, so the default
+	// configuration hashes as it always has.
+	if o.Select == SelectVulnerable {
+		m["select"] = o.Select
+	}
+	b, _ := json.Marshal(m)
 	s := sha256.Sum256(b)
 	return hex.EncodeToString(s[:])
 }
