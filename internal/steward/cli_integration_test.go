@@ -262,3 +262,140 @@ func TestCLI_InterruptedRunResumes(t *testing.T) {
 		t.Fatalf("files = %s", got)
 	}
 }
+
+// Without -ask-unexercised a repair no test exercises ends the run as an
+// explained non-result, exit 4, with no proposal.
+func TestCLI_UnexercisedRepairEndsTheRun(t *testing.T) {
+	c := newCLI(t, "breaking-minor")
+	res, code, stderr := c.maintain(c.bin, nil, "-mode", "scripted", "-scenario", "S2U")
+	if code != 4 || res["outcome"] != "repair_not_exercised" {
+		t.Fatalf("code %d outcome %v detail %v\n%s", code, res["outcome"], res["detail"], stderr)
+	}
+	if _, ok := res["proposal"]; ok {
+		t.Fatal("proposal present")
+	}
+	if d := res["detail"].(map[string]any); !strings.Contains(d["not_exercised"].(string), "main.go:16 (no test executes it)") {
+		t.Fatalf("detail %v", d)
+	}
+	show, _, _ := c.run(c.bin, nil, "runs", "show", res["run_id"].(string), "-data-dir", c.data)
+	if approvals, _ := show["approvals"].([]any); len(approvals) != 0 {
+		t.Fatal("an approval was asked for without -ask-unexercised")
+	}
+}
+
+// With -ask-unexercised the same prepare_proposal pauses for an approval
+// of kind unexercised_repair bound to the candidate tree. approve prints
+// the unexercised line and the patch before deciding; after resume the
+// proposal is frozen and its body opens with the statement that it was
+// approved without test coverage, naming the approval.
+func TestCLI_UnexercisedApprovalAcrossProcesses(t *testing.T) {
+	c := newCLI(t, "breaking-minor")
+	res, code, stderr := c.maintain(c.bin, nil, "-mode", "scripted", "-scenario", "S2U", "-ask-unexercised")
+	if code != 5 || res["outcome"] != "awaiting_approval" {
+		t.Fatalf("code %d outcome %v\n%s", code, res["outcome"], stderr)
+	}
+	runID := res["run_id"].(string)
+	if ts := tools(res); ts[len(ts)-1] != "prepare_proposal:awaiting_approval" {
+		t.Fatalf("tools = %v", ts)
+	}
+	show, _, _ := c.run(c.bin, nil, "runs", "show", runID, "-data-dir", c.data)
+	approvals := show["approvals"].([]any)
+	a := approvals[0].(map[string]any)
+	if len(approvals) != 1 || a["kind"] != "unexercised_repair" || a["status"] != "pending" {
+		t.Fatalf("approvals = %v", approvals)
+	}
+	tree := a["capability"].(map[string]any)["tree"].(string)
+	if tree == "" {
+		t.Fatalf("capability = %v", a["capability"])
+	}
+	if rows, _ := show["proposals"].([]any); len(rows) != 0 {
+		t.Fatal("a proposal exists before the approval")
+	}
+
+	dec, code, stderr := c.run(c.bin, nil, "approve", runID, "-data-dir", c.data, "-note", "main only prints", "-by", "tester")
+	if code != 0 || dec["approval"].(map[string]any)["status"] != "approved" {
+		t.Fatalf("approve: code %d\n%s", code, stderr)
+	}
+	for _, want := range []string{"unexercised_repair", "main.go:16 (no test executes it)", `greeting(\"repo-steward\")`, tree} {
+		if !strings.Contains(stderr, want) {
+			t.Fatalf("approve did not show %q:\n%s", want, stderr)
+		}
+	}
+
+	res, code, stderr = c.run(c.bin, nil, "resume", runID, "-data-dir", c.data, "-fixture-proxy", c.proxy)
+	if code != 0 || res["outcome"] != "proposal_prepared" {
+		t.Fatalf("resume: code %d outcome %v detail %v\n%s", code, res["outcome"], res["detail"], stderr)
+	}
+	if got := strings.Join(files(res), ","); got != "go.mod,go.sum,main.go" {
+		t.Fatalf("files = %s", got)
+	}
+	p := res["proposal"].(map[string]any)
+	body := p["body"].(string)
+	want := "WARNING: NO TEST EXERCISES PART OF THIS REPAIR. It was approved without test coverage by tester in approval " + a["id"].(string) + ", for tree " + tree
+	if !strings.HasPrefix(body, want) || !strings.Contains(body, "Not exercised by any test: main.go:16 (no test executes it).") || !strings.Contains(body, "Changed source executed by tests: 1 of 2 required coverage blocks") {
+		t.Fatalf("body:\n%s", body)
+	}
+	cov := res["readiness"].(map[string]any)["coverage"].(map[string]any)
+	if cov["verified"] != false || cov["approval"].(map[string]any)["id"] != a["id"] || p["tree_hash"] != tree {
+		t.Fatalf("coverage %v tree %v", cov, p["tree_hash"])
+	}
+}
+
+// Rejecting the approval ends the run with no proposal.
+func TestCLI_UnexercisedRejected(t *testing.T) {
+	c := newCLI(t, "breaking-minor")
+	res, code, _ := c.maintain(c.bin, nil, "-mode", "scripted", "-scenario", "S2U", "-ask-unexercised")
+	if code != 5 {
+		t.Fatalf("code %d", code)
+	}
+	runID := res["run_id"].(string)
+	if _, code, stderr := c.run(c.bin, nil, "reject", runID, "-data-dir", c.data, "-note", "needs a test"); code != 0 {
+		t.Fatalf("reject: %s", stderr)
+	}
+	show, _, _ := c.run(c.bin, nil, "runs", "show", runID, "-data-dir", c.data)
+	if show["task"].(map[string]any)["outcome"] != "approval_rejected" || show["run"].(map[string]any)["Status"] != "CANCELLED" {
+		t.Fatalf("after reject: %v %v", show["task"], show["run"])
+	}
+	if rows, _ := show["proposals"].([]any); len(rows) != 0 {
+		t.Fatalf("proposals after reject: %v", rows)
+	}
+	if _, code, _ := c.run(c.bin, nil, "resume", runID, "-data-dir", c.data, "-fixture-proxy", c.proxy); code == 0 {
+		t.Fatal("resume after reject succeeded")
+	}
+}
+
+// The approval is bound to the tree it was asked for: when the candidate
+// tree changes between the decision and the resume, the approved request
+// runs against a tree no approval names and no validation is bound to,
+// readiness refuses it, and nothing is frozen.
+func TestCLI_UnexercisedApprovalBoundToTree(t *testing.T) {
+	c := newCLI(t, "breaking-minor")
+	res, code, _ := c.maintain(c.bin, nil, "-mode", "scripted", "-scenario", "S2U", "-ask-unexercised")
+	if code != 5 {
+		t.Fatalf("code %d", code)
+	}
+	runID := res["run_id"].(string)
+	if _, code, stderr := c.run(c.bin, nil, "approve", runID, "-data-dir", c.data); code != 0 {
+		t.Fatalf("approve: %s", stderr)
+	}
+	show, _, _ := c.run(c.bin, nil, "runs", "show", runID, "-data-dir", c.data)
+	main := filepath.Join(show["task"].(map[string]any)["workspace_dir"].(string), "main.go")
+	b, err := os.ReadFile(main)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(main, []byte(strings.Replace(string(b), "repo-steward", "someone else", 1)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	res, code, stderr := c.run(c.bin, nil, "resume", runID, "-data-dir", c.data, "-fixture-proxy", c.proxy)
+	if code == 0 || res["outcome"] == "proposal_prepared" {
+		t.Fatalf("resume after the tree changed: code %d outcome %v\n%s", code, res["outcome"], stderr)
+	}
+	if _, ok := res["proposal"]; ok {
+		t.Fatal("proposal present")
+	}
+	show, _, _ = c.run(c.bin, nil, "runs", "show", runID, "-data-dir", c.data)
+	if rows, _ := show["proposals"].([]any); len(rows) != 0 {
+		t.Fatalf("proposals: %v", rows)
+	}
+}

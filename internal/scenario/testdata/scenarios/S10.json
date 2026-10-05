@@ -46,7 +46,7 @@
       "tool": "write_file",
       "args": {
         "path": "notes.go",
-        "content": "package main\n\n// Notes on the example.com/lib v1.3.0 upgrade: Greet now takes a context.\nvar upgradeNotes = \"lib v1.3.0: Greet(ctx, name)\"\n"
+        "content": "package main\n\n// Notes on the example.com/lib v1.3.0 upgrade: Greet now takes a context.\n// Every caller passes context.Background(); none has a context to pass on.\n"
       },
       "reason": "A second source file; with a soft limit of one file this needs a scope expansion."
     },

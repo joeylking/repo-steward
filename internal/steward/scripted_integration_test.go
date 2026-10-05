@@ -3,6 +3,7 @@
 package steward_test
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -19,6 +20,7 @@ import (
 	"github.com/joeylking/repo-steward/internal/steward"
 	"github.com/joeylking/repo-steward/internal/task"
 	"github.com/joeylking/repo-steward/internal/testtmp"
+	"github.com/joeylking/repo-steward/internal/validate"
 	"github.com/joeylking/repo-steward/internal/workspace"
 )
 
@@ -123,6 +125,11 @@ func verifyProposal(t *testing.T, res *steward.Result, data string, wantFiles st
 func TestScripted_S1_PatchUpgrade(t *testing.T) {
 	res, data, _ := runScenario(t, "S1")
 	verifyProposal(t, res, data, "go.mod,go.sum")
+	// A manifest-only proposal carries no coverage evidence and says
+	// nothing about it.
+	if res.Readiness.Coverage != nil || strings.Contains(res.Proposal.Body, "executed by tests") || strings.Contains(res.Proposal.Body, "WARNING") {
+		t.Fatalf("coverage %+v in a manifest-only proposal:\n%s", res.Readiness.Coverage, res.Proposal.Body)
+	}
 }
 
 func TestScripted_S2_BreakingMinorRepaired(t *testing.T) {
@@ -140,6 +147,73 @@ func TestScripted_S2_BreakingMinorRepaired(t *testing.T) {
 	base, _ := ws.Git().Run(ctx, "show", ws.BaseTree+":main_test.go")
 	if string(test) != string(base) {
 		t.Fatal("protected test file changed")
+	}
+	// The repaired line is executed by TestGreeting: the coverage rule
+	// passes on the validation readiness bound, and the body says so.
+	c := res.Readiness.Coverage
+	if c == nil || !c.Verified || c.Blocks != 1 || c.Executed != 1 || c.ValidationID != res.Readiness.ValidationID || c.Approval != nil {
+		t.Fatalf("coverage %+v", c)
+	}
+	if !strings.Contains(res.Proposal.Body, "Changed source executed by tests: 1 of 1 required coverage blocks in 1 changed source file(s)") || strings.Contains(res.Proposal.Body, "WARNING") {
+		t.Fatalf("body:\n%s", res.Proposal.Body)
+	}
+}
+
+// A repair that builds, vets, and passes the tests, but changes main(),
+// which no test executes: readiness refuses it as repair_not_exercised,
+// naming the line, nothing is frozen, and after the agent reports blocked
+// the run ends repair_not_exercised.
+func TestScripted_S2U_UnexercisedRepairIsNotReady(t *testing.T) {
+	res, data, _ := runScenario(t, "S2U")
+	ts, rt := openStores(t, data)
+	if res.Proposal != nil || res.Readiness != nil {
+		t.Fatalf("proposal %+v readiness %+v", res.Proposal, res.Readiness)
+	}
+	if rows, _ := ts.ListProposals(ctx, res.RunID); len(rows) != 0 {
+		t.Fatal("proposal rows exist")
+	}
+	if res.Detail["run_outcome"] != steward.OutcomeBlocked || !strings.Contains(res.Detail["not_exercised"].(string), "main.go:16 (no test executes it)") {
+		t.Fatalf("detail %v", res.Detail)
+	}
+	steps, _ := rt.ListSteps(ctx, res.RunID)
+	var prepare *agentrt.Step
+	for i := range steps {
+		if steps[i].Decision != nil && steps[i].Decision.Tool == "prepare_proposal" {
+			prepare = &steps[i]
+		}
+	}
+	if prepare == nil || prepare.Status != agentrt.StepFailed || prepare.Observation.Kind != agentrt.ObserveToolError || prepare.Policy.Outcome != agentrt.Allow {
+		t.Fatalf("prepare step %+v", prepare)
+	}
+	var obs struct{ Error string }
+	json.Unmarshal(prepare.Observation.Content, &obs)
+	// Only the coverage rule failed: everything else about the tree is
+	// ready. main.go:16 is the one line no test executes.
+	if want := `not ready: [{"code":"repair_not_exercised","detail":"the repository's tests do not verifiably execute this change: main.go:16 (no test executes it)"}]`; obs.Error != want {
+		t.Fatalf("prepare error %q, want %q", obs.Error, want)
+	}
+	tk, _ := ts.GetTask(ctx, res.RunID)
+	if tk.Outcome != steward.OutcomeRepairNotExercised {
+		t.Fatalf("task outcome = %s", tk.Outcome)
+	}
+	// The coverage run was recorded with the validation of the final tree
+	// and is a usable profile.
+	ws, _ := workspace.Open(ctx, res.Workspace.Dir)
+	tree, _ := ws.CandidateTree(ctx)
+	vals, _ := ts.ListValidations(ctx, res.RunID)
+	found := false
+	for _, v := range vals {
+		var run validate.Run
+		json.Unmarshal(v.Run, &run)
+		if v.TreeHash == tree && run.Coverage != nil {
+			if p, why := run.Coverage.Usable(); p == nil {
+				t.Fatalf("coverage evidence unusable: %s", why)
+			}
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("no coverage run recorded for the final tree")
 	}
 }
 
@@ -246,7 +320,7 @@ func TestScenarios_ReferToRealFixtures(t *testing.T) {
 		if _, err := fixture.Load(sc.Fixture); err != nil {
 			t.Errorf("%s: %v", n, err)
 		}
-		known := map[string]bool{steward.OutcomeProposalPrepared: true, steward.OutcomeProposalPublished: true, steward.OutcomeBlocked: true, steward.OutcomeNoCandidate: true,
+		known := map[string]bool{steward.OutcomeProposalPrepared: true, steward.OutcomeProposalPublished: true, steward.OutcomeBlocked: true, steward.OutcomeNoCandidate: true, steward.OutcomeRepairNotExercised: true,
 			steward.OutcomeScopeExceeded: true, steward.OutcomeBaselineFailing: true, steward.OutcomeRequiresNewerToolchain: true, steward.OutcomeRegressed: true}
 		for _, o := range append([]string{sc.Expected}, sc.Acceptable...) {
 			if !known[o] {

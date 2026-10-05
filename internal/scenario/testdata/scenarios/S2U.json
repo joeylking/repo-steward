@@ -1,0 +1,86 @@
+{
+  "name": "S2U",
+  "fixture": "breaking-minor",
+  "description": "S2's repair through edit_file plus one more edit, to main(), which no test executes. The build, vet, and tests pass, but readiness refuses the tree as repair_not_exercised and the agent reports blocked; the run ends repair_not_exercised. With -ask-unexercised the same prepare_proposal pauses for an approval bound to the tree instead. Not part of the scored set; it gives the coverage rule deterministic coverage through the runtime and the policy.",
+  "expected": "repair_not_exercised",
+  "allowed_files": [
+    "go.mod",
+    "go.sum",
+    "main.go"
+  ],
+  "required_files": [
+    "go.mod",
+    "go.sum",
+    "main.go"
+  ],
+  "steps": [
+    {
+      "tool": "list_candidates",
+      "args": {}
+    },
+    {
+      "tool": "apply_upgrade",
+      "args": {
+        "module": "example.com/lib",
+        "version": "v1.3.0"
+      }
+    },
+    {
+      "tool": "run_validation",
+      "args": {}
+    },
+    {
+      "tool": "edit_file",
+      "args": {
+        "path": "main.go",
+        "old_text": "import (\n\t\"fmt\"",
+        "new_text": "import (\n\t\"context\"\n\t\"fmt\""
+      },
+      "reason": "Greet now takes a context."
+    },
+    {
+      "tool": "edit_file",
+      "args": {
+        "path": "main.go",
+        "old_text": "lib.Greet(name)",
+        "new_text": "lib.Greet(context.Background(), name)"
+      },
+      "reason": "The call site the tests execute."
+    },
+    {
+      "tool": "edit_file",
+      "args": {
+        "path": "main.go",
+        "old_text": "greeting(\"steward\")",
+        "new_text": "greeting(\"repo-steward\")"
+      },
+      "reason": "A change in main, which no test executes."
+    },
+    {
+      "tool": "run_validation",
+      "args": {}
+    },
+    {
+      "tool": "normalize_manifests",
+      "args": {}
+    },
+    {
+      "tool": "run_validation",
+      "args": {}
+    },
+    {
+      "tool": "prepare_proposal",
+      "args": {
+        "title": "Upgrade example.com/lib to v1.3.0",
+        "summary": "Greet now takes a context. Edited the call site in main.go and the greeting main prints."
+      }
+    },
+    {
+      "tool": "report_blocked",
+      "args": {
+        "reason": "repair not exercised",
+        "details": "The repository's tests do not execute main(), and tests cannot be changed in this run."
+      }
+    }
+  ]
+}
