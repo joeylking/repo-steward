@@ -1,0 +1,1468 @@
+{
+  "run_id": "cbda03a3fc13a209f2d8e6af",
+  "mode": "model:ollama:qwen3:30b-a3b",
+  "outcome": "limit_exhausted",
+  "detail": {
+    "run_detail": "3 consecutive failed steps",
+    "run_reason": "repeated_tool_failures",
+    "run_status": "FAILED"
+  },
+  "workspace": {
+    "dir": "/Users/joeyking/.cache/repo-steward-test/t-1746366002/data-model/runs/cbda03a3fc13a209f2d8e6af/work",
+    "git_dir": "/Users/joeyking/.cache/repo-steward-test/t-1746366002/data-model/runs/cbda03a3fc13a209f2d8e6af/gitdir",
+    "source_path": "/Users/joeyking/.cache/repo-steward-test/t-1746366002/src/mcp-eda957c9",
+    "base_commit": "eda957c9bff78494028f23d609327df39b1427b3",
+    "base_tree": "19e36d2c2f90104ea03cc1ae4822f10b9e37b457",
+    "base_ref": "smoke"
+  },
+  "profile": {
+    "module_path": "github.com/awsoremod/mcp",
+    "go_directive": "1.24.2",
+    "requires": [
+      {
+        "path": "github.com/dlclark/regexp2",
+        "version": "v1.10.0",
+        "indirect": true
+      },
+      {
+        "path": "github.com/fsnotify/fsnotify",
+        "version": "v1.8.0",
+        "indirect": true
+      },
+      {
+        "path": "github.com/github/github-mcp-server",
+        "version": "v0.3.0",
+        "indirect": false
+      },
+      {
+        "path": "github.com/go-viper/mapstructure/v2",
+        "version": "v2.2.1",
+        "indirect": true
+      },
+      {
+        "path": "github.com/google/go-github/v69",
+        "version": "v69.2.0",
+        "indirect": false
+      },
+      {
+        "path": "github.com/google/go-querystring",
+        "version": "v1.1.0",
+        "indirect": true
+      },
+      {
+        "path": "github.com/google/uuid",
+        "version": "v1.6.0",
+        "indirect": true
+      },
+      {
+        "path": "github.com/inconshreveable/mousetrap",
+        "version": "v1.1.0",
+        "indirect": true
+      },
+      {
+        "path": "github.com/mark3labs/mcp-go",
+        "version": "v0.28.0",
+        "indirect": false
+      },
+      {
+        "path": "github.com/pelletier/go-toml/v2",
+        "version": "v2.2.3",
+        "indirect": true
+      },
+      {
+        "path": "github.com/pkoukk/tiktoken-go",
+        "version": "v0.1.6",
+        "indirect": true
+      },
+      {
+        "path": "github.com/sagikazarmark/locafero",
+        "version": "v0.9.0",
+        "indirect": true
+      },
+      {
+        "path": "github.com/sirupsen/logrus",
+        "version": "v1.9.3",
+        "indirect": false
+      },
+      {
+        "path": "github.com/sourcegraph/conc",
+        "version": "v0.3.0",
+        "indirect": true
+      },
+      {
+        "path": "github.com/spf13/afero",
+        "version": "v1.14.0",
+        "indirect": true
+      },
+      {
+        "path": "github.com/spf13/cast",
+        "version": "v1.7.1",
+        "indirect": true
+      },
+      {
+        "path": "github.com/spf13/cobra",
+        "version": "v1.9.1",
+        "indirect": false
+      },
+      {
+        "path": "github.com/spf13/pflag",
+        "version": "v1.0.6",
+        "indirect": true
+      },
+      {
+        "path": "github.com/spf13/viper",
+        "version": "v1.20.1",
+        "indirect": false
+      },
+      {
+        "path": "github.com/subosito/gotenv",
+        "version": "v1.6.0",
+        "indirect": true
+      },
+      {
+        "path": "github.com/tmc/langchaingo",
+        "version": "v0.1.13",
+        "indirect": false
+      },
+      {
+        "path": "github.com/yosida95/uritemplate/v3",
+        "version": "v3.0.2",
+        "indirect": true
+      },
+      {
+        "path": "go.uber.org/multierr",
+        "version": "v1.11.0",
+        "indirect": true
+      },
+      {
+        "path": "golang.org/x/sys",
+        "version": "v0.31.0",
+        "indirect": true
+      },
+      {
+        "path": "golang.org/x/text",
+        "version": "v0.23.0",
+        "indirect": true
+      },
+      {
+        "path": "gopkg.in/yaml.v3",
+        "version": "v3.0.1",
+        "indirect": true
+      }
+    ],
+    "has_replace": false,
+    "has_exclude": false,
+    "toolchain": {
+      "go_minor": "1.24",
+      "tag": "golang:1.24-bookworm",
+      "digest": "sha256:1a6d4452c65dea36aac2e2d606b01b4a029ec90cc1ae53890540ce6173ea77ac"
+    },
+    "protected_globs": [
+      "**/*_test.go",
+      "**/testdata/**",
+      ".github/**",
+      ".gitlab-ci.yml",
+      ".circleci/**",
+      "Jenkinsfile",
+      ".repo-steward/**",
+      "SECURITY.md",
+      "go.mod",
+      "go.sum",
+      "go.work",
+      "go.work.sum",
+      "vendor/**",
+      ".gitignore",
+      ".gitattributes",
+      ".gitmodules"
+    ],
+    "file_count": 21,
+    "total_bytes": 89012,
+    "go_files": 14,
+    "refusals": null
+  },
+  "candidates": [
+    {
+      "module": "github.com/github/github-mcp-server",
+      "current": "v0.3.0",
+      "latest": "v1.14.0",
+      "delta": "major",
+      "targets": [
+        {
+          "version": "v0.4.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v0.5.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v0.6.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v0.7.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v0.8.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v0.9.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v0.9.1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v0.10.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v0.11.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v0.12.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v0.12.1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v0.13.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v0.14.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v0.15.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v0.16.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v0.17.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v0.17.1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v0.18.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v0.19.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v0.19.1-test",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v0.19.1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v0.20.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v0.20.1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v0.20.2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v0.21.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v0.22.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v0.23.0-gosdk",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v0.23.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v0.24.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v0.24.1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v0.25.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v0.26.0-rc.1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v0.26.0-rc.2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v0.26.0-rc.3",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v0.26.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v0.26.1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v0.26.2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v0.26.3",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v0.27.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v0.28.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v0.28.1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v0.29.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v0.30.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v0.30.1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v0.30.2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v0.30.3",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v0.31.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v0.32.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v0.33.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v0.33.1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v1.0.0",
+          "delta": "major",
+          "eligible": false,
+          "reasons": [
+            "major upgrades are not allowed by policy",
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v1.0.1",
+          "delta": "major",
+          "eligible": false,
+          "reasons": [
+            "major upgrades are not allowed by policy",
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v1.0.2",
+          "delta": "major",
+          "eligible": false,
+          "reasons": [
+            "major upgrades are not allowed by policy",
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v1.0.3",
+          "delta": "major",
+          "eligible": false,
+          "reasons": [
+            "major upgrades are not allowed by policy",
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v1.0.4",
+          "delta": "major",
+          "eligible": false,
+          "reasons": [
+            "major upgrades are not allowed by policy",
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v1.0.5",
+          "delta": "major",
+          "eligible": false,
+          "reasons": [
+            "major upgrades are not allowed by policy",
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v1.1.0",
+          "delta": "major",
+          "eligible": false,
+          "reasons": [
+            "major upgrades are not allowed by policy",
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v1.1.1",
+          "delta": "major",
+          "eligible": false,
+          "reasons": [
+            "major upgrades are not allowed by policy",
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v1.1.2",
+          "delta": "major",
+          "eligible": false,
+          "reasons": [
+            "major upgrades are not allowed by policy",
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v1.2.0",
+          "delta": "major",
+          "eligible": false,
+          "reasons": [
+            "major upgrades are not allowed by policy",
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v1.3.0",
+          "delta": "major",
+          "eligible": false,
+          "reasons": [
+            "major upgrades are not allowed by policy",
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v1.4.0",
+          "delta": "major",
+          "eligible": false,
+          "reasons": [
+            "major upgrades are not allowed by policy",
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v1.5.0",
+          "delta": "major",
+          "eligible": false,
+          "reasons": [
+            "major upgrades are not allowed by policy",
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v1.6.0",
+          "delta": "major",
+          "eligible": false,
+          "reasons": [
+            "major upgrades are not allowed by policy",
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v1.7.0",
+          "delta": "major",
+          "eligible": false,
+          "reasons": [
+            "major upgrades are not allowed by policy",
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v1.8.0",
+          "delta": "major",
+          "eligible": false,
+          "reasons": [
+            "major upgrades are not allowed by policy",
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v1.9.0",
+          "delta": "major",
+          "eligible": false,
+          "reasons": [
+            "major upgrades are not allowed by policy",
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v1.10.0",
+          "delta": "major",
+          "eligible": false,
+          "reasons": [
+            "major upgrades are not allowed by policy",
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v1.10.1",
+          "delta": "major",
+          "eligible": false,
+          "reasons": [
+            "major upgrades are not allowed by policy",
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v1.11.0",
+          "delta": "major",
+          "eligible": false,
+          "reasons": [
+            "major upgrades are not allowed by policy",
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v1.12.0",
+          "delta": "major",
+          "eligible": false,
+          "reasons": [
+            "major upgrades are not allowed by policy",
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v1.12.1",
+          "delta": "major",
+          "eligible": false,
+          "reasons": [
+            "major upgrades are not allowed by policy",
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v1.12.2",
+          "delta": "major",
+          "eligible": false,
+          "reasons": [
+            "major upgrades are not allowed by policy",
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v1.13.0",
+          "delta": "major",
+          "eligible": false,
+          "reasons": [
+            "major upgrades are not allowed by policy",
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v1.14.0",
+          "delta": "major",
+          "eligible": false,
+          "reasons": [
+            "major upgrades are not allowed by policy",
+            "operator named a different dependency"
+          ]
+        }
+      ],
+      "retracted": false
+    },
+    {
+      "module": "github.com/mark3labs/mcp-go",
+      "current": "v0.28.0",
+      "latest": "v1.1.1",
+      "delta": "major",
+      "targets": [
+        {
+          "version": "v0.29.0",
+          "delta": "minor",
+          "eligible": true
+        },
+        {
+          "version": "v0.30.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.30.1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.31.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.32.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.33.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.34.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.35.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.36.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.37.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.38.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.39.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.39.1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.40.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.41.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.41.1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.42.0-beta.1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.42.0-beta.2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.42.0-beta.3",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.42.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.43.0-beta.1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.43.0-beta.2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.43.0-beta.3",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.43.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.43.1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.43.2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.44.0-beta.1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.44.0-beta.2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.44.0-beta.3",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.44.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.44.1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.45.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.46.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.47.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.47.1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.48.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.49.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.50.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.51.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.52.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.53.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.54.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.54.1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.55.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.55.1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.56.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.57.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.58.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v1.0.0-beta.1",
+          "delta": "major",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "major upgrades are not allowed by policy",
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v1.0.0",
+          "delta": "major",
+          "eligible": false,
+          "reasons": [
+            "major upgrades are not allowed by policy",
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v1.1.0",
+          "delta": "major",
+          "eligible": false,
+          "reasons": [
+            "major upgrades are not allowed by policy",
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v1.1.1",
+          "delta": "major",
+          "eligible": false,
+          "reasons": [
+            "major upgrades are not allowed by policy",
+            "operator pinned version v0.29.0"
+          ]
+        }
+      ],
+      "retracted": false
+    },
+    {
+      "module": "github.com/sirupsen/logrus",
+      "current": "v1.9.3",
+      "latest": "v1.10.2",
+      "delta": "minor",
+      "targets": [
+        {
+          "version": "v1.9.4",
+          "delta": "patch",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v1.10.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v1.10.1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v1.10.2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        }
+      ],
+      "retracted": false
+    },
+    {
+      "module": "github.com/spf13/cobra",
+      "current": "v1.9.1",
+      "latest": "v1.10.2",
+      "delta": "minor",
+      "targets": [
+        {
+          "version": "v1.10.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v1.10.1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v1.10.2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        }
+      ],
+      "retracted": false
+    },
+    {
+      "module": "github.com/spf13/viper",
+      "current": "v1.20.1",
+      "latest": "v1.21.0",
+      "delta": "minor",
+      "targets": [
+        {
+          "version": "v1.21.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        }
+      ],
+      "retracted": false
+    },
+    {
+      "module": "github.com/tmc/langchaingo",
+      "current": "v0.1.13",
+      "latest": "v0.1.15",
+      "delta": "patch",
+      "targets": [
+        {
+          "version": "v0.1.14-pre.0",
+          "delta": "patch",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v0.1.14-pre.1",
+          "delta": "patch",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v0.1.14-pre.2",
+          "delta": "patch",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v0.1.14-pre.3",
+          "delta": "patch",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v0.1.14-pre.4",
+          "delta": "patch",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v0.1.14",
+          "delta": "patch",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v0.1.15",
+          "delta": "patch",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        }
+      ],
+      "retracted": false
+    }
+  ],
+  "selected": {
+    "module": "github.com/mark3labs/mcp-go",
+    "version": "v0.29.0"
+  },
+  "baseline": {
+    "id": "5fd56f5119e3614a3b05db81",
+    "tree_hash": "19e36d2c2f90104ea03cc1ae4822f10b9e37b457",
+    "conclusive": true,
+    "clean": true,
+    "checks": {
+      "build": "pass",
+      "test": "pass",
+      "vet": "pass"
+    },
+    "findings": 0,
+    "duration_ms": 12494
+  },
+  "run": {
+    "status": "FAILED",
+    "reason": "repeated_tool_failures",
+    "reason_detail": "3 consecutive failed steps",
+    "steps": 9,
+    "tools": [
+      "list_candidates:done",
+      "apply_upgrade:done",
+      "run_validation:done",
+      "search_files:done",
+      "edit_file:failed",
+      "read_file:done",
+      "edit_file:failed",
+      "edit_file:failed",
+      "edit_file:failed"
+    ]
+  },
+  "model_calls": 9,
+  "input_tokens": 99800,
+  "output_tokens": 11466,
+  "policy_denials": 4,
+  "timings_ms": {
+    "agent": 311632,
+    "baseline": 20168,
+    "discover": 53867,
+    "profile": 34,
+    "sandbox": 192,
+    "total": 385969,
+    "workspace": 67
+  }
+}

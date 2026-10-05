@@ -1,0 +1,206 @@
+{
+  "scenario": "mcp-openweather-arguments",
+  "note": "Each model call of the run in order, from its recording: the stop reason, the usage the server reported, and the tool calls the reply asked for. The reasoning text and the requests are left out.",
+  "calls": [
+    {
+      "call": 1,
+      "stop_reason": "tool_use",
+      "input_tokens": 1613,
+      "output_tokens": 372,
+      "tool_uses": [
+        {
+          "name": "list_candidates",
+          "args": {}
+        }
+      ]
+    },
+    {
+      "call": 2,
+      "stop_reason": "tool_use",
+      "input_tokens": 3611,
+      "output_tokens": 749,
+      "tool_uses": [
+        {
+          "name": "apply_upgrade",
+          "args": {
+            "module": "github.com/mark3labs/mcp-go",
+            "version": "v0.29.0"
+          }
+        }
+      ]
+    },
+    {
+      "call": 3,
+      "stop_reason": "tool_use",
+      "input_tokens": 3736,
+      "output_tokens": 356,
+      "tool_uses": [
+        {
+          "name": "run_validation",
+          "args": {}
+        }
+      ]
+    },
+    {
+      "call": 4,
+      "stop_reason": "tool_use",
+      "input_tokens": 4513,
+      "output_tokens": 659,
+      "tool_uses": [
+        {
+          "name": "search_files",
+          "args": {
+            "module": "github.com/mark3labs/mcp-go",
+            "version": "v0.29.0",
+            "pattern": "Params.Arguments"
+          }
+        }
+      ]
+    },
+    {
+      "call": 5,
+      "stop_reason": "tool_use",
+      "input_tokens": 5907,
+      "output_tokens": 3568,
+      "tool_uses": [
+        {
+          "name": "edit_file",
+          "args": {
+            "path": "./main.go",
+            "old_text": "name := request.Params.Arguments[\"name\"]",
+            "new_text": "args := request.Params.Arguments.(map[string]any)\nname := args[\"name\"]"
+          }
+        }
+      ]
+    },
+    {
+      "call": 6,
+      "stop_reason": "tool_use",
+      "input_tokens": 6031,
+      "output_tokens": 577,
+      "tool_uses": [
+        {
+          "name": "read_file",
+          "args": {
+            "path": "./main.go",
+            "start_line": 100
+          }
+        }
+      ]
+    },
+    {
+      "call": 7,
+      "stop_reason": "tool_use",
+      "input_tokens": 6686,
+      "output_tokens": 2102,
+      "tool_uses": [
+        {
+          "name": "edit_file",
+          "args": {
+            "path": "./main.go",
+            "old_text": "city, ok := request.Params.Arguments[\"city\"].(string)",
+            "new_text": "args := request.Params.Arguments.(map[string]any)\ncity, ok := args[\"city\"].(string)"
+          }
+        }
+      ]
+    },
+    {
+      "call": 8,
+      "stop_reason": "tool_use",
+      "input_tokens": 6919,
+      "output_tokens": 822,
+      "tool_uses": [
+        {
+          "name": "run_validation",
+          "args": {}
+        }
+      ]
+    },
+    {
+      "call": 9,
+      "stop_reason": "tool_use",
+      "input_tokens": 7581,
+      "output_tokens": 1068,
+      "tool_uses": [
+        {
+          "name": "edit_file",
+          "args": {
+            "new_text": "units, ok := args[\"units\"].(string)",
+            "old_text": "units, ok := request.Params.Arguments[\"units\"].(string)",
+            "path": "./main.go"
+          }
+        }
+      ]
+    },
+    {
+      "call": 10,
+      "stop_reason": "tool_use",
+      "input_tokens": 7775,
+      "output_tokens": 830,
+      "tool_uses": [
+        {
+          "name": "edit_file",
+          "args": {
+            "new_text": "lang, ok := args[\"lang\"].(string)",
+            "old_text": "lang, ok := request.Params.Arguments[\"lang\"].(string)",
+            "path": "./main.go"
+          }
+        }
+      ]
+    },
+    {
+      "call": 11,
+      "stop_reason": "tool_use",
+      "input_tokens": 7964,
+      "output_tokens": 3727,
+      "tool_uses": [
+        {
+          "name": "normalize_manifests",
+          "args": {}
+        }
+      ]
+    },
+    {
+      "call": 12,
+      "stop_reason": "tool_use",
+      "input_tokens": 8035,
+      "output_tokens": 707,
+      "tool_uses": [
+        {
+          "name": "run_validation",
+          "args": {}
+        }
+      ]
+    },
+    {
+      "call": 13,
+      "stop_reason": "tool_use",
+      "input_tokens": 8189,
+      "output_tokens": 499,
+      "tool_uses": [
+        {
+          "name": "prepare_proposal",
+          "args": {
+            "title": "Upgrade mcp-go to v0.29.0",
+            "summary": "Fixed type assertion errors in main.go after upgrading mcp-go from v0.26.0 to v0.29.0. Replaced direct indexing of request.Params.Arguments with map type assertion and subsequent indexing."
+          }
+        }
+      ]
+    },
+    {
+      "call": 14,
+      "stop_reason": "tool_use",
+      "input_tokens": 8441,
+      "output_tokens": 804,
+      "tool_uses": [
+        {
+          "name": "report_blocked",
+          "args": {
+            "reason": "repair_not_exercised",
+            "details": "The repository's tests do not verifiably execute the modified lines in main.go (lines 107-108, 112, 116). Editing tests is prohibited by rules, so the proposal cannot be prepared without violating scope constraints."
+          }
+        }
+      ]
+    }
+  ]
+}

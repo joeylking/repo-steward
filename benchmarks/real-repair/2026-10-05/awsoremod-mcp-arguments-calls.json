@@ -1,0 +1,140 @@
+{
+  "scenario": "awsoremod-mcp-arguments",
+  "note": "Each model call of the run in order, from its recording: the stop reason, the usage the server reported, and the tool calls the reply asked for. The reasoning text and the requests are left out.",
+  "calls": [
+    {
+      "call": 1,
+      "stop_reason": "tool_use",
+      "input_tokens": 1605,
+      "output_tokens": 351,
+      "tool_uses": [
+        {
+          "name": "list_candidates",
+          "args": {}
+        }
+      ]
+    },
+    {
+      "call": 2,
+      "stop_reason": "tool_use",
+      "input_tokens": 6495,
+      "output_tokens": 554,
+      "tool_uses": [
+        {
+          "name": "apply_upgrade",
+          "args": {
+            "module": "github.com/mark3labs/mcp-go",
+            "version": "v0.29.0"
+          }
+        }
+      ]
+    },
+    {
+      "call": 3,
+      "stop_reason": "tool_use",
+      "input_tokens": 6620,
+      "output_tokens": 219,
+      "tool_uses": [
+        {
+          "name": "run_validation",
+          "args": {}
+        }
+      ]
+    },
+    {
+      "call": 4,
+      "stop_reason": "tool_use",
+      "input_tokens": 9871,
+      "output_tokens": 694,
+      "tool_uses": [
+        {
+          "name": "search_files",
+          "args": {
+            "module": "github.com/mark3labs/mcp-go",
+            "version": "v0.29.0",
+            "pattern": "Arguments"
+          }
+        }
+      ]
+    },
+    {
+      "call": 5,
+      "stop_reason": "tool_use",
+      "input_tokens": 13191,
+      "output_tokens": 4673,
+      "tool_uses": [
+        {
+          "name": "edit_file",
+          "args": {
+            "path": "pkg/aw/server.go",
+            "old_text": "name, ok := r.Params.Arguments[\"name\"].(string)",
+            "new_text": "name, ok := r.GetArguments()[\"name\"].(string)"
+          }
+        }
+      ]
+    },
+    {
+      "call": 6,
+      "stop_reason": "tool_use",
+      "input_tokens": 13321,
+      "output_tokens": 908,
+      "tool_uses": [
+        {
+          "name": "read_file",
+          "args": {
+            "path": "pkg/aw/server.go",
+            "start_line": 36
+          }
+        }
+      ]
+    },
+    {
+      "call": 7,
+      "stop_reason": "tool_use",
+      "input_tokens": 16014,
+      "output_tokens": 993,
+      "tool_uses": [
+        {
+          "name": "edit_file",
+          "args": {
+            "path": "pkg/aw/server.go",
+            "old_text": "r.Params.Arguments",
+            "new_text": "r.GetArguments()"
+          }
+        }
+      ]
+    },
+    {
+      "call": 8,
+      "stop_reason": "tool_use",
+      "input_tokens": 16239,
+      "output_tokens": 1773,
+      "tool_uses": [
+        {
+          "name": "edit_file",
+          "args": {
+            "new_text": "    // Check if the parameter is present in the request\n    val, exists := r.GetArguments()[p]\n    if !exists {",
+            "path": "pkg/aw/server.go",
+            "old_text": "    // Check if the parameter is present in the request\n    val, exists := r.Params.Arguments[p]\n    if !exists {"
+          }
+        }
+      ]
+    },
+    {
+      "call": 9,
+      "stop_reason": "tool_use",
+      "input_tokens": 16444,
+      "output_tokens": 1301,
+      "tool_uses": [
+        {
+          "name": "edit_file",
+          "args": {
+            "path": "pkg/aw/server.go",
+            "new_text": "    val, exists := r.GetArguments()[p]",
+            "old_text": "    val, exists := r.Params.Arguments[p]"
+          }
+        }
+      ]
+    }
+  ]
+}

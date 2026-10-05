@@ -1,0 +1,24 @@
+diff --git a/main.go b/main.go
+index 0172a60..01cef49 100644
+--- a/main.go
++++ b/main.go
+@@ -104,15 +104,16 @@ func getForecast5(location, units, lang string) (*owm.Forecast5WeatherData, erro
+ }
+ 
+ func weatherHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+-	city, ok := request.Params.Arguments["city"].(string)
++	args := request.Params.Arguments.(map[string]any)
++city, ok := args["city"].(string)
+ 	if !ok {
+ 		return nil, errors.New("city must be a string")
+ 	}
+-	units, ok := request.Params.Arguments["units"].(string)
++	units, ok := args["units"].(string)
+ 	if !ok || units == "" {
+ 		units = "c"
+ 	}
+-	lang, ok := request.Params.Arguments["lang"].(string)
++	lang, ok := args["lang"].(string)
+ 	if !ok || lang == "" {
+ 		lang = "en"
+ 	}

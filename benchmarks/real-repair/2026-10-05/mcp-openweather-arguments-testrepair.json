@@ -1,0 +1,601 @@
+{
+  "run_id": "860199fd05248e88c6bbe199",
+  "mode": "model:ollama:qwen3:30b-a3b",
+  "outcome": "repair_not_exercised",
+  "detail": {
+    "details": "The repository's tests do not verifiably execute the modified lines in main.go (lines 107-108, 112, 116). Editing tests is prohibited by rules, so the proposal cannot be prepared without violating scope constraints.",
+    "files_changed": [
+      "go.mod",
+      "go.sum",
+      "main.go"
+    ],
+    "not_exercised": "the repository's tests do not verifiably execute this change: main.go:107-108 (no test executes it); main.go:112 (no test executes it); main.go:116 (no test executes it)",
+    "reason": "repair_not_exercised",
+    "run_detail": "terminal tool report_blocked",
+    "run_outcome": "blocked",
+    "run_reason": "goal_completed",
+    "run_status": "COMPLETED"
+  },
+  "workspace": {
+    "dir": "/Users/joeyking/.cache/repo-steward-test/t-2849055089/data-model/runs/860199fd05248e88c6bbe199/work",
+    "git_dir": "/Users/joeyking/.cache/repo-steward-test/t-2849055089/data-model/runs/860199fd05248e88c6bbe199/gitdir",
+    "source_path": "/Users/joeyking/.cache/repo-steward-test/t-2849055089/src/mcp-openweather-e0326835",
+    "base_commit": "e032683574a0723591445462ef7104d360ad0889",
+    "base_tree": "283279de87c9c96ecce0067a49c05ca48733eaa5",
+    "base_ref": "smoke"
+  },
+  "profile": {
+    "module_path": "github.com/mschneider82/mcp-openweather",
+    "go_directive": "1.24.0",
+    "requires": [
+      {
+        "path": "github.com/briandowns/openweathermap",
+        "version": "v0.21.1",
+        "indirect": false
+      },
+      {
+        "path": "github.com/google/uuid",
+        "version": "v1.6.0",
+        "indirect": true
+      },
+      {
+        "path": "github.com/mark3labs/mcp-go",
+        "version": "v0.26.0",
+        "indirect": false
+      },
+      {
+        "path": "github.com/spf13/cast",
+        "version": "v1.8.0",
+        "indirect": true
+      },
+      {
+        "path": "github.com/yosida95/uritemplate/v3",
+        "version": "v3.0.2",
+        "indirect": true
+      }
+    ],
+    "has_replace": false,
+    "has_exclude": false,
+    "toolchain": {
+      "go_minor": "1.24",
+      "tag": "golang:1.24-bookworm",
+      "digest": "sha256:1a6d4452c65dea36aac2e2d606b01b4a029ec90cc1ae53890540ce6173ea77ac"
+    },
+    "protected_globs": [
+      "**/*_test.go",
+      "**/testdata/**",
+      ".github/**",
+      ".gitlab-ci.yml",
+      ".circleci/**",
+      "Jenkinsfile",
+      ".repo-steward/**",
+      "SECURITY.md",
+      "go.mod",
+      "go.sum",
+      "go.work",
+      "go.work.sum",
+      "vendor/**",
+      ".gitignore",
+      ".gitattributes",
+      ".gitmodules"
+    ],
+    "file_count": 7,
+    "total_bytes": 11904,
+    "go_files": 1,
+    "refusals": null
+  },
+  "candidates": [
+    {
+      "module": "github.com/mark3labs/mcp-go",
+      "current": "v0.26.0",
+      "latest": "v1.1.1",
+      "delta": "major",
+      "targets": [
+        {
+          "version": "v0.27.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.27.1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.28.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.29.0",
+          "delta": "minor",
+          "eligible": true
+        },
+        {
+          "version": "v0.30.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.30.1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.31.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.32.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.33.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.34.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.35.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.36.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.37.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.38.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.39.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.39.1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.40.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.41.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.41.1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.42.0-beta.1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.42.0-beta.2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.42.0-beta.3",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.42.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.43.0-beta.1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.43.0-beta.2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.43.0-beta.3",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.43.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.43.1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.43.2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.44.0-beta.1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.44.0-beta.2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.44.0-beta.3",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.44.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.44.1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.45.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.46.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.47.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.47.1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.48.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.49.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.50.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.51.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.52.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.53.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.54.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.54.1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.55.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.55.1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.56.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.57.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v0.58.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v1.0.0-beta.1",
+          "delta": "major",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "major upgrades are not allowed by policy",
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v1.0.0",
+          "delta": "major",
+          "eligible": false,
+          "reasons": [
+            "major upgrades are not allowed by policy",
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v1.1.0",
+          "delta": "major",
+          "eligible": false,
+          "reasons": [
+            "major upgrades are not allowed by policy",
+            "operator pinned version v0.29.0"
+          ]
+        },
+        {
+          "version": "v1.1.1",
+          "delta": "major",
+          "eligible": false,
+          "reasons": [
+            "major upgrades are not allowed by policy",
+            "operator pinned version v0.29.0"
+          ]
+        }
+      ],
+      "retracted": false
+    }
+  ],
+  "selected": {
+    "module": "github.com/mark3labs/mcp-go",
+    "version": "v0.29.0"
+  },
+  "baseline": {
+    "id": "c16ae787b43f775693d17c74",
+    "tree_hash": "283279de87c9c96ecce0067a49c05ca48733eaa5",
+    "conclusive": true,
+    "clean": true,
+    "checks": {
+      "build": "pass",
+      "test": "pass",
+      "vet": "pass"
+    },
+    "findings": 0,
+    "duration_ms": 8094
+  },
+  "run": {
+    "status": "COMPLETED",
+    "reason": "goal_completed",
+    "reason_detail": "terminal tool report_blocked",
+    "steps": 14,
+    "tools": [
+      "list_candidates:done",
+      "apply_upgrade:done",
+      "run_validation:done",
+      "search_files:done",
+      "edit_file:failed",
+      "read_file:done",
+      "edit_file:done",
+      "run_validation:done",
+      "edit_file:done",
+      "edit_file:done",
+      "normalize_manifests:done",
+      "run_validation:done",
+      "prepare_proposal:failed",
+      "report_blocked:done"
+    ]
+  },
+  "model_calls": 14,
+  "input_tokens": 87001,
+  "output_tokens": 16840,
+  "policy_denials": 1,
+  "timings_ms": {
+    "agent": 333390,
+    "baseline": 17415,
+    "discover": 3022,
+    "profile": 35,
+    "sandbox": 186,
+    "total": 354129,
+    "workspace": 72
+  }
+}
