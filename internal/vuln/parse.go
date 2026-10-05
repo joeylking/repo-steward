@@ -45,6 +45,9 @@ const (
 	LevelSymbol  Level = "symbol"
 )
 
+// Rank orders levels: 3 symbol, 2 package, 1 module, 0 unknown.
+func (l Level) Rank() int { return l.rank() }
+
 func (l Level) rank() int {
 	switch l {
 	case LevelModule:
