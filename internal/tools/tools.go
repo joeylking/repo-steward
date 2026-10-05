@@ -21,7 +21,6 @@ import (
 
 	agentrt "github.com/joeylking/agent-runtime"
 
-	"github.com/joeylking/repo-steward/internal/faultpoint"
 	"github.com/joeylking/repo-steward/internal/manifest"
 	"github.com/joeylking/repo-steward/internal/proposal"
 	"github.com/joeylking/repo-steward/internal/sandbox"
@@ -36,6 +35,7 @@ const (
 	maxReadBytes    = 256 << 10
 	maxWriteBytes   = 1 << 20
 	maxSearchHits   = 200
+	maxHitBytes     = 300
 	maxDiffBytes    = 200 << 10
 	maxSourceBytes  = 256 << 10
 	toolTimeout     = 15 * time.Minute
@@ -49,7 +49,7 @@ const (
 func All(s *session.Session) []agentrt.Tool {
 	all := []agentrt.Tool{
 		&profileTool{s}, &candidatesTool{s}, &readFileTool{s}, &listDirTool{s}, &searchTool{s}, &depSourceTool{s}, &diffTool{s},
-		&applyUpgradeTool{s}, &writeFileTool{s}, &normalizeTool{s}, &validateTool{s}, &prepareTool{s}, &blockedTool{s},
+		&applyUpgradeTool{s}, &writeFileTool{s}, &editFileTool{s}, &normalizeTool{s}, &validateTool{s}, &prepareTool{s}, &blockedTool{s},
 	}
 	if s.Publish != nil {
 		all = append(all, &publishTool{s})
@@ -96,10 +96,13 @@ func (t *candidatesTool) Call(context.Context, agentrt.ToolCall) (agentrt.ToolRe
 type readFileTool struct{ s *session.Session }
 
 func (t *readFileTool) Spec() agentrt.ToolSpec {
-	return spec(names.ReadFile, "Read a text file from the working tree.", `{"type":"object","properties":{"path":{"type":"string"}},"required":["path"],"additionalProperties":false}`, agentrt.ReadOnly, readTimeout)
+	return spec(names.ReadFile, "Read a text file from the working tree. Each line is shown with its line number and a tab, which are not part of the file. A long file comes in windows of whole lines; pass start_line to read on from where a window ended.", `{"type":"object","properties":{"path":{"type":"string"},"start_line":{"type":"integer","minimum":1}},"required":["path"],"additionalProperties":false}`, agentrt.ReadOnly, readTimeout)
 }
 func (t *readFileTool) Call(_ context.Context, c agentrt.ToolCall) (agentrt.ToolResult, error) {
-	var a struct{ Path string }
+	var a struct {
+		Path      string `json:"path"`
+		StartLine int    `json:"start_line"`
+	}
 	if err := decode(c.Args, &a); err != nil {
 		return agentrt.ToolResult{}, err
 	}
@@ -107,17 +110,31 @@ func (t *readFileTool) Call(_ context.Context, c agentrt.ToolCall) (agentrt.Tool
 	if err != nil {
 		return agentrt.ToolResult{}, err
 	}
-	b, err := t.s.WS.ReadFile(rel)
+	root, err := os.OpenRoot(t.s.WS.Dir)
 	if err != nil {
 		return agentrt.ToolResult{}, err
 	}
-	if len(b) > maxReadBytes {
-		return agentrt.ToolResult{}, fmt.Errorf("%s is %d bytes, larger than the %d byte read limit", rel, len(b), maxReadBytes)
+	defer root.Close()
+	b, err := readText(root, rel, maxReadBytes)
+	if err != nil {
+		return agentrt.ToolResult{}, err
 	}
-	if !utf8.Valid(b) {
-		return agentrt.ToolResult{}, fmt.Errorf("%s is not valid UTF-8 text", rel)
+	return readResult(map[string]any{"path": rel}, b, a.StartLine, rel)
+}
+
+// readResult renders one window of a file read as a tool result.
+func readResult(head map[string]any, b []byte, start int, label string) (agentrt.ToolResult, error) {
+	w, err := window(b, start)
+	if err != nil {
+		return agentrt.ToolResult{}, err
 	}
-	return result(map[string]any{"path": rel, "notice": untrustedNotice, "content": string(b), "lines": strings.Count(string(b), "\n")}, fmt.Sprintf("read %s (%d bytes)", rel, len(b)))
+	head["notice"], head["content"], head["start_line"], head["end_line"], head["total_lines"] = untrustedNotice, w.Content, w.StartLine, w.EndLine, w.Total
+	summary := fmt.Sprintf("read %s lines %d-%d of %d", label, w.StartLine, w.EndLine, w.Total)
+	if w.Next > 0 {
+		head["next_start_line"] = w.Next
+		summary += fmt.Sprintf("; more from line %d", w.Next)
+	}
+	return result(head, summary)
 }
 
 type listDirTool struct{ s *session.Session }
@@ -147,7 +164,7 @@ func (t *listDirTool) Call(_ context.Context, c agentrt.ToolCall) (agentrt.ToolR
 	}
 	entries, err := fs.ReadDir(root.FS(), rel)
 	if err != nil {
-		return agentrt.ToolResult{}, err
+		return agentrt.ToolResult{}, absent(root, rel, err)
 	}
 	type entry struct {
 		Name string `json:"name"`
@@ -181,10 +198,10 @@ func (t *listDirTool) Call(_ context.Context, c agentrt.ToolCall) (agentrt.ToolR
 type searchTool struct{ s *session.Session }
 
 func (t *searchTool) Spec() agentrt.ToolSpec {
-	return spec(names.Search, "Search text files in the working tree with a Go regular expression.", `{"type":"object","properties":{"pattern":{"type":"string"},"path":{"type":"string","default":"."}},"required":["pattern"],"additionalProperties":false}`, agentrt.ReadOnly, readTimeout)
+	return spec(names.Search, "Search text files with a Go regular expression, line by line. Searches the working tree, or, when module and version are given, that dependency's source in the module cache. path limits the search to a directory or file.", `{"type":"object","properties":{"pattern":{"type":"string"},"path":{"type":"string","default":"."},"module":{"type":"string"},"version":{"type":"string"}},"required":["pattern"],"additionalProperties":false}`, agentrt.ReadOnly, readTimeout)
 }
 func (t *searchTool) Call(_ context.Context, c agentrt.ToolCall) (agentrt.ToolResult, error) {
-	var a struct{ Pattern, Path string }
+	var a struct{ Pattern, Path, Module, Version string }
 	if err := decode(c.Args, &a); err != nil {
 		return agentrt.ToolResult{}, err
 	}
@@ -199,11 +216,28 @@ func (t *searchTool) Call(_ context.Context, c agentrt.ToolCall) (agentrt.ToolRe
 	if err != nil {
 		return agentrt.ToolResult{}, err
 	}
-	root, err := os.OpenRoot(t.s.WS.Dir)
+	dir := t.s.WS.Dir
+	out := map[string]any{"pattern": a.Pattern, "notice": untrustedNotice}
+	if a.Module != "" || a.Version != "" {
+		if a.Module == "" || a.Version == "" {
+			return agentrt.ToolResult{}, errors.New("give both module and version to search a dependency, or neither to search the working tree")
+		}
+		if dir, err = t.s.ModuleDir(a.Module, a.Version); err != nil {
+			return agentrt.ToolResult{}, err
+		}
+		out["module"], out["version"] = a.Module, a.Version
+	}
+	root, err := os.OpenRoot(dir)
 	if err != nil {
-		return agentrt.ToolResult{}, err
+		return agentrt.ToolResult{}, fmt.Errorf("%s@%s is not in the module cache; it is fetched when the upgrade is applied", a.Module, a.Version)
 	}
 	defer root.Close()
+	if err := noSymlinks(root, rel); err != nil {
+		return agentrt.ToolResult{}, err
+	}
+	if _, err := root.Lstat(rel); err != nil {
+		return agentrt.ToolResult{}, absent(root, rel, err)
+	}
 	type hit struct {
 		Path string `json:"path"`
 		Line int    `json:"line"`
@@ -230,6 +264,9 @@ func (t *searchTool) Call(_ context.Context, c agentrt.ToolCall) (agentrt.ToolRe
 		}
 		for i, line := range strings.Split(string(b), "\n") {
 			if re.MatchString(line) {
+				if len(line) > maxHitBytes {
+					line = line[:maxHitBytes] + "..."
+				}
 				hits = append(hits, hit{Path: p, Line: i + 1, Text: line})
 				if len(hits) >= maxSearchHits {
 					truncated = true
@@ -242,16 +279,20 @@ func (t *searchTool) Call(_ context.Context, c agentrt.ToolCall) (agentrt.ToolRe
 	if err != nil {
 		return agentrt.ToolResult{}, err
 	}
-	return result(map[string]any{"pattern": a.Pattern, "notice": untrustedNotice, "hits": hits, "truncated": truncated}, fmt.Sprintf("%d hit(s)", len(hits)))
+	out["hits"], out["truncated"] = hits, truncated
+	return result(out, fmt.Sprintf("%d hit(s)", len(hits)))
 }
 
 type depSourceTool struct{ s *session.Session }
 
 func (t *depSourceTool) Spec() agentrt.ToolSpec {
-	return spec(names.DepSource, "Read a file, or list a directory, inside a dependency module version from the module cache.", `{"type":"object","properties":{"module":{"type":"string"},"version":{"type":"string"},"path":{"type":"string","default":"."}},"required":["module","version"],"additionalProperties":false}`, agentrt.ReadOnly, readTimeout)
+	return spec(names.DepSource, "Read a file, or list a directory, inside a dependency module version from the module cache. Paths are relative to the module's root; list a directory first rather than guessing a file name. A file is shown like read_file's, with line numbers and start_line.", `{"type":"object","properties":{"module":{"type":"string"},"version":{"type":"string"},"path":{"type":"string","default":"."},"start_line":{"type":"integer","minimum":1}},"required":["module","version"],"additionalProperties":false}`, agentrt.ReadOnly, readTimeout)
 }
 func (t *depSourceTool) Call(_ context.Context, c agentrt.ToolCall) (agentrt.ToolResult, error) {
-	var a struct{ Module, Version, Path string }
+	var a struct {
+		Module, Version, Path string
+		StartLine             int `json:"start_line"`
+	}
 	if err := decode(c.Args, &a); err != nil {
 		return agentrt.ToolResult{}, err
 	}
@@ -274,9 +315,9 @@ func (t *depSourceTool) Call(_ context.Context, c agentrt.ToolCall) (agentrt.Too
 	if err := noSymlinks(root, rel); err != nil {
 		return agentrt.ToolResult{}, err
 	}
-	info, err := root.Stat(rel)
+	info, err := root.Lstat(rel)
 	if err != nil {
-		return agentrt.ToolResult{}, err
+		return agentrt.ToolResult{}, absent(root, rel, err)
 	}
 	if info.IsDir() {
 		entries, err := fs.ReadDir(root.FS(), rel)
@@ -294,14 +335,11 @@ func (t *depSourceTool) Call(_ context.Context, c agentrt.ToolCall) (agentrt.Too
 		sort.Strings(names)
 		return result(map[string]any{"module": a.Module, "version": a.Version, "path": rel, "entries": names}, fmt.Sprintf("%d entries", len(names)))
 	}
-	b, err := root.ReadFile(rel)
+	b, err := readText(root, rel, maxSourceBytes)
 	if err != nil {
 		return agentrt.ToolResult{}, err
 	}
-	if len(b) > maxSourceBytes || !utf8.Valid(b) {
-		return agentrt.ToolResult{}, fmt.Errorf("%s is too large or not text", rel)
-	}
-	return result(map[string]any{"module": a.Module, "version": a.Version, "path": rel, "notice": untrustedNotice, "content": string(b)}, fmt.Sprintf("read %s@%s:%s", a.Module, a.Version, rel))
+	return readResult(map[string]any{"module": a.Module, "version": a.Version, "path": rel}, b, a.StartLine, a.Module+"@"+a.Version+":"+rel)
 }
 
 type diffTool struct{ s *session.Session }
@@ -398,79 +436,60 @@ func (t *applyUpgradeTool) Call(ctx context.Context, c agentrt.ToolCall) (agentr
 type writeFileTool struct{ s *session.Session }
 
 func (t *writeFileTool) Spec() agentrt.ToolSpec {
-	return spec(names.WriteFile, "Write the full content of a source file in the working tree. Tests, CI, security, and manifest files cannot be written.", `{"type":"object","properties":{"path":{"type":"string"},"content":{"type":"string"}},"required":["path","content"],"additionalProperties":false}`, agentrt.LocalMutation, readTimeout)
+	return spec(names.WriteFile, "Write the full content of a source file in the working tree, creating it or replacing all of it. To change part of an existing file use edit_file. Tests, CI, security, and manifest files cannot be written.", `{"type":"object","properties":{"path":{"type":"string"},"content":{"type":"string"}},"required":["path","content"],"additionalProperties":false}`, agentrt.LocalMutation, readTimeout)
 }
 func (t *writeFileTool) Call(ctx context.Context, c agentrt.ToolCall) (agentrt.ToolResult, error) {
-	var a struct{ Path, Content string }
-	if err := decode(c.Args, &a); err != nil {
-		return agentrt.ToolResult{}, err
-	}
-	rel, err := CheckWritable(ctx, t.s, a.Path, []byte(a.Content))
+	rel, _, content, err := commitWrite(ctx, t.s, names.WriteFile, c.Args)
 	if err != nil {
 		return agentrt.ToolResult{}, err
 	}
-	root, err := os.OpenRoot(t.s.WS.Dir)
-	if err != nil {
-		return agentrt.ToolResult{}, err
-	}
-	defer root.Close()
-	if dir := path.Dir(rel); dir != "." {
-		if err := root.MkdirAll(dir, 0o755); err != nil {
-			return agentrt.ToolResult{}, err
-		}
-	}
-	tmp := rel + ".repo-steward-tmp"
-	if err := root.WriteFile(tmp, []byte(a.Content), 0o644); err != nil {
-		return agentrt.ToolResult{}, err
-	}
-	if err := root.Rename(tmp, rel); err != nil {
-		root.Remove(tmp)
-		return agentrt.ToolResult{}, err
-	}
-	faultpoint.Hit("tools.write_file.after_write")
 	cs, err := t.s.CurrentDiff(ctx)
 	if err != nil {
 		return agentrt.ToolResult{}, err
 	}
-	return result(map[string]any{"path": rel, "bytes": len(a.Content), "files_changed": len(cs.Files), "lines_added": cs.LinesAdded, "lines_removed": cs.LinesRemoved}, fmt.Sprintf("wrote %s (%d bytes)", rel, len(a.Content)))
+	return result(map[string]any{"path": rel, "bytes": len(content), "files_changed": len(cs.Files), "lines_added": cs.LinesAdded, "lines_removed": cs.LinesRemoved}, fmt.Sprintf("wrote %s (%d bytes)", rel, len(content)))
 }
 
-// CheckWritable applies every write rule and returns the cleaned path.
-// Policy calls it before allowing a write; the tool calls it again.
-func CheckWritable(ctx context.Context, s *session.Session, p string, content []byte) (string, error) {
-	rel, err := cleanPath(p)
+// editFileTool replaces one exact occurrence of a text in an existing
+// file. It is write_file with the content computed from the file: the same
+// class, phase, path rules, scope check on the projected diff, and atomic
+// write, through the same code.
+type editFileTool struct{ s *session.Session }
+
+func (t *editFileTool) Spec() agentrt.ToolSpec {
+	return spec(names.EditFile, "Change part of an existing source file: replace old_text, which must occur exactly once in the file, with new_text. Copy old_text exactly from the file, without the line numbers read_file shows, and include enough surrounding lines to make it unique. Tests, CI, security, and manifest files cannot be edited.", `{"type":"object","properties":{"path":{"type":"string"},"old_text":{"type":"string"},"new_text":{"type":"string"}},"required":["path","old_text","new_text"],"additionalProperties":false}`, agentrt.LocalMutation, readTimeout)
+}
+func (t *editFileTool) Call(ctx context.Context, c agentrt.ToolCall) (agentrt.ToolResult, error) {
+	var a struct {
+		NewText string `json:"new_text"`
+	}
+	if err := decode(c.Args, &a); err != nil {
+		return agentrt.ToolResult{}, err
+	}
+	rel, before, content, err := commitWrite(ctx, t.s, names.EditFile, c.Args)
 	if err != nil {
-		return "", err
+		return agentrt.ToolResult{}, err
 	}
-	if rel == "." {
-		return "", errors.New("path is the repository root")
-	}
-	if len(content) > maxWriteBytes {
-		return "", fmt.Errorf("content is %d bytes, larger than the %d byte write limit", len(content), maxWriteBytes)
-	}
-	if !utf8.Valid(content) {
-		return "", errors.New("content is not valid UTF-8 text")
-	}
-	if s.IsProtected(rel) {
-		return "", fmt.Errorf("%s is protected and cannot be written", rel)
-	}
-	if ignored, err := s.IsIgnored(ctx, rel); err != nil {
-		return "", err
-	} else if ignored {
-		return "", fmt.Errorf("%s matches an ignore rule and could never enter the candidate tree", rel)
-	}
-	root, err := os.OpenRoot(s.WS.Dir)
+	cs, err := t.s.CurrentDiff(ctx)
 	if err != nil {
-		return "", err
+		return agentrt.ToolResult{}, err
 	}
-	defer root.Close()
-	if err := noSymlinks(root, rel); err != nil {
-		return "", err
+	// The edited region, numbered as read_file numbers it, so the result
+	// can be checked without reading the file again: from two lines before
+	// the first changed byte to two lines after the new text.
+	diff := 0
+	for diff < len(before) && diff < len(content) && before[diff] == content[diff] {
+		diff++
 	}
-	if info, err := root.Lstat(rel); err == nil && !info.Mode().IsRegular() {
-		return "", fmt.Errorf("%s exists and is not a regular file", rel)
+	first := 1 + strings.Count(string(content[:diff]), "\n")
+	from := max(first-2, 1)
+	w, _ := window(content, from)
+	shown := strings.SplitAfter(w.Content, "\n")
+	if n := first + strings.Count(a.NewText, "\n") + 2 - from + 1; n < len(shown) {
+		shown = shown[:n]
 	}
-	return rel, nil
+	return result(map[string]any{"path": rel, "bytes": len(content), "edited_lines": strings.Join(shown, ""), "notice": untrustedNotice,
+		"files_changed": len(cs.Files), "lines_added": cs.LinesAdded, "lines_removed": cs.LinesRemoved}, fmt.Sprintf("edited %s at line %d", rel, first))
 }
 
 type normalizeTool struct{ s *session.Session }

@@ -25,6 +25,7 @@ type fakeFacts struct {
 	phase     string
 	eligible  map[string]bool
 	protected map[string]bool
+	files     map[string]string
 	scopeOf   func(path string, content []byte) (int, int)
 	scope     session.ScopeConfig
 	budgets   session.Budgets
@@ -45,11 +46,28 @@ func (f *fakeFacts) ProjectedScope(_ context.Context, p string, c []byte) (int, 
 	a, b := f.scopeOf(p, c)
 	return a, b, nil
 }
-func (f *fakeFacts) CheckWritable(_ context.Context, p string, _ []byte) error {
-	if f.protected[p] {
-		return errors.New(p + " is protected")
+
+// ProjectWrite projects a call with the tools' own projection over an
+// in-memory tree, so edit_file's matching is the real one; the path rule
+// stands in for the session's.
+func (f *fakeFacts) ProjectWrite(_ context.Context, tool string, args json.RawMessage) (string, []byte, error) {
+	p, content, err := tools.Project(tool, args, func(p string) ([]byte, error) {
+		if f.protected[p] {
+			return nil, errors.New(p + " is protected")
+		}
+		c, ok := f.files[p]
+		if !ok {
+			return nil, errors.New(p + " does not exist")
+		}
+		return []byte(c), nil
+	})
+	if err != nil {
+		return "", nil, err
 	}
-	return nil
+	if f.protected[p] {
+		return "", nil, errors.New(p + " is protected")
+	}
+	return p, content, nil
 }
 func (f *fakeFacts) Scope() session.ScopeConfig { return f.scope }
 func (f *fakeFacts) Budgets() session.Budgets   { return f.budgets }
@@ -62,6 +80,7 @@ func (f *fakeFacts) CurrentProposal(context.Context) (*policy.ProposalFacts, boo
 
 func facts() *fakeFacts {
 	return &fakeFacts{phase: session.PhaseSelect, eligible: map[string]bool{"example.com/lib@v1.2.4": true}, protected: map[string]bool{"main_test.go": true, "go.mod": true},
+		files: map[string]string{"a.go": "package a\n\nvar x = 1\n", "twice.go": "f()\nf()\n", "main_test.go": "package main\n", "go.mod": "module m\n"},
 		scope: session.ScopeConfig{FilesSoft: 2, FilesHard: 4, LinesSoft: 10, LinesHard: 20}, budgets: session.Budgets{MaxValidationCycles: 3, MaxUnchangedValidations: 2}}
 }
 
@@ -74,10 +93,18 @@ func allTools() []agentrt.Tool {
 
 const write = `{"path":"a.go","content":"x"}`
 
+// edit is write's counterpart through edit_file: one exact occurrence.
+const edit = `{"path":"a.go","old_text":"x = 1","new_text":"x = 2"}`
+
+// writes are the two tools that change source files; every write rule is
+// checked for both.
+var writes = []struct{ tool, args string }{{names.WriteFile, write}, {names.EditFile, edit}}
+
 func TestPhaseGating(t *testing.T) {
 	f := facts()
 	testkit.CheckPolicy(t, policy.New(f), allTools(), []testkit.PolicyCase{
 		{Name: "write in select", Tool: names.WriteFile, Args: `{"path":"main.go","content":"x"}`, Want: agentrt.Deny, Reason: "select phase"},
+		{Name: "edit in select", Tool: names.EditFile, Args: edit, Want: agentrt.Deny, Reason: "select phase"},
 		{Name: "validate in select", Tool: names.Validate, Args: `{}`, Want: agentrt.Deny},
 		{Name: "read in select", Tool: names.ReadFile, Args: `{"path":"main.go"}`, Want: agentrt.Allow},
 	})
@@ -85,6 +112,8 @@ func TestPhaseGating(t *testing.T) {
 	testkit.CheckPolicy(t, policy.New(f), allTools(), []testkit.PolicyCase{
 		{Name: "second upgrade in repair", Tool: names.ApplyUpgrade, Args: `{"module":"example.com/lib","version":"v1.2.4"}`, Want: agentrt.Deny},
 		{Name: "report_blocked in repair", Tool: names.Blocked, Args: `{"reason":"x"}`, Want: agentrt.Allow},
+		{Name: "write in repair", Tool: names.WriteFile, Args: write, Want: agentrt.Allow},
+		{Name: "edit in repair", Tool: names.EditFile, Args: edit, Want: agentrt.Allow},
 	})
 }
 
@@ -106,7 +135,47 @@ func TestWrite_ProtectedDenied(t *testing.T) {
 	testkit.CheckPolicy(t, policy.New(f), allTools(), []testkit.PolicyCase{
 		{Name: "main_test.go", Tool: names.WriteFile, Args: `{"path":"main_test.go","content":"x"}`, Want: agentrt.Deny, Reason: "protected"},
 		{Name: "go.mod", Tool: names.WriteFile, Args: `{"path":"go.mod","content":"x"}`, Want: agentrt.Deny, Reason: "protected"},
+		{Name: "edit main_test.go", Tool: names.EditFile, Args: `{"path":"main_test.go","old_text":"package main","new_text":"package x"}`, Want: agentrt.Deny, Reason: "protected"},
+		{Name: "edit go.mod", Tool: names.EditFile, Args: `{"path":"go.mod","old_text":"module m","new_text":"module n"}`, Want: agentrt.Deny, Reason: "protected"},
+		// A protected path is refused as protected even when the text does
+		// not occur in it.
+		{Name: "edit main_test.go, absent text", Tool: names.EditFile, Args: `{"path":"main_test.go","old_text":"nowhere","new_text":"x"}`, Want: agentrt.Deny, Reason: "protected"},
 	})
+}
+
+// edit_file is allowed only when old_text occurs exactly once; anything
+// else is denied with what was found, and nothing is projected.
+func TestEdit_ExactlyOneOccurrence(t *testing.T) {
+	f := facts()
+	f.phase = session.PhaseRepair
+	testkit.CheckPolicy(t, policy.New(f), allTools(), []testkit.PolicyCase{
+		{Name: "once", Tool: names.EditFile, Args: edit, Want: agentrt.Allow},
+		{Name: "absent", Tool: names.EditFile, Args: `{"path":"a.go","old_text":"y = 1","new_text":"y = 2"}`, Want: agentrt.Deny, Reason: "occurs 0 times in a.go"},
+		{Name: "twice", Tool: names.EditFile, Args: `{"path":"twice.go","old_text":"f()","new_text":"g()"}`, Want: agentrt.Deny, Reason: "occurs 2 times in twice.go (at lines 1, 2)"},
+		{Name: "overlapping", Tool: names.EditFile, Args: `{"path":"twice.go","old_text":"f()\nf","new_text":"g"}`, Want: agentrt.Allow},
+		{Name: "line numbers copied", Tool: names.EditFile, Args: `{"path":"a.go","old_text":"     3\tvar x = 1","new_text":"var x = 2"}`, Want: agentrt.Deny, Reason: "line numbers"},
+		{Name: "whitespace differs", Tool: names.EditFile, Args: `{"path":"a.go","old_text":"var  x =  1","new_text":"var x = 2"}`, Want: agentrt.Deny, Reason: "whitespace"},
+		{Name: "missing file", Tool: names.EditFile, Args: `{"path":"nope.go","old_text":"a","new_text":"b"}`, Want: agentrt.Deny, Reason: "does not exist"},
+		{Name: "empty old_text", Tool: names.EditFile, Args: `{"path":"a.go","old_text":"","new_text":"b"}`, Want: agentrt.Deny, Reason: "empty"},
+		{Name: "no change", Tool: names.EditFile, Args: `{"path":"a.go","old_text":"x = 1","new_text":"x = 1"}`, Want: agentrt.Deny, Reason: "same"},
+		// The runtime refuses these before the policy is asked.
+		{Name: "missing new_text", Tool: names.EditFile, Args: `{"path":"a.go","old_text":"x"}`, Want: testkit.Refused},
+		{Name: "unknown field", Tool: names.EditFile, Args: `{"path":"a.go","old_text":"x","new_text":"y","all":true}`, Want: testkit.Refused},
+	})
+}
+
+// The scope is computed on the content an edit would leave, not on the
+// arguments: the projection the policy sizes is the whole file after the
+// replacement.
+func TestEdit_ScopeSeesProjectedContent(t *testing.T) {
+	f := facts()
+	f.phase = session.PhaseRepair
+	var seen string
+	f.scopeOf = func(p string, c []byte) (int, int) { seen = p + ":" + string(c); return 1, 1 }
+	testkit.CheckPolicy(t, policy.New(f), allTools(), []testkit.PolicyCase{{Name: "edit", Tool: names.EditFile, Args: edit, Want: agentrt.Allow}})
+	if want := "a.go:package a\n\nvar x = 2\n"; seen != want {
+		t.Fatalf("scope saw %q, want %q", seen, want)
+	}
 }
 
 func TestWrite_ScopeBeforeApply(t *testing.T) {
@@ -122,9 +191,12 @@ func TestWrite_ScopeBeforeApply(t *testing.T) {
 		{2, 21, testkit.PolicyCase{Name: "over hard lines", Want: agentrt.Abort}},
 	} {
 		f.scopeOf = func(string, []byte) (int, int) { return tc.files, tc.lines }
-		row := tc.row
-		row.Tool, row.Args = names.WriteFile, write
-		testkit.CheckPolicy(t, policy.New(f), allTools(), []testkit.PolicyCase{row})
+		for _, w := range writes {
+			row := tc.row
+			row.Name = w.tool + ": " + row.Name
+			row.Tool, row.Args = w.tool, w.args
+			testkit.CheckPolicy(t, policy.New(f), allTools(), []testkit.PolicyCase{row})
+		}
 	}
 }
 
@@ -134,20 +206,22 @@ func TestWrite_SingleExpansion(t *testing.T) {
 	granted := agentrt.RunView{Approvals: []agentrt.Approval{{Kind: policy.KindScopeExpansion, Status: agentrt.ApprovalApproved}}}
 	pending := agentrt.RunView{Approvals: []agentrt.Approval{{Kind: policy.KindScopeExpansion, Status: agentrt.ApprovalPending}}}
 	other := agentrt.RunView{Approvals: []agentrt.Approval{{Kind: "publication", Status: agentrt.ApprovalApproved}}}
-	f.scopeOf = func(string, []byte) (int, int) { return 3, 10 }
-	testkit.CheckPolicy(t, policy.New(f), allTools(), []testkit.PolicyCase{
-		{Name: "granted", Tool: names.WriteFile, Args: write, View: granted, Want: agentrt.Allow, Reason: "expanded"},
-		// A second request after one was already asked for is an abort,
-		// whatever its state.
-		{Name: "second ask", Tool: names.WriteFile, Args: write, View: pending, Want: agentrt.Abort},
-		// A grant of another kind is not a scope grant.
-		{Name: "other kind is no scope grant", Tool: names.WriteFile, Args: write, View: other, Want: agentrt.RequireApproval},
-	})
-	// Beyond the hard limit even with a grant.
-	f.scopeOf = func(string, []byte) (int, int) { return 5, 10 }
-	testkit.CheckPolicy(t, policy.New(f), allTools(), []testkit.PolicyCase{
-		{Name: "granted over hard", Tool: names.WriteFile, Args: write, View: granted, Want: agentrt.Abort},
-	})
+	for _, w := range writes {
+		f.scopeOf = func(string, []byte) (int, int) { return 3, 10 }
+		testkit.CheckPolicy(t, policy.New(f), allTools(), []testkit.PolicyCase{
+			{Name: w.tool + " granted", Tool: w.tool, Args: w.args, View: granted, Want: agentrt.Allow, Reason: "expanded"},
+			// A second request after one was already asked for is an abort,
+			// whatever its state.
+			{Name: w.tool + " second ask", Tool: w.tool, Args: w.args, View: pending, Want: agentrt.Abort},
+			// A grant of another kind is not a scope grant.
+			{Name: w.tool + " other kind is no scope grant", Tool: w.tool, Args: w.args, View: other, Want: agentrt.RequireApproval, Presentation: `"tool":"` + w.tool + `"`},
+		})
+		// Beyond the hard limit even with a grant.
+		f.scopeOf = func(string, []byte) (int, int) { return 5, 10 }
+		testkit.CheckPolicy(t, policy.New(f), allTools(), []testkit.PolicyCase{
+			{Name: w.tool + " granted over hard", Tool: w.tool, Args: w.args, View: granted, Want: agentrt.Abort},
+		})
+	}
 }
 
 func validateStep(status agentrt.StepStatus, introduced []string) agentrt.Step {
@@ -185,6 +259,7 @@ func TestPublish_RequiresProposalBoundApproval(t *testing.T) {
 		{Name: "publish", Tool: names.Publish, Args: `{}`, Want: agentrt.RequireApproval, Kind: policy.KindPublication, Capability: `"proposal_hash":"h1"`, Presentation: "repo-steward/lib-v1.2.4"},
 		// In the proposal phase, edits are over.
 		{Name: "write in proposal phase", Tool: names.WriteFile, Args: write, Want: agentrt.Deny},
+		{Name: "edit in proposal phase", Tool: names.EditFile, Args: edit, Want: agentrt.Deny},
 	})
 	// Publication is not available before a proposal exists, whatever the
 	// phase.
@@ -224,6 +299,65 @@ func TestNever(t *testing.T) {
 			}
 			// Publishing is never allowed without an approval of its own.
 			testkit.Never(t, p, allTools(), agentrt.RemoteMutation, agentrt.Allow, testkit.Fuzz{Count: 16}, views...)
+			// Outside the repair phase no source file is ever written, by
+			// either write tool, whatever the arguments or grants.
+			if phase != session.PhaseRepair {
+				for _, outcome := range []agentrt.PolicyOutcome{agentrt.Allow, agentrt.RequireApproval} {
+					testkit.Never(t, p, writeTools(), agentrt.LocalMutation, outcome, testkit.Fuzz{Count: 32}, views...)
+				}
+			}
 		})
 	}
+}
+
+// writeTools are write_file and edit_file alone, so that Never's
+// local-mutation class means exactly the source-file writes.
+func writeTools() []agentrt.Tool {
+	var out []agentrt.Tool
+	for _, tl := range allTools() {
+		if n := tl.Spec().Name; n == names.WriteFile || n == names.EditFile {
+			out = append(out, tl)
+		}
+	}
+	return out
+}
+
+// In the repair phase, a write is never allowed or offered for approval
+// when every path is protected, or when every projection is beyond the hard
+// scope limit, whatever the arguments and whatever the run has been
+// granted. Generated edit_file arguments mostly name no file or no
+// occurrence; the rows above cover the ones that do.
+func TestNever_WritesPastTheRules(t *testing.T) {
+	views := []agentrt.RunView{
+		{},
+		{Approvals: []agentrt.Approval{{Kind: policy.KindScopeExpansion, Status: agentrt.ApprovalApproved}}},
+	}
+	allProtected := facts()
+	allProtected.phase = session.PhaseRepair
+	allProtected.files = map[string]string{}
+	beyondHard := facts()
+	beyondHard.phase = session.PhaseRepair
+	beyondHard.scopeOf = func(string, []byte) (int, int) { return 5, 21 }
+	for name, f := range map[string]*fakeFacts{"protected": allProtected, "beyond hard scope": beyondHard} {
+		t.Run(name, func(t *testing.T) {
+			p := policy.New(&protectAll{f, name == "protected"})
+			for _, outcome := range []agentrt.PolicyOutcome{agentrt.Allow, agentrt.RequireApproval} {
+				testkit.Never(t, p, writeTools(), agentrt.LocalMutation, outcome, testkit.Fuzz{Count: 32}, views...)
+			}
+		})
+	}
+}
+
+// protectAll protects every path when on, through the same projection.
+type protectAll struct {
+	*fakeFacts
+	on bool
+}
+
+func (p *protectAll) ProjectWrite(ctx context.Context, tool string, args json.RawMessage) (string, []byte, error) {
+	path, content, err := p.fakeFacts.ProjectWrite(ctx, tool, args)
+	if err == nil && p.on {
+		return "", nil, errors.New(path + " is protected")
+	}
+	return path, content, err
 }

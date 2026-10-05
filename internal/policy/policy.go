@@ -29,7 +29,10 @@ type Facts interface {
 	Phase(ctx context.Context) (string, error)
 	EligibleTarget(module, version string) (bool, []string)
 	ProjectedScope(ctx context.Context, path string, content []byte) (files, lines int, err error)
-	CheckWritable(ctx context.Context, path string, content []byte) error
+	// ProjectWrite applies every write rule to a write_file or edit_file
+	// call and returns the cleaned path and the full content the file
+	// would have, or why the call cannot be made.
+	ProjectWrite(ctx context.Context, tool string, args json.RawMessage) (path string, content []byte, err error)
 	Scope() session.ScopeConfig
 	Budgets() session.Budgets
 	// CurrentProposal describes the frozen proposal, if one exists.
@@ -61,7 +64,7 @@ func New(f Facts) *Steward {
 
 var phaseTools = map[string]map[string]bool{
 	session.PhaseSelect:   set(names.ReadOnly, names.ApplyUpgrade, names.Blocked),
-	session.PhaseRepair:   set(names.ReadOnly, names.WriteFile, names.Normalize, names.Validate, names.Prepare, names.Blocked),
+	session.PhaseRepair:   set(names.ReadOnly, names.WriteFile, names.EditFile, names.Normalize, names.Validate, names.Prepare, names.Blocked),
 	session.PhaseProposal: set(names.ReadOnly, names.Publish, names.Blocked),
 }
 
@@ -103,7 +106,7 @@ func (p *Steward) Evaluate(ctx context.Context, req agentrt.ToolRequest, view ag
 			return deny("%s@%s is not an eligible target: %v", a.Module, a.Version, reasons), nil
 		}
 		return agentrt.PolicyDecision{Outcome: agentrt.Allow, Reason: "eligible target in the select phase"}, nil
-	case names.WriteFile:
+	case names.WriteFile, names.EditFile:
 		return p.evaluateWrite(ctx, req, view)
 	case names.Validate:
 		return p.evaluateValidate(view)
@@ -130,15 +133,15 @@ func (p *Steward) evaluatePublish(ctx context.Context) (agentrt.PolicyDecision, 
 	return agentrt.NeedApproval(KindPublication, reason, cap, facts)
 }
 
+// evaluateWrite decides write_file and edit_file alike, on the content
+// the call would leave: every path rule, then the scope of the diff that
+// content would produce, before anything is written.
 func (p *Steward) evaluateWrite(ctx context.Context, req agentrt.ToolRequest, view agentrt.RunView) (agentrt.PolicyDecision, error) {
-	var a struct{ Path, Content string }
-	if err := json.Unmarshal(req.Args, &a); err != nil {
-		return deny("invalid arguments: %v", err), nil
-	}
-	if err := p.Facts.CheckWritable(ctx, a.Path, []byte(a.Content)); err != nil {
+	path, content, err := p.Facts.ProjectWrite(ctx, req.Spec.Name, req.Args)
+	if err != nil {
 		return deny("%v", err), nil
 	}
-	files, lines, err := p.Facts.ProjectedScope(ctx, a.Path, []byte(a.Content))
+	files, lines, err := p.Facts.ProjectedScope(ctx, path, content)
 	if err != nil {
 		return agentrt.PolicyDecision{}, err
 	}
@@ -156,7 +159,7 @@ func (p *Steward) evaluateWrite(ctx context.Context, req agentrt.ToolRequest, vi
 			return abort("soft scope limit crossed again after an expansion was already requested"), nil
 		}
 		cap := map[string]any{"limit": "scope", "files_soft": sc.FilesHard, "lines_soft": sc.LinesHard}
-		pres := map[string]any{"path": a.Path, "projected_files": files, "projected_lines": lines, "soft": map[string]int{"files": sc.FilesSoft, "lines": sc.LinesSoft}, "hard": map[string]int{"files": sc.FilesHard, "lines": sc.LinesHard}}
+		pres := map[string]any{"tool": req.Spec.Name, "path": path, "projected_files": files, "projected_lines": lines, "soft": map[string]int{"files": sc.FilesSoft, "lines": sc.LinesSoft}, "hard": map[string]int{"files": sc.FilesHard, "lines": sc.LinesHard}}
 		reason := fmt.Sprintf("the write would leave %d source files and %d lines changed, beyond the soft limits of %d files and %d lines", files, lines, sc.FilesSoft, sc.LinesSoft)
 		return agentrt.NeedApproval(KindScopeExpansion, reason, cap, pres)
 	}
@@ -229,9 +232,8 @@ func (f SessionFacts) EligibleTarget(m, v string) (bool, []string) {
 func (f SessionFacts) ProjectedScope(ctx context.Context, p string, c []byte) (int, int, error) {
 	return f.S.ProjectedScope(ctx, p, c)
 }
-func (f SessionFacts) CheckWritable(ctx context.Context, p string, c []byte) error {
-	_, err := tools.CheckWritable(ctx, f.S, p, c)
-	return err
+func (f SessionFacts) ProjectWrite(ctx context.Context, tool string, args json.RawMessage) (string, []byte, error) {
+	return tools.ProjectWrite(ctx, f.S, tool, args)
 }
 func (f SessionFacts) Scope() session.ScopeConfig { return f.S.Scope }
 func (f SessionFacts) Budgets() session.Budgets   { return f.S.Budgets }

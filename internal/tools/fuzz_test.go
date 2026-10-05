@@ -27,7 +27,7 @@ func TestSpecs_FuzzedArguments(t *testing.T) {
 			fuzzed = append(fuzzed, tl)
 		}
 	}
-	if len(fuzzed) != 13 {
+	if len(fuzzed) != 14 {
 		t.Fatalf("%d tools fuzzed, want every tool but run_validation", len(fuzzed))
 	}
 	testkit.Fuzz{Count: 16}.Check(t, fuzzed...)

@@ -20,6 +20,7 @@ const (
 	Diff         = "git_diff"
 	ApplyUpgrade = "apply_upgrade"
 	WriteFile    = "write_file"
+	EditFile     = "edit_file"
 	Normalize    = "normalize_manifests"
 	Validate     = "run_validation"
 	Prepare      = "prepare_proposal"
