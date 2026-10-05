@@ -10,12 +10,15 @@
 package manifest
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -160,6 +163,12 @@ const (
 	CodeNotTidy           = "not_tidy"
 	CodeVerifyFailed      = "verify_failed"
 	CodeTargetNotResolved = "target_not_resolved"
+	// CodeTargetNotInBuildList and CodeBuildListOutsideClosure are the
+	// build-list rules applied when an upgrade is selected to fix an
+	// advisory: what counts is the version the build list selects, which
+	// go.mod alone does not show for a module it does not list.
+	CodeTargetNotInBuildList    = "target_not_in_build_list"
+	CodeBuildListOutsideClosure = "build_list_outside_closure"
 )
 
 // VerifyAdmission applies Gate A. closure is the set of module paths in
@@ -255,6 +264,97 @@ func VerifyNormalized(base, cand *Facts, target Target, closure map[string]bool)
 		}
 	}
 	return v
+}
+
+// VerifyBuildList applies the build-list rules to the module versions the
+// toolchain selects before and after a change: the target is selected at
+// exactly its version, and every other module that enters the build list
+// or moves up is in the target's closure; nothing moves down. Modules that
+// leave the build list are not violations: tidy prunes what nothing needs.
+func VerifyBuildList(base, cand map[string]string, target Target, closure map[string]bool) []Violation {
+	var out []Violation
+	add := func(code, format string, args ...any) {
+		out = append(out, Violation{Code: code, Detail: fmt.Sprintf(format, args...)})
+	}
+	switch got, ok := cand[target.Module]; {
+	case !ok:
+		add(CodeTargetNotInBuildList, "%s is not in the build list after the change, want %s", target.Module, target.Version)
+	case got != target.Version:
+		detail := fmt.Sprintf("the build list selects %s %s, want %s", target.Module, got, target.Version)
+		if got == base[target.Module] {
+			detail += "; the version before the change is selected again"
+		}
+		add(CodeTargetNotInBuildList, "%s", detail)
+	}
+	mods := make([]string, 0, len(cand))
+	for m := range cand {
+		mods = append(mods, m)
+	}
+	sort.Strings(mods)
+	for _, m := range mods {
+		if m == target.Module {
+			continue
+		}
+		c := cand[m]
+		b, inBase := base[m]
+		switch {
+		case !inBase:
+			if !closure[m] {
+				add(CodeBuildListOutsideClosure, "%s %s enters the build list but is not required by %s@%s", m, c, target.Module, target.Version)
+			}
+		case semver.Compare(c, b) < 0:
+			add(CodeVersionDecreased, "build list: %s %s -> %s", m, b, c)
+		case semver.Compare(c, b) > 0 && !closure[m]:
+			add(CodeBuildListOutsideClosure, "build list: %s %s -> %s is not required by %s@%s", m, b, c, target.Module, target.Version)
+		}
+	}
+	return out
+}
+
+// ParseBuildList reads go list -m -json all output into module path ->
+// version, leaving out the main module.
+func ParseBuildList(out []byte) (map[string]string, error) {
+	dec := json.NewDecoder(bytes.NewReader(out))
+	bl := map[string]string{}
+	for {
+		var m struct {
+			Path, Version string
+			Main          bool
+			Error         *struct{ Err string }
+		}
+		if err := dec.Decode(&m); err == io.EOF {
+			return bl, nil
+		} else if err != nil {
+			return nil, fmt.Errorf("manifest: parse build list: %w", err)
+		}
+		if m.Error != nil {
+			return nil, fmt.Errorf("manifest: build list: %s: %s", m.Path, m.Error.Err)
+		}
+		if m.Main || m.Path == "" {
+			continue
+		}
+		bl[m.Path] = m.Version
+	}
+}
+
+// BuildList lists the build list the toolchain selects. With st it lists
+// the staged manifests through -modfile in the mutate profile; without, the
+// manifests in sb's source snapshot in the acquire profile.
+func BuildList(ctx context.Context, sb *sandbox.Docker, st *Staging) (map[string]string, error) {
+	spec := sandbox.ExecSpec{Profile: sandbox.Acquire, Argv: []string{"go", "list", "-m", "-json", "all"}, Timeout: 5 * time.Minute, StepID: "manifest-buildlist", OutputCap: 64 << 20}
+	if st != nil {
+		sb = sb.WithStaging(st.Dir)
+		spec.Profile = sandbox.Mutate
+		spec.Argv = []string{"go", "list", "-m", "-json", "-modfile=/staging/go.mod", "all"}
+	}
+	res, err := sb.Run(ctx, spec)
+	if err != nil {
+		return nil, err
+	}
+	if res.ExitCode != 0 || res.TimedOut || res.StdoutTruncated {
+		return nil, fmt.Errorf("manifest: go list -m all: exit %d (timed out %v, truncated %v): %s", res.ExitCode, res.TimedOut, res.StdoutTruncated, strings.TrimSpace(string(res.Stderr)))
+	}
+	return ParseBuildList(res.Stdout)
 }
 
 // AddViolation appends a caller-detected violation.

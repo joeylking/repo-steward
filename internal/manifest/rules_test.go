@@ -172,3 +172,55 @@ func TestOpError_AcquisitionFailed(t *testing.T) {
 		t.Error("a container timeout is classified")
 	}
 }
+
+func TestVerifyBuildList(t *testing.T) {
+	target := Target{Module: "example.com/inner", Version: "v1.0.1"}
+	base := map[string]string{"example.com/wrap": "v1.0.0", "example.com/inner": "v1.0.0", "example.com/x": "v0.1.0"}
+	vcodes := func(vs []Violation) string {
+		var out []string
+		for _, v := range vs {
+			out = append(out, v.Code)
+		}
+		return strings.Join(out, ",")
+	}
+	// The target moved and nothing else did: clean.
+	if vs := VerifyBuildList(base, map[string]string{"example.com/wrap": "v1.0.0", "example.com/inner": "v1.0.1", "example.com/x": "v0.1.0"}, target, nil); len(vs) != 0 {
+		t.Fatalf("clean = %+v", vs)
+	}
+	// Tidy removed the requirement and the old version is selected again.
+	vs := VerifyBuildList(base, base, target, nil)
+	if vcodes(vs) != CodeTargetNotInBuildList || !strings.Contains(vs[0].Detail, "selects example.com/inner v1.0.0, want v1.0.1; the version before the change is selected again") {
+		t.Fatalf("reselected = %+v", vs)
+	}
+	// The target left the build list entirely.
+	if vs := VerifyBuildList(base, map[string]string{"example.com/wrap": "v1.0.0", "example.com/x": "v0.1.0"}, target, nil); vcodes(vs) != CodeTargetNotInBuildList {
+		t.Fatalf("absent = %+v", vs)
+	}
+	// Increases and additions must be in the closure; decreases never pass.
+	cand := map[string]string{"example.com/wrap": "v1.0.0", "example.com/inner": "v1.0.1", "example.com/x": "v0.2.0", "example.com/new": "v1.0.0"}
+	if got := vcodes(VerifyBuildList(base, cand, target, nil)); got != CodeBuildListOutsideClosure+","+CodeBuildListOutsideClosure {
+		t.Fatalf("outside closure = %s", got)
+	}
+	if vs := VerifyBuildList(base, cand, target, map[string]bool{"example.com/x": true, "example.com/new": true}); len(vs) != 0 {
+		t.Fatalf("within closure = %+v", vs)
+	}
+	cand = map[string]string{"example.com/wrap": "v0.9.0", "example.com/inner": "v1.0.1"}
+	if got := vcodes(VerifyBuildList(base, cand, target, map[string]bool{"example.com/wrap": true})); got != CodeVersionDecreased {
+		t.Fatalf("decrease = %s", got)
+	}
+}
+
+func TestParseBuildList(t *testing.T) {
+	bl, err := ParseBuildList([]byte(`{"Path":"example.com/app","Main":true}
+{"Path":"example.com/inner","Version":"v1.0.0"}
+{"Path":"example.com/wrap","Version":"v1.0.0"}`))
+	if err != nil || len(bl) != 2 || bl["example.com/inner"] != "v1.0.0" {
+		t.Fatalf("build list = %v, %v", bl, err)
+	}
+	if _, err := ParseBuildList([]byte(`{"Path":"example.com/x","Error":{"Err":"boom"}}`)); err == nil {
+		t.Fatal("a module error was accepted")
+	}
+	if _, err := ParseBuildList([]byte(`{"Path":`)); err == nil {
+		t.Fatal("truncated output was accepted")
+	}
+}
