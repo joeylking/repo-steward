@@ -1,0 +1,6 @@
+{
+  "name": "indirect-fix",
+  "description": "Depends on example.com/wrap v1.0.0, which requires example.com/inner v1.0.0; inner is listed only as an indirect requirement and is reached through wrap.Run. inner v1.0.1 is a patch release and v1.1.0 a minor one. Used for an advisory fixed by upgrading an indirect dependency.",
+  "expected_base_commit": "1f0d671d6b1e482cc5e6662f7aec0a7b4d930db7",
+  "expected_base_tree": "cbd6f5e98456ed50d20775901684c3974697482e"
+}

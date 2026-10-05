@@ -1,0 +1,5 @@
+module example.com/wrapx
+
+go 1.22
+
+require example.com/inner v1.0.0

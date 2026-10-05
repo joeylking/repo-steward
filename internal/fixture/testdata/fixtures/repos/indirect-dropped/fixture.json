@@ -1,0 +1,6 @@
+{
+  "name": "indirect-dropped",
+  "description": "Depends on example.com/wrapx v1.0.0, whose go.mod requires example.com/inner v1.0.0 for a package the application never imports, so inner is in the build list but not in go.mod. Upgrading inner adds an indirect requirement that go mod tidy removes again, which reselects v1.0.0.",
+  "expected_base_commit": "3a8135c2d62eb07ecf001bc79f32fd71529adf2a",
+  "expected_base_tree": "3b7caa47cba7987b22a92a21096bdfdd93248b23"
+}

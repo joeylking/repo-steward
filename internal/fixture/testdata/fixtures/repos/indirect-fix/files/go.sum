@@ -1,0 +1,4 @@
+example.com/inner v1.0.0 h1:ymyjjHu1svMLjt5sUwOY5HF5D3xHpYuXCyx4zFb8JFk=
+example.com/inner v1.0.0/go.mod h1:WCLdHNIdcD8mDcX7HpfUHeR/ZSetDCTY/o57pmWrZkk=
+example.com/wrap v1.0.0 h1:8s7QVkWegCK0kd71niovnj2wiFkzGDnVCGFOxkCU23g=
+example.com/wrap v1.0.0/go.mod h1:G4XEDQTekWacr9OwzA3tYvpDTuDSMM60n9Qpwp4HZ/k=
