@@ -122,6 +122,15 @@ func TestAdvisorySection(t *testing.T) {
 		t.Errorf("long summary not cut:\n%s", body)
 	}
 
+	if strings.Contains(body, "cooldown") {
+		t.Errorf("waiver line without a waiver:\n%s", body)
+	}
+	v.CooldownWaived = "published 1h0m0s ago (2023-11-14T22:13:20Z), within the 72h0m0s version cooldown (-min-age)"
+	if body := advisorySection(v, sel, ready, base); !strings.Contains(body, "\nVersion cooldown waived for example.com/lib v1.2.4, which clears the advisories above: published 1h0m0s ago") {
+		t.Errorf("no waiver line:\n%s", body)
+	}
+	v.CooldownWaived = ""
+
 	// Indirect wording, and a finding readiness did not see resolved is not
 	// claimed as fixed.
 	sel.Direct = false

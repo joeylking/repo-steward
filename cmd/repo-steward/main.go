@@ -47,7 +47,7 @@ func main() {
 }
 
 const usage = `usage:
-  repo-steward maintain <repo-path> -mode baseline|scripted|model [-scenario NAME] [-model provider:name] [-record DIR] [-replay DIR] [-max-model-calls N] [-max-cost-usd USD] [-publish [-destination owner/repo] [-github-api URL] [-push-url URL]] [-author "Name <email>"] [-data-dir DIR] [-fixture-proxy DIR] [-pull] [-allow-major] [-dependency MODULE[@VERSION]] [-select smallest|vulnerable [-vulndb DIR] [-scan-timeout DURATION]] [-check-timeout DURATION] [-scope-files-soft N] [-scope-files-hard N] [-scope-lines-soft N] [-scope-lines-hard N] [-trace]
+  repo-steward maintain <repo-path> -mode baseline|scripted|model [-scenario NAME] [-model provider:name] [-record DIR] [-replay DIR] [-max-model-calls N] [-max-cost-usd USD] [-publish [-destination owner/repo] [-github-api URL] [-push-url URL]] [-author "Name <email>"] [-data-dir DIR] [-fixture-proxy DIR] [-pull] [-allow-major] [-dependency MODULE[@VERSION]] [-min-age DURATION] [-select smallest|vulnerable [-vulndb DIR] [-scan-timeout DURATION]] [-check-timeout DURATION] [-scope-files-soft N] [-scope-files-hard N] [-scope-lines-soft N] [-scope-lines-hard N] [-trace]
   repo-steward resume <run-id> [-data-dir DIR] [-fixture-proxy DIR] [-trace]
   repo-steward approve <run-id> [-approval ID] [-note TEXT] [-data-dir DIR]
   repo-steward reject <run-id> [-approval ID] [-note TEXT] [-data-dir DIR]
@@ -56,7 +56,7 @@ const usage = `usage:
   repo-steward bench run -mode baseline|scripted|model [-model provider:name] [-scenarios S1,S2,...] [-repeat N] [-max-model-calls N] [-max-total-calls N] [-max-cost-usd USD] [-max-total-cost-usd USD] [-root DIR] [-out DIR] [-author "Name <email>"]
   repo-steward runs list [-data-dir DIR]
   repo-steward runs show <run-id> [-events] [-data-dir DIR]
-  repo-steward inspect <repo-path> [-data-dir DIR] [-fixture-proxy DIR] [-pull] [-allow-major] [-dependency MODULE[@VERSION]] [-check-timeout DURATION]
+  repo-steward inspect <repo-path> [-data-dir DIR] [-fixture-proxy DIR] [-pull] [-allow-major] [-dependency MODULE[@VERSION]] [-min-age DURATION] [-check-timeout DURATION]
   repo-steward fixture list
   repo-steward fixture setup <name> [-dest DIR]
   repo-steward vulns <repo-path> [-data-dir DIR] [-fixture-proxy DIR] [-vulndb DIR] [-pull] [-scan-timeout DURATION]
@@ -269,12 +269,17 @@ func runInspect(ctx context.Context, args []string) error {
 	allowMajor := fs.Bool("allow-major", false, "treat major upgrades as eligible")
 	dependency := fs.String("dependency", "", "restrict eligibility to one module, or to one exact version as module@version")
 	checkTimeout := fs.Duration("check-timeout", 10*time.Minute, "timeout per validation check")
+	minAge := fs.Duration("min-age", deps.DefaultMinAge, "version cooldown: a version published less than this long ago, or with no known publish time, is listed as ineligible; 0 disables it")
 	if err := fs.Parse(rest); err != nil {
 		return err
+	}
+	if *minAge < 0 {
+		return fmt.Errorf("inspect: -min-age must not be negative")
 	}
 	pol := deps.DefaultPolicy()
 	pol.AllowMajor = *allowMajor
 	pol.NamedDependency = *dependency
+	pol.MinAge = *minAge
 	rep, err := inspect.Run(ctx, inspect.Options{RepoPath: repoPath, DataDir: *dataDir, FixtureProxyDir: *proxyDir, AllowPull: *pull, Policy: pol, CheckTimeout: *checkTimeout})
 	if err != nil {
 		return err
@@ -356,6 +361,7 @@ func runMaintain(ctx context.Context, args []string) error {
 	scopeFilesHard := fs.Int("scope-files-hard", 0, "hard limit on changed source files (default 20); crossing it ends the run")
 	scopeLinesSoft := fs.Int("scope-lines-soft", 0, "soft limit on changed source lines (default 200)")
 	scopeLinesHard := fs.Int("scope-lines-hard", 0, "hard limit on changed source lines (default 400)")
+	minAge := fs.Duration("min-age", deps.DefaultMinAge, "version cooldown: a version published less than this long ago, or with no known publish time, is ineligible; 0 disables it (waived in -select vulnerable for the version that clears an advisory)")
 	selectFlag := fs.String("select", steward.SelectSmallest, "how -mode baseline picks the upgrade: smallest (the smallest eligible upgrade of a direct dependency) or vulnerable (scan for known vulnerabilities and pick the lowest eligible upgrade that clears them)")
 	vulnDB := fs.String("vulndb", "", "with -select vulnerable: use this vulnerability database directory instead of fetching https://vuln.go.dev")
 	scanTimeout := fs.Duration("scan-timeout", 10*time.Minute, "with -select vulnerable: timeout for each scan")
@@ -378,6 +384,10 @@ func runMaintain(ctx context.Context, args []string) error {
 	pol := deps.DefaultPolicy()
 	pol.AllowMajor = *allowMajor
 	pol.NamedDependency = *dependency
+	if *minAge < 0 {
+		return fmt.Errorf("maintain: -min-age must not be negative")
+	}
+	pol.MinAge = *minAge
 	opts := steward.Options{SourcePath: repoPath, DataDir: *dataDir, FixtureProxyDir: *proxyDir, AllowPull: *pull, Policy: pol, Author: ident, CheckTimeout: *checkTimeout}
 	if *selectFlag == steward.SelectVulnerable {
 		opts.Select, opts.VulnDBDir, opts.ScanTimeout = steward.SelectVulnerable, *vulnDB, *scanTimeout

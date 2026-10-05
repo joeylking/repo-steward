@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/joeylking/repo-steward/internal/deps"
 	"github.com/joeylking/repo-steward/internal/fixture"
@@ -455,5 +456,48 @@ func TestBuildListGate_TidyDroppingAnIndirectTargetIsRefused(t *testing.T) {
 	}
 	if len(vs) != 1 || vs[0].Code != manifest.CodeTargetNotInBuildList || !strings.Contains(vs[0].Detail, "selects example.com/inner v1.0.0, want v1.0.1; the version before the change is selected again") {
 		t.Fatalf("build-list rules %+v (build list %v)", vs, candBL)
+	}
+}
+
+// The fixture proxy publishes every version at modproxy.Time. An hour
+// later every version is within a 72-hour cooldown: the default selection
+// finds nothing eligible, with the age as the reason, while vulnerable
+// selection takes v1.2.4 anyway because it clears GO-TEST-0001, and says
+// so in the result and the proposal.
+func TestCooldown_WaivedOnlyForTheAdvisoryFix(t *testing.T) {
+	clock := func() time.Time { return modproxy.Time.Add(time.Hour) }
+	withCooldown := func(o *steward.Options) {
+		o.Policy.MinAge = 72 * time.Hour
+		o.Now = clock
+	}
+	v := runVulnerable(t, "patch-safe", shared.fixtureDB, withCooldown)
+	res := v.res
+	if res.Outcome != steward.OutcomeProposalPrepared || res.Selected.Version != "v1.2.4" {
+		t.Fatalf("outcome %s selected %+v", res.Outcome, res.Selected)
+	}
+	const reason = "published 1h0m0s ago (2023-11-14T22:13:20Z), within the 72h0m0s version cooldown (-min-age)"
+	if res.Vulnerabilities.CooldownWaived != reason || !strings.Contains(res.Proposal.Body, "Version cooldown waived for example.com/lib v1.2.4, which clears the advisories above: "+reason+".") {
+		t.Fatalf("waiver %q body:\n%s", res.Vulnerabilities.CooldownWaived, res.Proposal.Body)
+	}
+	// Discovery, which the default selection uses, applied the cooldown.
+	for _, tg := range res.Candidates[0].Targets {
+		if tg.Eligible || !strings.Contains(strings.Join(tg.Reasons, ";"), "within the 72h0m0s version cooldown") {
+			t.Fatalf("candidate target %+v", tg)
+		}
+	}
+
+	def := runVulnerable(t, "patch-safe", shared.fixtureDB, func(o *steward.Options) {
+		withCooldown(o)
+		o.Select, o.VulnDBDir = "", ""
+	})
+	if def.res.Outcome != steward.OutcomeNoCandidate || def.res.Vulnerabilities != nil {
+		t.Fatalf("default selection under the cooldown: %s %+v", def.res.Outcome, def.res.Vulnerabilities)
+	}
+
+	// Long after publication the cooldown changes nothing, and nothing is
+	// waived.
+	old := runVulnerable(t, "patch-safe", shared.fixtureDB, func(o *steward.Options) { o.Policy.MinAge = 72 * time.Hour })
+	if old.res.Outcome != steward.OutcomeProposalPrepared || old.res.Vulnerabilities.CooldownWaived != "" || strings.Contains(old.res.Proposal.Body, "cooldown") {
+		t.Fatalf("old versions: %s %q", old.res.Outcome, old.res.Vulnerabilities.CooldownWaived)
 	}
 }

@@ -30,9 +30,17 @@ type Policy struct {
 	// "@version" suffix to one exact version of it. Only versions newer
 	// than the current one are ever candidates, so a pin cannot downgrade.
 	NamedDependency string `json:"named_dependency,omitempty"`
+	// MinAge is the version cooldown: an otherwise eligible version
+	// published less than MinAge ago, or whose publish time is unknown, is
+	// ineligible. Zero disables it.
+	MinAge time.Duration `json:"min_age,omitempty"`
 }
 
-// DefaultPolicy allows minor and patch upgrades.
+// DefaultMinAge is the command line's default version cooldown.
+const DefaultMinAge = 72 * time.Hour
+
+// DefaultPolicy allows minor and patch upgrades. It sets no cooldown; the
+// command line sets DefaultMinAge.
 func DefaultPolicy() Policy { return Policy{AllowMinor: true, AllowPatch: true} }
 
 // Target is one version a module could move to.
@@ -67,13 +75,14 @@ func (c Candidate) EligibleTargets() []Target {
 
 // moduleInfo mirrors the fields of go list -m -json that discovery uses.
 type moduleInfo struct {
-	Path       string   `json:"Path"`
-	Version    string   `json:"Version"`
-	Main       bool     `json:"Main"`
-	Indirect   bool     `json:"Indirect"`
-	Retracted  []string `json:"Retracted"`
-	Deprecated string   `json:"Deprecated"`
-	Versions   []string `json:"Versions"`
+	Path       string     `json:"Path"`
+	Version    string     `json:"Version"`
+	Time       *time.Time `json:"Time"`
+	Main       bool       `json:"Main"`
+	Indirect   bool       `json:"Indirect"`
+	Retracted  []string   `json:"Retracted"`
+	Deprecated string     `json:"Deprecated"`
+	Versions   []string   `json:"Versions"`
 	Update     *struct {
 		Version string `json:"Version"`
 	} `json:"Update"`
@@ -129,6 +138,11 @@ func decodeModules(r io.Reader) ([]moduleInfo, error) {
 // omits +incompatible majors for modules that have a go.mod; a benchmark
 // scenario depends on seeing those.
 func Discover(ctx context.Context, sb sandbox.Sandbox, pol Policy) ([]Candidate, error) {
+	return DiscoverAt(ctx, sb, pol, time.Now())
+}
+
+// DiscoverAt is Discover with the cooldown judged at now.
+func DiscoverAt(ctx context.Context, sb sandbox.Sandbox, pol Policy, now time.Time) ([]Candidate, error) {
 	res, err := acquire(ctx, sb, "go", "list", "-m", "-u", "-json", "all")
 	if err != nil {
 		return nil, err
@@ -157,6 +171,11 @@ func Discover(ctx context.Context, sb sandbox.Sandbox, pol Policy) ([]Candidate,
 		targets := targets(m.Path, m.Version, versions, pol)
 		if len(targets) == 0 {
 			continue
+		}
+		if pol.MinAge > 0 {
+			if err := applyCooldown(ctx, sb, m.Path, targets, pol.MinAge, now); err != nil {
+				return nil, err
+			}
 		}
 		latest := targets[len(targets)-1].Version
 		if m.Update != nil && semver.Compare(m.Update.Version, latest) > 0 {
@@ -239,4 +258,84 @@ func targets(modPath, cur string, versions []string, pol Policy) []Target {
 		out = append(out, t)
 	}
 	return out
+}
+
+// PublishTimes reads the publish time of each version of a module from the
+// toolchain's module metadata (go list -m -json module@version, field Time)
+// with one call in the acquire profile. A version with no time, or one the
+// toolchain reports an error for, is absent from the result.
+func PublishTimes(ctx context.Context, sb sandbox.Sandbox, mod string, versions []string) (map[string]time.Time, error) {
+	out := map[string]time.Time{}
+	if len(versions) == 0 {
+		return out, nil
+	}
+	argv := []string{"go", "list", "-e", "-m", "-json"}
+	for _, v := range versions {
+		argv = append(argv, mod+"@"+v)
+	}
+	res, err := acquire(ctx, sb, argv...)
+	if err != nil {
+		return nil, err
+	}
+	infos, err := decodeModules(bytes.NewReader(res.Stdout))
+	if err != nil {
+		return nil, err
+	}
+	for _, m := range infos {
+		if m.Error == nil && m.Path == mod && m.Time != nil && !m.Time.IsZero() {
+			out[m.Version] = m.Time.UTC()
+		}
+	}
+	return out, nil
+}
+
+// CooldownReason says why a version is too new under a cooldown of minAge
+// judged at now, or returns "" when it is old enough. An unknown publish
+// time fails closed.
+func CooldownReason(published time.Time, known bool, now time.Time, minAge time.Duration) string {
+	if !known {
+		return fmt.Sprintf("publish time unknown; the %s version cooldown (-min-age) needs it", minAge)
+	}
+	age := now.Sub(published)
+	if age >= minAge {
+		return ""
+	}
+	if age < 0 {
+		return fmt.Sprintf("published %s, after the current time; the %s version cooldown (-min-age) needs it to be older", published.Format(time.RFC3339), minAge)
+	}
+	return fmt.Sprintf("published %s ago (%s), within the %s version cooldown (-min-age)", age.Truncate(time.Minute), published.Format(time.RFC3339), minAge)
+}
+
+// applyCooldown makes otherwise eligible targets that are too new
+// ineligible. Only eligible versions are looked up.
+func applyCooldown(ctx context.Context, sb sandbox.Sandbox, mod string, ts []Target, minAge time.Duration, now time.Time) error {
+	var eligible []string
+	for _, t := range ts {
+		if t.Eligible {
+			eligible = append(eligible, t.Version)
+		}
+	}
+	if len(eligible) == 0 {
+		return nil
+	}
+	times, err := PublishTimes(ctx, sb, mod, eligible)
+	if err != nil {
+		return err
+	}
+	cooldown(ts, times, now, minAge)
+	return nil
+}
+
+// cooldown applies CooldownReason to every eligible target.
+func cooldown(ts []Target, times map[string]time.Time, now time.Time, minAge time.Duration) {
+	for i := range ts {
+		if !ts[i].Eligible {
+			continue
+		}
+		pub, ok := times[ts[i].Version]
+		if r := CooldownReason(pub, ok, now, minAge); r != "" {
+			ts[i].Eligible = false
+			ts[i].Reasons = append(ts[i].Reasons, r)
+		}
+	}
 }

@@ -91,6 +91,16 @@ type Options struct {
 	VulnDBURL   string
 	ToolsDir    string
 	ScanTimeout time.Duration
+	// Now is the clock the version cooldown (Policy.MinAge) is judged by;
+	// nil means time.Now. Tests set it.
+	Now func() time.Time
+}
+
+func (o Options) now() time.Time {
+	if o.Now != nil {
+		return o.Now()
+	}
+	return time.Now()
 }
 
 func defaultSnapshotLimits() snapshot.Limits { return snapshot.DefaultLimits() }
@@ -342,7 +352,7 @@ func (r *run) prelude(ctx context.Context, mode string) (string, error) {
 		return OutcomeBaselineFailing, nil
 	}
 	t = time.Now()
-	cands, err := deps.Discover(ctx, sb, r.opts.Policy)
+	cands, err := deps.DiscoverAt(ctx, sb, r.opts.Policy, r.opts.now())
 	if err != nil {
 		return "", err
 	}

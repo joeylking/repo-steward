@@ -81,6 +81,11 @@ type VulnResult struct {
 	Remaining []deps.VulnTarget `json:"remaining,omitempty"`
 	// StdlibNote says why standard-library findings are not acted on.
 	StdlibNote string `json:"stdlib_note,omitempty"`
+	// CooldownWaived is set when the selected version is within the
+	// version cooldown, or its publish time is unknown, and was selected
+	// anyway because it clears the advisories: it says why the cooldown
+	// would have refused it.
+	CooldownWaived string `json:"cooldown_waived,omitempty"`
 }
 
 // ScannerInfo identifies the scanner.
@@ -249,6 +254,17 @@ func (r *run) selectVulnerable(ctx context.Context) (string, *deps.VulnTarget, e
 	}
 	res.Vulnerabilities.Selected = &sel
 	res.Vulnerabilities.Remaining = plan.Targets[1:]
+	// The cooldown guards against adopting a hijacked release before
+	// anyone notices; a version that clears a known advisory is taken
+	// anyway, and the result and the proposal say so.
+	if pol := r.opts.Policy; pol.MinAge > 0 {
+		times, err := deps.PublishTimes(ctx, sb, sel.Module, []string{sel.Version})
+		if err != nil {
+			return "", nil, err
+		}
+		pub, known := times[sel.Version]
+		res.Vulnerabilities.CooldownWaived = deps.CooldownReason(pub, known, r.opts.now(), pol.MinAge)
+	}
 	return "", &sel, nil
 }
 
@@ -362,6 +378,9 @@ func advisorySection(v *VulnResult, sel *deps.VulnTarget, ready *proposal.Readin
 		fmt.Fprintf(&b, " (%s)", stdlibNote)
 	}
 	b.WriteString("\n")
+	if v.CooldownWaived != "" {
+		fmt.Fprintf(&b, "Version cooldown waived for %s %s, which clears the advisories above: %s.\n", plain(sel.Module, maxPathLen), plain(sel.Version, maxPlainLen), plain(v.CooldownWaived, maxPathLen))
+	}
 	if v.Scanner != nil && v.Database != nil {
 		fmt.Fprintf(&b, "\nScanned with govulncheck %s against database snapshot %s, modified %s; summaries and identifiers above are quoted from the database as untrusted text.\n",
 			plain(v.Scanner.Version, maxPlainLen), plain(v.Database.SnapshotID, maxPlainLen), v.Database.Modified.UTC().Format(time.RFC3339))
