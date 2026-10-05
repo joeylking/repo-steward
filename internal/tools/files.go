@@ -240,7 +240,11 @@ func replaceOnce(p, cur, old, new string) (string, error) {
 		return "", errors.New(msg + "; read the file again for its current text")
 	}
 	lines := make([]string, 0, len(at))
-	for _, i := range at {
+	for k, i := range at {
+		if k == 20 {
+			lines = append(lines, "...")
+			break
+		}
 		lines = append(lines, fmt.Sprint(1+strings.Count(cur[:i], "\n")))
 	}
 	return "", fmt.Errorf("old_text occurs %d times in %s (at lines %s); include enough surrounding text to match exactly one", len(at), p, strings.Join(lines, ", "))
