@@ -53,6 +53,12 @@ Vulnerability scans are stored the same way, with the scanner's sha256 and
 version, the database snapshot and its modified time, and the raw output,
 and readiness admits a post scan only when it is bound to the candidate
 tree and to the base scan's scanner and database.
+A post validation of a tree that changes source beyond the manifests also
+carries a coverage run of the same snapshot (`go test -coverpkg=./...`,
+its own fresh build cache), and readiness requires, through
+`proposal.CheckCoverage` and the rule in `internal/coverage`, that every
+changed line needing a test to execute it was executed, unless an
+operator approved that exact tree under `-ask-unexercised`.
 Manifest changes are journaled with before and after hashes and recovered
 from the journal alone. A proposal is a commit built from a persisted
 recipe under its own ref; its record carries a hash over the whole body.

@@ -61,6 +61,7 @@ branch names read during reconciliation.
 | Git-level execution on the host | Separate git dir, hooks path isolated, global and system config disabled, submodule recursion off, fixed argv, no shell | Verified | `TestEnv_IgnoresUserConfiguration`, `TestHooksDoNotRun` |
 | Silent modification of the operator's checkout | Read once at clone; dirty checkouts refused; every benchmark run asserts an unchanged status | Verified | `TestCreate_RefusesDirtySource`, `bench` side-effect check |
 | False success claim | Readiness is code: bound validation, conclusive checks, introduced findings, manifest rules, protected paths, scope; evidence admissible only from completed steps; a frozen proposal verifies by hash, ref, tree, and parent | Verified | `TestReadiness_*` via integration, `TestVerify_DetectsTamperedBody`, `TestFreeze_Interruptions` |
+| A repair that builds, vets, and passes validation but that no test executes is presented as ready | Coverage rule in readiness: when the candidate changes anything beyond go.mod and go.sum, the post validation readiness binds (same tree, configuration hash, toolchain digest, completed step) must carry a coverage run of that snapshot (`go test -coverpkg=./... -covermode=set` in the execute profile, a fresh build cache, no network), and every coverage block that holds code on a changed line of a non-test `.go` file must have been executed. Changed package-level declarations, blank and dot imports, compiler and `//line` directives, removed or renamed functions, non-Go files, binary changes, files the profile does not mention, and any truncated, malformed, failed, or absent profile are not verified. Otherwise the proposal is not ready (`repair_not_exercised`, listing file:line ranges) and the run ends `repair_not_exercised`, exit 4. With `maintain -ask-unexercised` the same condition pauses `prepare_proposal` for an `unexercised_repair` approval whose capability names the tree and whose presentation shows the ranges and the patch, printed escaped; readiness accepts only the approval granted for that step and that tree, and the body then opens with a statement naming the approval. Manifest-only proposals are unaffected | Verified | `TestCheck_*`, `TestParseProfile`, `TestParseHunks` (rule and fail-closed parsing), `TestPrepare_UnexercisedRepair`, `TestNever_FreezesAnUnexercisedRepair` (the policy never allows `prepare_proposal` on such a tree, under any arguments or grants), `TestNotExercised`; `TestScripted_S2U_UnexercisedRepairIsNotReady`, `TestScripted_S2_BreakingMinorRepaired`, `TestScripted_S1_PatchUpgrade`, `TestCLI_UnexercisedRepairEndsTheRun`, `TestCLI_UnexercisedApprovalAcrossProcesses`, `TestCLI_UnexercisedRejected`, `TestCLI_UnexercisedApprovalBoundToTree` (integration) |
 | Operator approves something other than what was shown, or is misled by model-chosen text in the approval | `approve` and `reject` go through the runtime's `approver`: the approval is printed with `webhook.Text`, which escapes model-chosen text and ends with a line it writes itself, and the decision carries the hash of what was printed and is refused if the stored approval differs | Implemented; the path is exercised (integration) | `runDecide` in `cmd/repo-steward`, `TestCLI_ScopeExpansionAcrossProcesses`, `TestCLI_RejectCancels`, CI's approval across processes; the hash refusal is tested upstream in `agent-runtime/approver` |
 | Proposal altered between review and publish | Publication approval bound to the proposal id and hash; on resume the proposal is re-verified and the working tree must still be the proposal tree | Verified (integration) | `TestPublish_RequiresProposalBoundApproval`, `TestCLI_PublicationAcrossProcesses` |
 | Credential leakage | Containers get an empty environment; the push token lives only in a process-scoped variable read by a credential helper and never in arguments; the API token is a bearer header; nothing writes tokens to the store | Verified | `TestPushCommand_TokenOnlyInEnvironment`, `TestClient_TokenSentAsBearer`, `TestEnvironmentIsBuiltFromScratch` |
@@ -88,11 +89,18 @@ branch names read during reconciliation.
 
 That a proposal is a correct repair. Readiness proves the candidate tree
 builds, vets, and passes the repository's own tests with nothing
-introduced; in a repository with few or no tests that says little about
-whether a model's edit is right. On 2026-10-04 a model-mode run prepared a
-ready proposal whose repair adds a panic the original code did not have
-(`benchmarks/README.md`, "Repair on real repositories"). The human review
-of the diff is the control for this, and the only one.
+introduced, and, for a source change, that those tests execute the changed
+code; it does not prove that they check it. Covered code whose tests do
+not tell a right result from a wrong one passes the coverage rule as
+readily as a right repair, so the rule is a floor, not correctness. The
+evidence comes from running the repository's own test code, which can
+forge it as it can forge test results. An operator who approves an
+unexercised repair with `-ask-unexercised` takes on what the tests did not
+show. The human review of the diff remains the control for whether a
+repair is right. On 2026-10-04 a model-mode run prepared a ready proposal
+whose repair adds a panic the original code did not have, in a repository
+with no tests; that outcome is now refused by the coverage rule
+(`benchmarks/README.md`, "Repair on real repositories").
 
 That a proposal from vulnerable selection fixes every vulnerability: it
 clears the findings the scanner reports in one module, against the

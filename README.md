@@ -62,7 +62,7 @@ Each concern above is met by a control in code:
 | Unread code runs during testing | Builds and tests run in a container, which is an isolated environment, with no network, a read-only copy of the source, and no access to the operator's credentials. |
 | Planted instructions | The model can act only through a fixed list of tools. None of them reaches the network or the operator's own copy of the project, and there is no tool that runs a command of the model's choosing. File contents reach the model labelled as data. |
 | Weakened tests | The model cannot edit tests, CI configuration, security files, or the dependency list. The dependency list changes only through the upgrade step, which code checks. |
-| False success | Success is decided by code. Build, vet, and tests run on the exact result and are compared with the same checks from before the upgrade. One new failure means no proposal. |
+| False success | Success is decided by code. Build, vet, and tests run on the exact result and are compared with the same checks from before the upgrade. One new failure means no proposal. When the model changed source code, the project's own tests must also run every changed line; a repair no test runs is not proposed, unless the operator asked to be consulted and approves that exact change. Tests that run a line do not prove it right, so this is a floor, and the person reviewing the pull request still decides. |
 | Sweeping changes | The number of files and lines changed is limited. Crossing the first limit pauses the run for a person's approval, and crossing the second ends it. |
 | Runaway time and cost | Steps, model calls, tokens, and spend are capped, and each cap is checked before the next request is sent. |
 | Changes leaving the machine | All work happens in a copy. A push and a pull request need a person's approval, and that approval is tied to the exact proposal that person was shown. |
@@ -91,7 +91,9 @@ such as a flaw in the container engine itself.
    they fail, the model reads the errors and edits source files, and the
    checks run again.
 6. **Prepare a proposal.** When the checks pass and every rule holds, the
-   change is frozen as one commit in the scratch copy.
+   change is frozen as one commit in the scratch copy. If the model changed
+   source code, one of the rules is that the project's tests ran every
+   changed line.
 7. **Publish, if asked.** With `-publish` the run pauses. After a person
    approves, it pushes one branch and opens one pull request.
 
@@ -152,7 +154,9 @@ the local model to repair a real break in a real project. In its first
 nine runs it repaired none. After a revision of the prompt and tools, one
 run prepared a proposal that is not a correct repair: it compiles and
 passes validation, in a project with no tests, but adds a crash the
-original code did not have. Measurement stopped there, see
+original code did not have. repo-steward now also requires the project's
+tests to run every line a repair changes; run again, the model made the
+same wrong repair and the run ended without a proposal, see
 [Repair scenarios](#repair-scenarios-on-real-repositories). repo-steward
 has also run once for real, see Status below.
 
@@ -193,7 +197,8 @@ its benchmarks with agent-runtime's `bench` module. The whole path described abo
 - **Evidence:** committed benchmark results over eleven scenarios, six
   smoke scenarios against real public modules, and three repair scenarios
   on real repositories, where the local model has not produced a correct
-  repair: its one proposal so far passes validation but is wrong.
+  repair: its one proposal, on 2026-10-04, passed validation but was
+  wrong, and the coverage rule added since refuses it.
 - **Vulnerabilities:** `vulns` scans a repository with a pinned
   govulncheck against a verified snapshot of the Go vulnerability database
   and reports what it finds. `maintain -mode baseline -select vulnerable`
@@ -317,8 +322,10 @@ unsupported, 3 on baseline problems, 5 when the run paused for an approval,
 6 when the upgrade could not be fetched because the module proxy or checksum
 database was unreachable or failed (outcome `acquisition_failed`, with the
 toolchain's message in the detail; a later run may succeed), and 4 for any
-other explained non-result such as a regression introduced by the upgrade
-or a run that reported itself blocked. The outcomes of vulnerable
+other explained non-result such as a regression introduced by the upgrade,
+a run that reported itself blocked, or `repair_not_exercised`, a repair
+that passed validation but that the project's tests do not run (see
+[Repairs no test exercises](#repairs-no-test-exercises)). The outcomes of vulnerable
 selection, `scan_inconclusive`, `no_vulnerabilities`, and
 `no_fix_available`, are explained non-results and exit 4 too. Every command
 exits 1 on an error, such as a bad flag, an unreachable engine, or
@@ -383,6 +390,11 @@ go run ./cmd/repo-steward maintain ~/src/myrepo -mode model -publish
 go run ./cmd/repo-steward approve <run-id> -note "reviewed the diff"
 go run ./cmd/repo-steward resume <run-id>
 ```
+
+`-ask-unexercised` (agent modes, off by default) turns a repair that no
+test runs from an ended run into a pause for approval, exit 5, decided with
+`approve` or `reject` like any other; see
+[Repairs no test exercises](#repairs-no-test-exercises).
 
 Scope limits are flags on `maintain`: `-scope-files-soft`, `-scope-files-hard`,
 `-scope-lines-soft`, `-scope-lines-hard`. Crossing a soft limit pauses the
@@ -593,14 +605,16 @@ is the kind of effect the tool declares, which the policy reads:
 | `edit_file` | local | Replaces one exact occurrence of a text in an existing file. Projected to the whole file and checked and written by the same code as `write_file`, so every rule above applies; zero or several occurrences are refused. |
 | `normalize_manifests` | local | `go mod tidy` through staging and Gate B. |
 | `run_validation` | read | Build, vet, test on the exact candidate tree; introduced findings relative to the baseline. |
-| `prepare_proposal` | local | Readiness, then a frozen proposal commit. Terminal unless publication is enabled. |
+| `prepare_proposal` | local | Readiness, then a frozen proposal commit. Terminal unless publication is enabled. A change to source must be executed by the repository's tests; with `-ask-unexercised` a repair that is not pauses here for an approval bound to its tree. |
 | `publish_proposal` | remote, terminal | Only with `-publish`. Always requires a publication approval bound to the proposal's hash; verifies the proposal and the working tree again on resume; pushes the commit and opens the pull request as two journaled operations. |
 | `report_blocked` | read, terminal | Ends the run with an explained non-result. |
 
 The policy denies tools outside the current phase, checks eligibility on
 the exact module and version, denies protected and ignored writes, aborts
 on hard scope limits, asks for one scope expansion approval on soft limits,
-and aborts when the validation budget or the no-progress budget is spent.
+aborts when the validation budget or the no-progress budget is spent, and,
+with `-ask-unexercised`, asks for an approval before preparing a proposal
+whose changed source no test executes.
 
 The scripted agent in `-mode scripted` replays a fixed decision list. It
 proves the orchestration and control behaviour deterministically and says
@@ -623,6 +637,76 @@ The system prompt is fixed and never contains repository content; files and
 command output reach the model only inside tool results, labelled as data.
 The runtime enforces call, token, and cost limits before every request and
 records every attempt.
+
+### Repairs no test exercises
+
+A repair can compile, pass `go vet`, and pass every test and still be
+wrong, when no test runs the code it changed. On 2026-10-04 that happened:
+in a repository with no tests, the local model replaced a map index with
+an unchecked type assertion that panics on a call without arguments, and
+the run ended with a ready proposal. Readiness now has a rule for it.
+
+When the candidate changes anything beyond `go.mod` and `go.sum`, every
+`run_validation` whose checks introduced nothing also runs the
+repository's tests with coverage of every package of the module (`go test
+-count=1 -covermode=set -coverpkg=./... ./...`), on the same snapshot, in
+the execute profile with a build cache of its own and no network. The
+profile comes back on standard output with a line count after it, so no
+file a container wrote is read from the host, and a profile cut anywhere
+is detected. It is stored with that validation, so it is bound to the
+tree, the configuration, and the toolchain image exactly as the
+validation is, and the model is not shown it there. On the fixtures it
+added about 3.3 seconds to a 3.7-second validation.
+
+Readiness then maps every changed line of a non-test `.go` file to the
+profile's blocks:
+
+- A line inside a function needs every block that contains its code to
+  have run at least once. Braces count only on a line that has nothing
+  else, so a changed `if` or `for` header needs the block that evaluates
+  it, not the body it may skip. Code no block contains, such as a `case`
+  label, needs every block of that function on the line. A changed
+  signature needs the function's first block: the function was called.
+- Comments, blank lines, the package clause, and ordinary imports need
+  nothing; the compiler checks them.
+- Not verified, whatever the profile says: a changed or removed `const`,
+  `var`, or `type` at package level (its effect is wherever it is used), a
+  blank or dot import (it runs package initialization), a compiler or
+  `//line` directive, a function or method that no longer exists in its
+  package (deleted or renamed), a file that is not Go source, a binary
+  change, a file the profile does not mention (excluded by build tags, or
+  compiled into no test binary), and a profile that is missing, truncated,
+  malformed, from a failed run, or inconsistent with the file.
+- Lines removed from a function that still exists need the blocks around
+  the place they were removed from. Code moved to another place is judged
+  where it now is. Generated files get no exemption. `_test.go` files are
+  left to the protected-path rule.
+
+If anything is not verified, the proposal is not ready, with the failure
+`repair_not_exercised` listing `file:line` ranges and reasons. The model
+sees it as `prepare_proposal`'s error, like any other readiness failure;
+it cannot edit tests, so it can try a different repair or report blocked,
+and the validation budget (eight cycles), the step limit, and the loop and
+consecutive-failure limits bound that. A run that ends without a proposal
+after that refusal, with the tree unchanged since, ends
+`repair_not_exercised` (exit 4), the runtime's own outcome kept as
+`run_outcome` in the detail. A proposal that passes the rule says so in
+its body: `Changed source executed by tests: N of N required coverage
+blocks`.
+
+With `-ask-unexercised` the same condition pauses `prepare_proposal` for an
+`unexercised_repair` approval instead (exit 5). Its capability names the
+candidate tree; its presentation lists the ranges and shows the patch of
+those files, printed escaped by `approve` and `reject` like every
+approval. Approving it lets readiness pass for that tree only, and the
+proposal body then opens with a line saying that no test exercises part of
+the repair and naming the approval and who gave it. Rejecting it ends the
+run with no proposal. A later edit is a new tree that no approval names.
+
+What the rule does not catch: code that the tests run but do not check.
+A test that calls the changed function without asserting what it returns
+satisfies the rule as fully as a good test. It is a floor under a
+proposal, not evidence that the repair is right.
 
 ### Models and spend
 
@@ -716,9 +800,21 @@ ended with a ready proposal whose repair is wrong (an unchecked type
 assertion that panics on a call without arguments), dictionary ended after
 three malformed edit requests, and awsoremod was not run; see
 [the 2026-10-04 measurement](benchmarks/README.md#2026-10-04-one-revision-of-the-prompt-and-tools).
-`TestRepair` reads model-mode post validation from a field only the
-baseline fills, so it fails every model proposal before its oracles run;
-that is known and not yet fixed.
+
+Since 2026-10-05 a repair must be executed by the repository's tests
+([Repairs no test exercises](#repairs-no-test-exercises)). None of the
+three repositories has a test that runs the lines a repair changes, so a
+correct repair of each now ends `repair_not_exercised` by default, and the
+declarations say so; a proposal from any of them fails the test.
+`TestRepair` reads a model-mode proposal's validation evidence from the
+task store, and its oracles fail the known wrong repairs, proven on
+hand-made trees by `TestRepairOracles`, which runs with no model and no
+network. When a run ends without a proposal, the oracles judge the tree it
+left and its diff is kept. Run once each on 2026-10-05: mcp-openweather
+made the 2026-10-04 repair again and ended `repair_not_exercised` with no
+proposal; dictionary repeated 2026-10-04; awsoremod chose the right repair
+and failed to apply it with `edit_file`. See
+[the 2026-10-05 measurement](benchmarks/README.md#2026-10-05-the-coverage-rule).
 
 The first measurement, on 2026-10-03 with qwen3:30b-a3b, repaired nothing:
 0 of 9 runs, each ending after three consecutive failed steps, with no edit
