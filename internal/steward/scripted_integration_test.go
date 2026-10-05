@@ -143,6 +143,44 @@ func TestScripted_S2_BreakingMinorRepaired(t *testing.T) {
 	}
 }
 
+// edit_file through the runtime and the real policy: the protected edit
+// and the ambiguous one are policy denials that change nothing, and the two
+// exact edits produce the same repair S2 writes in full.
+func TestScripted_S2E_EditFileRepaired(t *testing.T) {
+	res, data, _ := runScenario(t, "S2E")
+	verifyProposal(t, res, data, "go.mod,go.sum,main.go")
+	_, rt := openStores(t, data)
+	steps, _ := rt.ListSteps(ctx, res.RunID)
+	var denied []string
+	edits := 0
+	for _, st := range steps {
+		if st.Decision == nil || st.Decision.Tool != "edit_file" {
+			continue
+		}
+		if st.Status == agentrt.StepDone {
+			edits++
+			continue
+		}
+		if st.Policy == nil || st.Policy.Outcome != agentrt.Deny || st.Observation.Kind != agentrt.ObservePolicyDenied {
+			t.Fatalf("failed edit step was not a policy denial: %+v policy %+v", st, st.Policy)
+		}
+		denied = append(denied, st.Policy.Reason)
+	}
+	if len(denied) != 2 || !strings.Contains(denied[0], "main_test.go is protected") || !strings.Contains(denied[1], "occurs 3 times in main.go (at lines 9, 10, 15)") || edits != 2 {
+		t.Fatalf("denials %q, %d edits", denied, edits)
+	}
+	ws, _ := workspace.Open(ctx, res.Workspace.Dir)
+	main, _ := ws.Git().Run(ctx, "show", res.Proposal.TreeHash+":main.go")
+	if !strings.Contains(string(main), "\t\"context\"\n\t\"fmt\"") || !strings.Contains(string(main), "lib.Greet(context.Background(), name)") || !strings.Contains(string(main), "// greeting wraps") {
+		t.Fatalf("repair not in proposal tree:\n%s", main)
+	}
+	test, _ := ws.Git().Run(ctx, "show", res.Proposal.TreeHash+":main_test.go")
+	base, _ := ws.Git().Run(ctx, "show", ws.BaseTree+":main_test.go")
+	if string(test) != string(base) {
+		t.Fatal("protected test file changed")
+	}
+}
+
 func TestScripted_S3_MovedPackageRepaired(t *testing.T) {
 	res, data, _ := runScenario(t, "S3")
 	verifyProposal(t, res, data, "go.mod,go.sum,main.go")

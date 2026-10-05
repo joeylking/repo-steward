@@ -1,0 +1,85 @@
+{
+  "name": "S2E",
+  "fixture": "breaking-minor",
+  "description": "S2 repaired through edit_file: a protected edit is denied, an edit whose text occurs three times is denied with the lines it occurs on, and two exact edits repair the call site. Not part of the scored set; it gives edit_file deterministic coverage through the runtime and the policy.",
+  "expected": "proposal_prepared",
+  "allowed_files": [
+    "go.mod",
+    "go.sum",
+    "main.go"
+  ],
+  "required_files": [
+    "go.mod",
+    "go.sum",
+    "main.go"
+  ],
+  "steps": [
+    {
+      "tool": "list_candidates"
+    },
+    {
+      "tool": "apply_upgrade",
+      "args": {
+        "module": "example.com/lib",
+        "version": "v1.3.0"
+      }
+    },
+    {
+      "tool": "run_validation",
+      "reason": "Find out what broke."
+    },
+    {
+      "tool": "edit_file",
+      "args": {
+        "path": "main_test.go",
+        "old_text": "greeting(\"x\")",
+        "new_text": "greeting(\"y\")"
+      },
+      "reason": "A protected test file; this edit must be denied."
+    },
+    {
+      "tool": "edit_file",
+      "args": {
+        "path": "main.go",
+        "old_text": "greeting",
+        "new_text": "greet"
+      },
+      "reason": "Ambiguous text; this edit must be denied with the lines it occurs on."
+    },
+    {
+      "tool": "edit_file",
+      "args": {
+        "path": "main.go",
+        "old_text": "import (\n\t\"fmt\"",
+        "new_text": "import (\n\t\"context\"\n\t\"fmt\""
+      },
+      "reason": "Import context."
+    },
+    {
+      "tool": "edit_file",
+      "args": {
+        "path": "main.go",
+        "old_text": "lib.Greet(name)",
+        "new_text": "lib.Greet(context.Background(), name)"
+      },
+      "reason": "Pass a context to Greet."
+    },
+    {
+      "tool": "run_validation",
+      "reason": "Confirm the repair."
+    },
+    {
+      "tool": "normalize_manifests"
+    },
+    {
+      "tool": "run_validation"
+    },
+    {
+      "tool": "prepare_proposal",
+      "args": {
+        "title": "Upgrade example.com/lib to v1.3.0",
+        "summary": "Greet now takes a context. Edited the one call site in main.go to pass context.Background(). Build, vet, and tests pass."
+      }
+    }
+  ]
+}
