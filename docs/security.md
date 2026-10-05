@@ -86,6 +86,14 @@ branch names read during reconciliation.
 
 ## What this project does not claim
 
+That a proposal is a correct repair. Readiness proves the candidate tree
+builds, vets, and passes the repository's own tests with nothing
+introduced; in a repository with few or no tests that says little about
+whether a model's edit is right. On 2026-10-04 a model-mode run prepared a
+ready proposal whose repair adds a panic the original code did not have
+(`benchmarks/README.md`, "Repair on real repositories"). The human review
+of the diff is the control for this, and the only one.
+
 That a proposal from vulnerable selection fixes every vulnerability: it
 clears the findings the scanner reports in one module, against the
 database snapshot it names, and a module none of whose packages the
@@ -109,9 +117,9 @@ repository content from whichever model provider is configured.
   by content (image digest and version; database modified time and hash)
   and are never deleted and recreated in a run. A scanner directory that
   fails verification is left for the operator to remove.
-- Model recordings are tied to the exact prompt and tool shapes. The
-  runtime's renderer reproduces the previous renderer byte for byte, so the
-  recordings committed before it replay unchanged.
+- Model recordings are tied to the exact prompt, tool shapes, and
+  rendering. The 2026-10-04 revision changed all three, and the committed
+  recordings were re-recorded with it.
 - The Claude SDK reaches this module's dependency graph through
   `providers/anthropic`, which `internal/steward` imports for every mode.
   No development, test, or CI path constructs the adapter.

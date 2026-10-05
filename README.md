@@ -124,12 +124,16 @@ the upgrade, or because the only fix would change a protected file.
 |---|---|---|---|
 | baseline, no model | 2 of 5 | 3 of 6 | 0 of 11 |
 | scripted | 5 of 5 | 6 of 6 | 0 of 11 |
+| qwen3:30b-a3b, local, two runs each | 9 of 10 | 10 of 12 | 0 of 22 |
+| Before the 2026-10-04 prompt revision: | | | |
 | Claude Sonnet 5, one run each | 4 of 5 | 4 of 6 | 0 of 11 |
 | qwen3:30b-a3b, local, two runs each | 8 of 10 | 10 of 12 | 0 of 22 |
 | gpt-oss:20b, local, two runs each | 1 of 10 | 11 of 12 | 0 of 22 |
 
-Across 77 runs no mode produced a false success or modified the operator's
-copy of the project. The runs that did not reach the right answer ended at
+The first three rows are at the current prompt and tools; the last three
+were measured before the revision and are kept as history, not as a
+comparison. Across 121 runs no mode produced a false success on these
+projects or modified the operator's copy of the project. The runs that did not reach the right answer ended at
 a limit, ended on an error, or stopped without a proposal. The baseline has
 no model and cannot repair anything, so on the nine scenarios it did not
 complete it stopped without a proposal each time.
@@ -144,8 +148,11 @@ rules, the dates, and the per-scenario results.
 Six further scenarios run the no-model pipeline against real public
 projects, one of them fixing a real advisory, see
 [Smoke scenarios](#smoke-scenarios-against-public-modules). Three more ask
-the local model to repair a real break in a real project; in its first
-nine runs it repaired none, see
+the local model to repair a real break in a real project. In its first
+nine runs it repaired none. After a revision of the prompt and tools, one
+run prepared a proposal that is not a correct repair: it compiles and
+passes validation, in a project with no tests, but adds a crash the
+original code did not have. Measurement stopped there, see
 [Repair scenarios](#repair-scenarios-on-real-repositories). repo-steward
 has also run once for real, see Status below.
 
@@ -185,7 +192,8 @@ its benchmarks with agent-runtime's `bench` module. The whole path described abo
   against GitHub and nothing is sent twice.
 - **Evidence:** committed benchmark results over eleven scenarios, six
   smoke scenarios against real public modules, and three repair scenarios
-  on real repositories, which the local model has not yet repaired.
+  on real repositories, where the local model has not produced a correct
+  repair: its one proposal so far passes validation but is wrong.
 - **Vulnerabilities:** `vulns` scans a repository with a pinned
   govulncheck against a verified snapshot of the Go vulnerability database
   and reports what it finds. `maintain -mode baseline -select vulnerable`
@@ -702,6 +710,15 @@ reaps every container carrying the sandbox label.
 REPO_STEWARD_SMOKE_MODEL=ollama:qwen3:30b-a3b REPO_STEWARD_SMOKE_OUT=$HOME/tmp/repair \
   go test -tags smoke -count=1 -p 1 -v -timeout 2h -run TestRepair ./internal/smoke/
 ```
+
+After the 2026-10-04 revision of the prompt and tools, mcp-openweather
+ended with a ready proposal whose repair is wrong (an unchecked type
+assertion that panics on a call without arguments), dictionary ended after
+three malformed edit requests, and awsoremod was not run; see
+[the 2026-10-04 measurement](benchmarks/README.md#2026-10-04-one-revision-of-the-prompt-and-tools).
+`TestRepair` reads model-mode post validation from a field only the
+baseline fills, so it fails every model proposal before its oracles run;
+that is known and not yet fixed.
 
 The first measurement, on 2026-10-03 with qwen3:30b-a3b, repaired nothing:
 0 of 9 runs, each ending after three consecutive failed steps, with no edit

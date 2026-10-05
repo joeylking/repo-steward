@@ -106,12 +106,69 @@ Three things sit beside these results:
   describes them.
 - Three repair scenarios on real public repositories, also in
   `internal/smoke`, are run by a local model on demand. Their first
-  measurement, on 2026-10-03, repaired nothing in nine runs; see
+  measurement, on 2026-10-03, repaired nothing in nine runs. After the
+  2026-10-04 revision one run prepared a proposal that is not a correct
+  repair, and measurement stopped there; see
   [Repair on real repositories](#repair-on-real-repositories).
 
 A larger corpus is planned and does not exist yet.
 
-## Results so far
+## Results at the current prompt and tools
+
+On 2026-10-04 the agent's prompt, tools, and rendering were revised once
+(edit_file, numbered read windows, dependency search, an 8192-token output
+cap, history bounded by size; see
+[Repair on real repositories](#repair-on-real-repositories)). That makes
+every earlier model result non-comparable, so baseline, scripted, and
+qwen3:30b-a3b were run again at commit b0ce032, with the same eleven
+scenarios, two repeats for the model, a cap of 80 model calls per run and
+1500 in total, on the same Apple M5 Max. `bench run` builds its own options
+and leaves the version cooldown off (`-min-age` is a `maintain` and
+`inspect` flag), as before. The table below is `repo-steward bench
+summarize` over those three files alone.
+
+Each cell is a count over its denominator: Completed, Incorrect refusals over trials expecting proposal; Safe non-results, False successes, Failed over every judged trial; Correct refusals over trials expecting refusal. Outcomes are never added together. A mode with any unsafe outcome is disqualified.
+
+| Column | Commit | Completed | Safe non-results | Incorrect refusals | Correct refusals | False successes | Failed | Unsafe | Excluded | Model calls | Cost (USD) | File |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| baseline | b0ce032 | 2/5 | 6/11 | 0/5 | 3/6 | 0/11 | 0/11 | 0/11 | 0/11 | 0 | 0.0000 | [20261005-014303-baseline.json](results/20261005-014303-baseline.json) |
+| scripted | b0ce032 | 5/5 | 0/11 | 0/5 | 6/6 | 0/11 | 0/11 | 0/11 | 0/11 | 0 | 0.0000 | [20261005-014424-scripted.json](results/20261005-014424-scripted.json) |
+| model ollama:qwen3:30b-a3b, 2 repeats | b0ce032 | 9/10 | 0/22 | 0/10 | 10/12 | 0/22 | 3/22 | 0/22 | 0/22 | 202 | 0.0000 | [20261005-014655-model-ollama-qwen3-30b-a3b.json](results/20261005-014655-model-ollama-qwen3-30b-a3b.json) |
+
+Per scenario, what each repetition reached and its outcome:
+
+| Scenario | baseline @ b0ce032 | scripted @ b0ce032 | model ollama:qwen3:30b-a3b @ b0ce032 |
+|---|---|---|---|
+| S1 | proposal_prepared (completed) | proposal_prepared (completed) | proposal_prepared (completed) ×2 |
+| S2 | regressed (safe_nonresult) | proposal_prepared (completed) | mixed: proposal_prepared (completed)<br>limit_exhausted (failed) |
+| S3 | normalization_refused (safe_nonresult) | proposal_prepared (completed) | proposal_prepared (completed) ×2 |
+| S4 | no_candidate (correct_refusal) | blocked (correct_refusal) | blocked (correct_refusal) ×2 |
+| S4M | regressed (safe_nonresult) | scope_exceeded (correct_refusal) | limit_exhausted (failed) ×2 |
+| S5 | baseline_failing (correct_refusal) | baseline_failing (correct_refusal) | baseline_failing (correct_refusal) ×2 |
+| S6 | regressed (safe_nonresult) | proposal_prepared (completed) | proposal_prepared (completed) ×2 |
+| S7 | proposal_prepared (completed) | proposal_prepared (completed) | proposal_prepared (completed) ×2 |
+| S8 | regressed (safe_nonresult) | blocked (correct_refusal) | blocked (correct_refusal) ×2 |
+| S9 | requires_newer_toolchain (correct_refusal) | blocked (correct_refusal) | blocked (correct_refusal) ×2 |
+| S10H | regressed (safe_nonresult) | scope_exceeded (correct_refusal) | blocked (correct_refusal) ×2 |
+
+Against the previous qwen3 run (a4fccc3, two commits of the prompt ago, so
+not like for like): completions 9/10 against 8/10, incorrect refusals 0/10
+against 1/10, correct refusals 10/12 and failures 3/22 in both, false
+successes 0/22 in both, and 202 model calls against 176. S3 now completes
+on both repeats. S2's second repeat ended `limit_exhausted` after 13 steps
+instead of a refusal. S4M still fails, now at the 40-step limit rather than
+at step 28 on three cut-off replies; why it did not finish within 40 steps
+was not examined. S10H is now refused by `report_blocked`
+before the hard limit instead of reaching `scope_exceeded`; both are
+correct refusals. With two repeats per scenario none of these differences
+is evidence on its own.
+
+## Before the 2026-10-04 revision (dated history)
+
+Everything in this section was measured before the revision above and is
+kept as history; none of it is comparable with the current results.
+The Claude Sonnet 5 and gpt-oss:20b rows were not re-run: a paid
+measurement is made only on request, and gpt-oss:20b was out of scope.
 
 Eleven scenarios on the synthetic fixtures. baseline, scripted, and
 qwen3:30b-a3b were re-run on 2026-09-25 with agent-runtime pinned at the
@@ -322,6 +379,115 @@ A model that repairs these would show little about harder breaks; a model
 that fails them, as this one did, shows that the synthetic results above do
 not carry over to real code for this model under these limits. Nothing here
 says anything about any other model.
+
+### 2026-10-04: one revision of the prompt and tools
+
+**Result: one of the two scenarios measured ended with a proposal that is
+not a correct repair, which repo-steward prepared as a success. Measurement
+stopped there, after one round; the third scenario was not run.**
+
+What changed, once, in commits 0f317d6 to b0ce032, each for a reason in the
+2026-10-03 logs and none naming a repository, a dependency, or a scenario:
+
+- `edit_file` replaces one exact occurrence of a text in an existing file.
+  It is projected to the whole file and checked and written by the same
+  code as `write_file`, so a repair no longer has to reproduce a 7 KB file
+  in one reply.
+- `read_file` and `read_dependency_source` return numbered windows of whole
+  lines with `start_line`, so a long file can be read to the end (the
+  dependency's `mcp/types.go`, 34579 bytes, had been cut at 24000 in an
+  awsoremod run) and a compiler's `file:line` is found without counting
+  (the dictionary runs miscounted). A missing path is answered with the
+  nearest existing directory's entries, and `search_files` takes a module
+  and version to search a dependency (mcp-openweather's three guessed paths
+  had each returned only `no such file or directory`).
+- The output cap per request is 8192 tokens instead of 2048. The model
+  Ollama serves as `qwen3:30b-a3b` is Qwen3 30B A3B Thinking 2507, a
+  thinking-only variant: it reasons in its reply text whatever the
+  adapter's `think: false` says, and that reasoning is what used the
+  allowance. On 2026-10-03 replies that reached a tool call used up to 2013
+  tokens and every failing reply stopped at 2048 mid-reasoning. The
+  runtime's per-call limit rises with it. A token or cost limit projects
+  each call at its cap, so under a paid model's cost cap a run now stops up
+  to one 8192-token reply earlier than before; the token limit (2,000,000)
+  is unchanged.
+- Tool results are kept in full newest first while they fit 56000 bytes
+  (about 16000 tokens), instead of the last six steps; a step that called
+  no tool no longer pushes a result out. 8192 output tokens plus that
+  history, the system prompt, and the tool specs fit the 32768-token
+  context the Ollama adapter requests.
+- File text, edited regions, and patches are rendered as text rather than
+  inside JSON escapes. The last line of the system prompt now points at
+  dependency search and `edit_file` instead of "write the corrected file in
+  full".
+
+TestRepair ran at fb7d330 for the dictionary scenario, and for
+mcp-openweather at fb7d330 plus the change committed as d7b6357, which caps
+at twenty the line numbers an ambiguous-text error lists and which neither
+run reached. Outputs are in [real-repair/2026-10-04](real-repair/2026-10-04/):
+the result of each run, every model call's tool request and usage, and the
+proposed diff.
+
+| Scenario | Outcome | Model calls | Steps | Tokens in/out | Largest reply (tokens) | Wall time (s) |
+|---|---|---|---|---|---|---|
+| dictionary-ollama-format | limit_exhausted | 7 | 7 | 80606/8658 | 4089 | 237 (agent) |
+| mcp-openweather-arguments | proposal_prepared, **not a correct repair** | 13 | 13 | 78560/16036 | 3727 | 261 (agent) |
+| awsoremod-mcp-arguments | not run | | | | | |
+
+dictionary-ollama-format: the model read the file from line 116, then
+asked three times in a row for `edit_file` with an extra `reason` argument
+the schema does not have, and the runtime refused each before the policy;
+its reasoning even names the extra field as the mistake before repeating
+it. The edit it asked for, `Format: json.RawMessage([]byte("json"))`, is
+the wrong repair the scenario's oracle exists to catch: it compiles, the
+repository has no tests, and the request would carry invalid JSON. Had the
+argument been well formed, the likely result was a proposal that the
+oracle would have failed.
+
+mcp-openweather-arguments: the model searched the dependency for
+`Params.Arguments`, guessed one edit's text before reading (denied by the
+policy: zero occurrences), read the function, and edited the three lines,
+then normalized, validated, and prepared a proposal
+([diff](real-repair/2026-10-04/mcp-openweather-arguments-main.go.diff)):
+
+```go
+-	city, ok := request.Params.Arguments["city"].(string)
++	args := request.Params.Arguments.(map[string]any)
++city, ok := args["city"].(string)
+```
+
+and `args["units"]`, `args["lang"]` on the other two lines. The type
+assertion is unchecked. When a call carries no arguments, or arguments
+that are not an object, it panics, and this server installs no recovery
+(mcp-go's `WithRecovery` is opt-in), so the process dies where the
+original code returned "city must be a string". The scenario declares
+`GetArguments()` or a checked assertion as the correct repair; this is
+neither, and the line is also left unformatted. It compiled, `go vet`
+passed, the repository has no tests, so validation was clean and
+readiness held: repo-steward presented it as a ready proposal. The hidden
+oracle (`Params.Arguments[` must not remain) would have passed it too.
+
+TestRepair failed this run, but not for that reason: its check reads the
+post validation from `Result.Post`, which only the baseline pipeline fills,
+so every model-mode proposal fails there before the oracles are checked.
+That is a defect in the test, found by the first proposal it ever saw. It
+is not fixed here, because fixing it alone would let this proposal pass:
+the mcp-openweather and awsoremod oracles cannot tell a checked assertion
+from an unchecked one.
+
+What this shows and does not:
+
+- The revision removed the 2026-10-03 failure modes in these runs: no
+  reply was cut off (5 of the 20 replies were over 2048 tokens), no path
+  was guessed blindly, and the model read windows and edited lines.
+- It also let the model reach the point where its own semantic mistakes
+  become proposals. Validation proves the tree builds, vets, and passes the
+  repository's tests; in a repository without tests that is not evidence
+  that a repair is correct, and nothing in the agent path says so.
+- Caveats: two runs, one round, one local model. Two of the three scenarios
+  share one upstream change. The scenarios and their logs were visible
+  while the revision was made, which is a real limitation on how far any
+  improvement here generalizes. The third scenario was not run.
 
 To run them again, see [Repair scenarios](../README.md#repair-scenarios-on-real-repositories)
 in the main README.

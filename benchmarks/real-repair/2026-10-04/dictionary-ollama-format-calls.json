@@ -1,0 +1,111 @@
+{
+  "scenario": "dictionary-ollama-format",
+  "note": "Each model call of the run in order, from its recording: the stop reason, the usage the server reported, and the tool calls the reply asked for. The reasoning text and the requests are left out.",
+  "calls": [
+    {
+      "call": 1,
+      "stop_reason": "tool_use",
+      "input_tokens": 1605,
+      "output_tokens": 295,
+      "tool_uses": [
+        {
+          "name": "list_candidates",
+          "args": {}
+        }
+      ]
+    },
+    {
+      "call": 2,
+      "stop_reason": "tool_use",
+      "input_tokens": 10969,
+      "output_tokens": 540,
+      "tool_uses": [
+        {
+          "name": "apply_upgrade",
+          "args": {
+            "module": "github.com/ollama/ollama",
+            "version": "v0.5.0"
+          }
+        }
+      ]
+    },
+    {
+      "call": 3,
+      "stop_reason": "tool_use",
+      "input_tokens": 12821,
+      "output_tokens": 223,
+      "tool_uses": [
+        {
+          "name": "run_validation",
+          "args": {}
+        }
+      ]
+    },
+    {
+      "call": 4,
+      "stop_reason": "tool_use",
+      "input_tokens": 13487,
+      "output_tokens": 808,
+      "tool_uses": [
+        {
+          "name": "read_file",
+          "args": {
+            "path": "cmd/translate/main.go",
+            "start_line": 116
+          }
+        }
+      ]
+    },
+    {
+      "call": 5,
+      "stop_reason": "tool_use",
+      "input_tokens": 13753,
+      "output_tokens": 4089,
+      "tool_uses": [
+        {
+          "name": "edit_file",
+          "args": {
+            "path": "cmd/translate/main.go",
+            "old_text": "Format: \"json\",",
+            "new_text": "Format: json.RawMessage([]byte(\"json\")),",
+            "reason": "Fix type mismatch: 'json' string literal cannot be used as json.RawMessage"
+          }
+        }
+      ]
+    },
+    {
+      "call": 6,
+      "stop_reason": "tool_use",
+      "input_tokens": 13908,
+      "output_tokens": 331,
+      "tool_uses": [
+        {
+          "name": "edit_file",
+          "args": {
+            "path": "cmd/translate/main.go",
+            "old_text": "Format: \"json\",",
+            "new_text": "Format: json.RawMessage([]byte(\"json\")),",
+            "reason": "Fix type mismatch: 'json' string literal cannot be used as json.RawMessage"
+          }
+        }
+      ]
+    },
+    {
+      "call": 7,
+      "stop_reason": "tool_use",
+      "input_tokens": 14063,
+      "output_tokens": 2372,
+      "tool_uses": [
+        {
+          "name": "edit_file",
+          "args": {
+            "path": "cmd/translate/main.go",
+            "old_text": "Format: \"json\",",
+            "new_text": "Format: json.RawMessage([]byte(\"json\")),",
+            "reason": "Fix type mismatch: 'json' string literal cannot be used as json.RawMessage"
+          }
+        }
+      ]
+    }
+  ]
+}

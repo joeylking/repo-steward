@@ -1,0 +1,4920 @@
+{
+  "run_id": "80f4f7c3f56c31d6f3313356",
+  "mode": "model:ollama:qwen3:30b-a3b",
+  "outcome": "limit_exhausted",
+  "detail": {
+    "run_detail": "3 consecutive failed steps",
+    "run_reason": "repeated_tool_failures",
+    "run_status": "FAILED"
+  },
+  "workspace": {
+    "dir": "/Users/joeyking/.cache/repo-steward-test/t-2043477418/data-model/runs/80f4f7c3f56c31d6f3313356/work",
+    "git_dir": "/Users/joeyking/.cache/repo-steward-test/t-2043477418/data-model/runs/80f4f7c3f56c31d6f3313356/gitdir",
+    "source_path": "/Users/joeyking/.cache/repo-steward-test/t-2043477418/src/dictionary-192b5dcd",
+    "base_commit": "192b5dcd881f062fb90ad42462a878bd3030dffa",
+    "base_tree": "550270a7f865ffe63631fdf910edd16c40624fbf",
+    "base_ref": "smoke"
+  },
+  "profile": {
+    "module_path": "github.com/allof-dev/dictionary",
+    "go_directive": "1.23.1",
+    "requires": [
+      {
+        "path": "ariga.io/atlas",
+        "version": "v0.19.1-0.20240203083654-5948b60a8e43",
+        "indirect": true
+      },
+      {
+        "path": "entgo.io/ent",
+        "version": "v0.14.1",
+        "indirect": false
+      },
+      {
+        "path": "github.com/agext/levenshtein",
+        "version": "v1.2.1",
+        "indirect": true
+      },
+      {
+        "path": "github.com/apparentlymart/go-textseg/v13",
+        "version": "v13.0.0",
+        "indirect": true
+      },
+      {
+        "path": "github.com/go-openapi/inflect",
+        "version": "v0.19.0",
+        "indirect": true
+      },
+      {
+        "path": "github.com/google/go-cmp",
+        "version": "v0.6.0",
+        "indirect": true
+      },
+      {
+        "path": "github.com/google/uuid",
+        "version": "v1.6.0",
+        "indirect": true
+      },
+      {
+        "path": "github.com/hashicorp/hcl/v2",
+        "version": "v2.13.0",
+        "indirect": true
+      },
+      {
+        "path": "github.com/mattn/go-sqlite3",
+        "version": "v1.14.24",
+        "indirect": false
+      },
+      {
+        "path": "github.com/mitchellh/go-wordwrap",
+        "version": "v0.0.0-20150314170334-ad45545899c7",
+        "indirect": true
+      },
+      {
+        "path": "github.com/ollama/ollama",
+        "version": "v0.4.7",
+        "indirect": false
+      },
+      {
+        "path": "github.com/zclconf/go-cty",
+        "version": "v1.8.0",
+        "indirect": true
+      },
+      {
+        "path": "golang.org/x/mod",
+        "version": "v0.20.0",
+        "indirect": true
+      },
+      {
+        "path": "golang.org/x/text",
+        "version": "v0.20.0",
+        "indirect": true
+      }
+    ],
+    "has_replace": false,
+    "has_exclude": false,
+    "toolchain": {
+      "go_minor": "1.23",
+      "tag": "golang:1.23-bookworm",
+      "digest": "sha256:167053a2bb901972bf2c1611f8f52c44d5fe7e762e5cab213708d82c421614db"
+    },
+    "protected_globs": [
+      "**/*_test.go",
+      "**/testdata/**",
+      ".github/**",
+      ".gitlab-ci.yml",
+      ".circleci/**",
+      "Jenkinsfile",
+      ".repo-steward/**",
+      "SECURITY.md",
+      "go.mod",
+      "go.sum",
+      "go.work",
+      "go.work.sum",
+      "vendor/**",
+      ".gitignore",
+      ".gitattributes",
+      ".gitmodules"
+    ],
+    "file_count": 91,
+    "total_bytes": 632091,
+    "go_files": 67,
+    "refusals": null
+  },
+  "candidates": [
+    {
+      "module": "entgo.io/ent",
+      "current": "v0.14.1",
+      "latest": "v0.14.6",
+      "delta": "patch",
+      "targets": [
+        {
+          "version": "v0.14.2",
+          "delta": "patch",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v0.14.3",
+          "delta": "patch",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v0.14.4",
+          "delta": "patch",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v0.14.5",
+          "delta": "patch",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v0.14.6",
+          "delta": "patch",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        }
+      ],
+      "retracted": false
+    },
+    {
+      "module": "github.com/mattn/go-sqlite3",
+      "current": "v1.14.24",
+      "latest": "v1.14.52",
+      "delta": "patch",
+      "targets": [
+        {
+          "version": "v1.14.25",
+          "delta": "patch",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v1.14.26",
+          "delta": "patch",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v1.14.27",
+          "delta": "patch",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v1.14.28",
+          "delta": "patch",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v1.14.29",
+          "delta": "patch",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v1.14.30",
+          "delta": "patch",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v1.14.31",
+          "delta": "patch",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v1.14.32",
+          "delta": "patch",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v1.14.33",
+          "delta": "patch",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v1.14.34",
+          "delta": "patch",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v1.14.35",
+          "delta": "patch",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v1.14.36",
+          "delta": "patch",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v1.14.37",
+          "delta": "patch",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v1.14.38",
+          "delta": "patch",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v1.14.39",
+          "delta": "patch",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v1.14.40",
+          "delta": "patch",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v1.14.41",
+          "delta": "patch",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v1.14.42",
+          "delta": "patch",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v1.14.43",
+          "delta": "patch",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v1.14.44",
+          "delta": "patch",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v1.14.45",
+          "delta": "patch",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v1.14.46",
+          "delta": "patch",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v1.14.47",
+          "delta": "patch",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v1.14.48",
+          "delta": "patch",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v1.14.49",
+          "delta": "patch",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v1.14.50",
+          "delta": "patch",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v1.14.51",
+          "delta": "patch",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        },
+        {
+          "version": "v1.14.52",
+          "delta": "patch",
+          "eligible": false,
+          "reasons": [
+            "operator named a different dependency"
+          ]
+        }
+      ],
+      "retracted": false
+    },
+    {
+      "module": "github.com/ollama/ollama",
+      "current": "v0.4.7",
+      "latest": "v0.40.0-rc3",
+      "delta": "minor",
+      "targets": [
+        {
+          "version": "v0.4.8-rc0",
+          "delta": "patch",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.5.0-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.5.0",
+          "delta": "minor",
+          "eligible": true
+        },
+        {
+          "version": "v0.5.1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.5.2-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.5.2-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.5.2-rc2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.5.2-rc3",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.5.2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.5.3-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.5.3",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.5.4",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.5.5-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.5.5",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.5.6",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.5.7",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.5.8-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.5.8-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.5.8-rc10",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.5.8-rc11",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.5.8-rc12",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.5.8-rc13",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.5.8-rc2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.5.8-rc3",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.5.8-rc4",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.5.8-rc5",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.5.8-rc6",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.5.8-rc7",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.5.8-rc8",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.5.8-rc9",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.5.8",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.5.9-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.5.9",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.5.10",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.5.11",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.5.12-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.5.12-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.5.12",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.5.13-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.5.13-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.5.13-rc2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.5.13-rc3",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.5.13-rc4",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.5.13-rc5",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.5.13-rc6",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.5.13",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.5.14-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.6.0-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.6.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.6.1-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.6.1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.6.2-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.6.2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.6.3-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.6.3-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.6.3",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.6.4-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.6.4",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.6.5-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.6.5-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.6.5",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.6.6-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.6.6-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.6.6-rc2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.6.6",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.6.7-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.6.7-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.6.7-rc2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.6.7",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.6.8-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.6.8",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.6.9-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.7.0-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.7.0-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.7.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.7.1-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.7.1-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.7.1-rc2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.7.1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.8.0-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.8.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.9.0-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.9.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.9.1-ci0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.9.1-ci1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.9.1-ci2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.9.1-ci3",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.9.1-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.9.1-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.9.1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.9.2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.9.3-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.9.3-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.9.3-rc2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.9.3-rc3",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.9.3-rc4",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.9.3-rc5",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.9.3",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.9.4-citest0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.9.4-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.9.4-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.9.4-rc2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.9.4-rc3",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.9.4-rc4",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.9.4-rc5",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.9.4-rc6",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.9.4",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.9.5",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.9.6-ci0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.9.6-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.9.6",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.9.7-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.9.7-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.10.0-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.10.0-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.10.0-rc2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.10.0-rc3",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.10.0-rc4",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.10.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.10.1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.10.2-int1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.11.0-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.11.0-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.11.0-rc2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.11.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.11.1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.11.2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.11.3-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.11.3",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.11.4-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.11.4",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.11.5-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.11.5-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.11.5-rc2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.11.5-rc3",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.11.5-rc4",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.11.5-rc5",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.11.5",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.11.6-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.11.6",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.11.7-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.11.7-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.11.7",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.11.8-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.11.8",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.11.9-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.11.9",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.11.10",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.11.11-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.11.11-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.11.11-rc2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.11.11-rc3",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.11.11",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.12.0-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.12.0-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.12.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.12.1-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.12.1-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.12.1-rc2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.12.1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.12.2-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.12.2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.12.3",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.12.4-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.12.4-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.12.4-rc2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.12.4-rc3",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.12.4-rc4",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.12.4-rc5",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.12.4-rc6",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.12.4-rc7",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.12.4",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.12.5-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.12.5",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.12.6-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.12.6-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.12.6",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.12.7-citest0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.12.7-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.12.7-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.12.7",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.12.8-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.12.8",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.12.9-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.12.9",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.12.10-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.12.10-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.12.10",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.12.11-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.12.11-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.12.11",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.13.0-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.13.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.13.1-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.13.1-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.13.1-rc2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.13.1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.13.2-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.13.2-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.13.2-rc2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.13.2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.13.3-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.13.3-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.13.3",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.13.4-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.13.4-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.13.4-rc2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.13.4",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.13.5-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.13.5-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.13.5",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.14.0-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.14.0-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.14.0-rc10",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.14.0-rc11",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.14.0-rc2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.14.0-rc3",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.14.0-rc4",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.14.0-rc5",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.14.0-rc6",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.14.0-rc7",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.14.0-rc8",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.14.0-rc9",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.14.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.14.1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.14.2-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.14.2-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.14.2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.14.3-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.14.3-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.14.3-rc2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.14.3-rc3",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.14.3",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.15.0-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.15.0-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.15.0-rc2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.15.0-rc3",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.15.0-rc4",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.15.0-rc5",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.15.0-rc6",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.15.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.15.1-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.15.1-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.15.1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.15.2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.15.3",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.15.4",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.15.5-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.15.5-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.15.5-rc2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.15.5-rc3",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.15.5-rc4",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.15.5-rc5",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.15.5",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.15.6",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.16.0-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.16.0-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.16.0-rc2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.16.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.16.1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.16.2-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.16.2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.16.3-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.16.3-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.16.3-rc2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.16.3",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.17.0-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.17.0-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.17.0-rc2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.17.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.17.1-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.17.1-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.17.1-rc2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.17.1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.17.2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.17.3",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.17.4",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.17.5",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.17.6",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.17.7-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.17.7-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.17.7-rc2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.17.7",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.17.8-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.17.8-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.17.8-rc2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.17.8-rc3",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.17.8-rc4",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.18.0-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.18.0-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.18.0-rc2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.18.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.18.1-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.18.1-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.18.1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.18.2-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.18.2-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.18.2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.18.3-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.18.3-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.18.3-rc2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.18.3",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.18.4-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.18.4-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.19.0-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.19.0-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.19.0-rc2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.19.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.20.0-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.20.0-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.20.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.20.1-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.20.1-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.20.1-rc2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.20.1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.20.2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.20.3-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.20.3",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.20.4-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.20.4-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.20.4-rc2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.20.4",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.20.5-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.20.5-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.20.5-rc2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.20.5",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.20.6-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.20.6-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.20.6",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.20.7-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.20.7-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.20.7",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.20.8-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.21.0-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.21.0-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.21.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.21.1-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.21.1-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.21.1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.21.2-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.21.2-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.21.2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.21.3-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.22.0-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.22.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.22.1-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.22.1-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.22.1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.23.0-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.23.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.23.1-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.23.1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.23.2-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.23.2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.23.3-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.23.3-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.23.3",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.23.4-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.23.4",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.24.0-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.24.0-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.24.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.25.0-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.30.0-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.30.0-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.30.0-rc10",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.30.0-rc11",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.30.0-rc12",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.30.0-rc13",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.30.0-rc14",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.30.0-rc15",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.30.0-rc16",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.30.0-rc17",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.30.0-rc18",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.30.0-rc19",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.30.0-rc2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.30.0-rc20",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.30.0-rc21",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.30.0-rc22",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.30.0-rc23",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.30.0-rc24",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.30.0-rc25",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.30.0-rc26",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.30.0-rc27",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.30.0-rc28",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.30.0-rc29",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.30.0-rc3",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.30.0-rc30",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.30.0-rc31",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.30.0-rc32",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.30.0-rc4",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.30.0-rc5",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.30.0-rc6",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.30.0-rc7",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.30.0-rc8",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.30.0-rc9",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.30.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.30.1-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.30.1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.30.2-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.30.2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.30.3",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.30.4-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.30.4-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.30.4",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.30.5-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.30.5",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.30.6-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.30.6",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.30.7-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.30.7-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.30.7",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.30.8-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.30.8",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.30.9-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.30.9-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.30.9-rc2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.30.9",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.30.10-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.30.10-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.30.10",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.30.11-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.30.11-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.30.11",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.30.12-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.31.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.31.1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.31.2-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.31.2-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.31.2-rc2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.31.2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.32.0-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.32.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.32.1-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.32.1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.32.2-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.32.2-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.32.2-rc2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.32.2-rc3",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.32.2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.32.3-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.32.3",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.32.4-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.32.4",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.32.5-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.32.5",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.32.6-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.32.6",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.32.7",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.32.8-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.32.8",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.32.9",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.32.10-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.32.10-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.32.10",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.32.11",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.32.12",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.32.13",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.32.14-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.32.14",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.32.15-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.32.15-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.32.15-rc2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.32.15",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.33.0-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.33.0-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.33.0-rc2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.33.0-rc3",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.33.0-rc4",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.33.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.33.1-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.33.1-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.33.1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.33.2-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.33.2-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.33.2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.33.3-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.33.3-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.33.3-rc2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.33.3",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.34.0-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.34.0-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.34.0-rc2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.34.0-rc3",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.34.0-rc4",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.34.0-rc5",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.34.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.34.1-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.34.1-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.34.1-rc2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.34.1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.34.2-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.34.2-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.34.2-rc2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.34.2-rc3",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.34.2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.34.3-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.34.3-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.34.3",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.34.4-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.34.4-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.34.4",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.35.0-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.35.0-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.35.0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.35.1-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.35.1-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.35.1-rc2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.35.1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.40.0-rc0",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.40.0-rc1",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.40.0-rc2",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        },
+        {
+          "version": "v0.40.0-rc3",
+          "delta": "minor",
+          "eligible": false,
+          "reasons": [
+            "pre-release versions are ineligible",
+            "operator pinned version v0.5.0"
+          ]
+        }
+      ],
+      "retracted": false
+    }
+  ],
+  "selected": {
+    "module": "github.com/ollama/ollama",
+    "version": "v0.5.0"
+  },
+  "baseline": {
+    "id": "fa03949e5fac53bbdb42bde2",
+    "tree_hash": "550270a7f865ffe63631fdf910edd16c40624fbf",
+    "conclusive": true,
+    "clean": true,
+    "checks": {
+      "build": "pass",
+      "test": "pass",
+      "vet": "pass"
+    },
+    "findings": 0,
+    "duration_ms": 14103
+  },
+  "run": {
+    "status": "FAILED",
+    "reason": "repeated_tool_failures",
+    "reason_detail": "3 consecutive failed steps",
+    "steps": 7,
+    "tools": [
+      "list_candidates:done",
+      "apply_upgrade:done",
+      "run_validation:done",
+      "read_file:done",
+      "edit_file:failed",
+      "edit_file:failed",
+      "edit_file:failed"
+    ]
+  },
+  "model_calls": 7,
+  "input_tokens": 80606,
+  "output_tokens": 8658,
+  "timings_ms": {
+    "agent": 236550,
+    "baseline": 17958,
+    "discover": 55385,
+    "profile": 48,
+    "sandbox": 202,
+    "total": 310237,
+    "workspace": 87
+  }
+}
