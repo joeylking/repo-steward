@@ -1,5 +1,5 @@
 // Package task persists repo-steward's own state: maintenance tasks,
-// manifest promotions, validation runs, and proposals. Phase is never
+// manifest promotions, validation runs, vulnerability scans, and proposals. Phase is never
 // stored; it is derived from the promotion journal and proposal rows. Rows
 // carry the step or operation that produced them, and acceptance rules
 // decide whether a row counts, so completion is never inferred from a row's
@@ -7,11 +7,16 @@
 package task
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"net/url"
 	"os"
@@ -173,6 +178,29 @@ CREATE TABLE publication_ops (
 	updated_at TEXT NOT NULL
 );
 CREATE INDEX publication_ops_run ON publication_ops(run_id, created_at);
+`, `
+CREATE TABLE scan_runs (
+	id TEXT PRIMARY KEY,
+	run_id TEXT NOT NULL REFERENCES tasks(run_id),
+	step_id TEXT NOT NULL DEFAULT '',
+	kind TEXT NOT NULL,
+	tree_hash TEXT NOT NULL,
+	config_hash TEXT NOT NULL,
+	toolchain_digest TEXT NOT NULL,
+	scanner_version TEXT NOT NULL,
+	scanner_sha256 TEXT NOT NULL,
+	db_snapshot_id TEXT NOT NULL,
+	db_modified TEXT NOT NULL,
+	go_version TEXT NOT NULL,
+	output_sha256 TEXT NOT NULL,
+	conclusive INTEGER NOT NULL,
+	reason TEXT NOT NULL DEFAULT '',
+	scan_json TEXT NOT NULL,
+	output_gz BLOB NOT NULL,
+	stderr TEXT NOT NULL DEFAULT '',
+	created_at TEXT NOT NULL
+);
+CREATE INDEX scan_runs_tree ON scan_runs(run_id, tree_hash);
 `}
 
 func (s *Store) migrate(ctx context.Context) error {
@@ -441,6 +469,90 @@ func (s *Store) ListValidations(ctx context.Context, runID string) ([]Validation
 		v.Accepted = accepted == 1
 		v.Run = json.RawMessage(run)
 		out = append(out, v)
+	}
+	return out, rows.Err()
+}
+
+// ScanRecord is one vulnerability scan bound to the tree it scanned and the
+// configuration, toolchain, scanner, and database it ran under. Scan is the
+// parsed scan as JSON; Output is the scanner's raw JSON stream, which the
+// store keeps gzip-compressed, and OutputSHA256 its digest.
+type ScanRecord struct {
+	ID              string          `json:"id"`
+	RunID           string          `json:"run_id"`
+	StepID          string          `json:"step_id,omitempty"`
+	Kind            string          `json:"kind"` // base post
+	TreeHash        string          `json:"tree_hash"`
+	ConfigHash      string          `json:"config_hash"`
+	ToolchainDigest string          `json:"toolchain_digest"`
+	ScannerVersion  string          `json:"scanner_version"`
+	ScannerSHA256   string          `json:"scanner_sha256"`
+	DBSnapshotID    string          `json:"db_snapshot_id"`
+	DBModified      time.Time       `json:"db_modified"`
+	GoVersion       string          `json:"go_version"`
+	OutputSHA256    string          `json:"output_sha256"`
+	Conclusive      bool            `json:"conclusive"`
+	Reason          string          `json:"reason,omitempty"`
+	Scan            json.RawMessage `json:"scan"`
+	Output          []byte          `json:"-"`
+	Stderr          string          `json:"stderr,omitempty"`
+	CreatedAt       string          `json:"created_at"`
+}
+
+// InsertScan stores a scan. The output digest is computed here from the raw
+// output, so a record cannot claim a digest its output does not have.
+func (s *Store) InsertScan(ctx context.Context, r ScanRecord) error {
+	if r.CreatedAt == "" {
+		r.CreatedAt = now()
+	}
+	sum := sha256.Sum256(r.Output)
+	r.OutputSHA256 = hex.EncodeToString(sum[:])
+	var gz bytes.Buffer
+	w := gzip.NewWriter(&gz)
+	if _, err := w.Write(r.Output); err != nil {
+		return err
+	}
+	if err := w.Close(); err != nil {
+		return err
+	}
+	_, err := s.db.ExecContext(ctx, `INSERT INTO scan_runs (id, run_id, step_id, kind, tree_hash, config_hash, toolchain_digest, scanner_version, scanner_sha256, db_snapshot_id, db_modified, go_version, output_sha256, conclusive, reason, scan_json, output_gz, stderr, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		r.ID, r.RunID, r.StepID, r.Kind, r.TreeHash, r.ConfigHash, r.ToolchainDigest, r.ScannerVersion, r.ScannerSHA256, r.DBSnapshotID, r.DBModified.UTC().Format(time.RFC3339Nano), r.GoVersion, r.OutputSHA256, boolInt(r.Conclusive), r.Reason, rawOr(r.Scan), gz.Bytes(), r.Stderr, r.CreatedAt)
+	return err
+}
+
+// ListScans returns a run's scans, newest first, with their raw output
+// decompressed and checked against the stored digest.
+func (s *Store) ListScans(ctx context.Context, runID string) ([]ScanRecord, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT id, run_id, step_id, kind, tree_hash, config_hash, toolchain_digest, scanner_version, scanner_sha256, db_snapshot_id, db_modified, go_version, output_sha256, conclusive, reason, scan_json, output_gz, stderr, created_at FROM scan_runs WHERE run_id=? ORDER BY created_at DESC, id DESC`, runID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []ScanRecord
+	for rows.Next() {
+		var r ScanRecord
+		var conclusive int
+		var modified, scan string
+		var gz []byte
+		if err := rows.Scan(&r.ID, &r.RunID, &r.StepID, &r.Kind, &r.TreeHash, &r.ConfigHash, &r.ToolchainDigest, &r.ScannerVersion, &r.ScannerSHA256, &r.DBSnapshotID, &modified, &r.GoVersion, &r.OutputSHA256, &conclusive, &r.Reason, &scan, &gz, &r.Stderr, &r.CreatedAt); err != nil {
+			return nil, err
+		}
+		r.Conclusive = conclusive == 1
+		r.Scan = json.RawMessage(scan)
+		if r.DBModified, err = time.Parse(time.RFC3339Nano, modified); err != nil {
+			return nil, fmt.Errorf("task: scan %s: database modified time: %w", r.ID, err)
+		}
+		zr, err := gzip.NewReader(bytes.NewReader(gz))
+		if err != nil {
+			return nil, fmt.Errorf("task: scan %s: output: %w", r.ID, err)
+		}
+		if r.Output, err = io.ReadAll(zr); err != nil {
+			return nil, fmt.Errorf("task: scan %s: output: %w", r.ID, err)
+		}
+		if sum := sha256.Sum256(r.Output); hex.EncodeToString(sum[:]) != r.OutputSHA256 {
+			return nil, fmt.Errorf("task: scan %s: stored output does not match its digest", r.ID)
+		}
+		out = append(out, r)
 	}
 	return out, rows.Err()
 }
