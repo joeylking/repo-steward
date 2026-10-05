@@ -578,10 +578,11 @@ is the kind of effect the tool declares, which the policy reads:
 | Tool | Class | Notes |
 |---|---|---|
 | `get_repository_profile`, `list_candidates` | read | Facts computed by deterministic code. |
-| `read_file`, `list_directory`, `search_files`, `git_diff` | read | Working tree only; symlink components and traversal refused. |
+| `read_file`, `list_directory`, `search_files`, `git_diff` | read | Working tree only, except that `search_files` can search a dependency's source; symlink components and traversal refused. Files come in numbered windows of whole lines; a missing path is answered with the nearest existing directory's entries. |
 | `read_dependency_source` | read | Files of a module version from the module cache. |
 | `apply_upgrade` | local | Exact eligible target only, once per run, through manifest staging and Gate A. |
 | `write_file` | local | Regular source files only; tests, CI, security, and manifest paths denied; ignored paths refused; scope checked on the projected diff before the write. |
+| `edit_file` | local | Replaces one exact occurrence of a text in an existing file. Projected to the whole file and checked and written by the same code as `write_file`, so every rule above applies; zero or several occurrences are refused. |
 | `normalize_manifests` | local | `go mod tidy` through staging and Gate B. |
 | `run_validation` | read | Build, vet, test on the exact candidate tree; introduced findings relative to the baseline. |
 | `prepare_proposal` | local | Readiness, then a frozen proposal commit. Terminal unless publication is enabled. |
