@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/joeylking/repo-steward/internal/coverage"
 	"github.com/joeylking/repo-steward/internal/sandbox"
 )
 
@@ -85,6 +86,10 @@ type Run struct {
 	Conclusive bool `json:"conclusive"`
 	// Clean is true when conclusive and every check passed with no findings.
 	Clean bool `json:"clean"`
+	// Coverage is the coverage run of the same snapshot, made only when the
+	// tree changes source beyond the manifests and the checks introduced
+	// nothing. Readiness judges it; nothing else reads it.
+	Coverage *coverage.Evidence `json:"coverage,omitempty"`
 }
 
 // Required are the checks a run must contain.

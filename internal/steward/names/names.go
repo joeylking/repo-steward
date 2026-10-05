@@ -28,6 +28,11 @@ const (
 	Publish      = "publish_proposal"
 )
 
+// KindUnexercisedRepair is the approval kind for preparing a proposal
+// whose source change no test exercises. It exists only when the run was
+// started with -ask-unexercised, and it is bound to one candidate tree.
+const KindUnexercisedRepair = "unexercised_repair"
+
 // ReadOnly lists the tools that never change anything.
 var ReadOnly = []string{Profile, Candidates, ReadFile, ListDir, Search, DepSource, Diff}
 

@@ -18,6 +18,7 @@ import (
 
 	agentrt "github.com/joeylking/agent-runtime"
 
+	"github.com/joeylking/repo-steward/internal/coverage"
 	"github.com/joeylking/repo-steward/internal/deps"
 	"github.com/joeylking/repo-steward/internal/gitx"
 	"github.com/joeylking/repo-steward/internal/manifest"
@@ -25,6 +26,7 @@ import (
 	"github.com/joeylking/repo-steward/internal/repo"
 	"github.com/joeylking/repo-steward/internal/sandbox"
 	"github.com/joeylking/repo-steward/internal/snapshot"
+	"github.com/joeylking/repo-steward/internal/steward/names"
 	"github.com/joeylking/repo-steward/internal/task"
 	"github.com/joeylking/repo-steward/internal/validate"
 	"github.com/joeylking/repo-steward/internal/workspace"
@@ -84,6 +86,10 @@ type Session struct {
 
 	// Publish is non-nil when the run may publish; tools consult it.
 	Publish *Publication
+
+	// AskUnexercised makes a repair that no test exercises pause for an
+	// operator's approval instead of failing readiness.
+	AskUnexercised bool
 
 	// Outcome is set by terminal tools.
 	Outcome *Outcome
@@ -306,6 +312,23 @@ func (s *Session) Validate(ctx context.Context, stepID string) (*validate.Run, s
 	if err != nil {
 		return nil, "", err
 	}
+	// A tree that changes source gets a coverage run of the same snapshot,
+	// in a build cache of its own, once the checks have introduced
+	// nothing: readiness needs it, and it can only matter then. The model
+	// is not shown it here; readiness reports what it lacks.
+	cs, err := s.WS.Diff(ctx, tree)
+	if err != nil {
+		return nil, "", err
+	}
+	if proposal.SourceChanged(cs) && vr.Conclusive && len(proposal.Introduced(s.Baseline, vr)) == 0 {
+		csb, err := sb.WithFreshBuildCache()
+		if err != nil {
+			return nil, "", err
+		}
+		if vr.Coverage, err = coverage.Run(ctx, csb, s.CheckTimeout, s.RunID, stepID); err != nil {
+			return nil, "", err
+		}
+	}
 	raw, err := json.Marshal(vr)
 	if err != nil {
 		return nil, "", err
@@ -315,6 +338,76 @@ func (s *Session) Validate(ctx context.Context, stepID string) (*validate.Run, s
 		return nil, "", err
 	}
 	return vr, id, nil
+}
+
+// Unexercised is the coverage verdict of the current candidate tree when
+// that tree changes source, has a bound post validation that is conclusive
+// and introduces nothing, and the verdict is not verified. ok is false in
+// every other case: then there is nothing an operator could usefully
+// approve, and readiness reports whatever is missing.
+func (s *Session) Unexercised(ctx context.Context) (tree string, v coverage.Verdict, ok bool, err error) {
+	tree, err = s.WS.CandidateTree(ctx)
+	if err != nil {
+		return "", v, false, err
+	}
+	cs, err := s.WS.Diff(ctx, tree)
+	if err != nil || !proposal.SourceChanged(cs) {
+		return tree, v, false, err
+	}
+	post, _, err := proposal.BoundPost(ctx, s.Store, s.RunID, tree, s.ConfigHash, s.Profile.Toolchain.Digest, s.StepDone)
+	if err != nil || post == nil || !post.Conclusive || len(proposal.Introduced(s.Baseline, post)) > 0 {
+		return tree, v, false, err
+	}
+	if v, err = proposal.CheckCoverage(ctx, s.WS, cs, s.Profile.ModulePath, post); err != nil || v.Verified {
+		return tree, v, false, err
+	}
+	return tree, v, true, nil
+}
+
+// DiffOf returns the patch of the named paths from the base tree to tree,
+// cut at max bytes; truncated reports a cut.
+func (s *Session) DiffOf(ctx context.Context, tree string, paths []string, max int) (string, bool, error) {
+	if len(paths) == 0 {
+		return "", false, nil
+	}
+	args := []string{"diff-tree", "-p", "--no-color", "--no-ext-diff", "--no-textconv", "--no-renames", s.WS.BaseTree, tree, "--"}
+	for _, p := range paths {
+		args = append(args, ":(literal)"+p)
+	}
+	out, err := s.WS.Git().Run(ctx, args...)
+	if err != nil {
+		return "", false, err
+	}
+	if len(out) > max {
+		return string(out[:max]), true, nil
+	}
+	return string(out), false, nil
+}
+
+// UnexercisedGrant returns the approved unexercised-repair approval of the
+// step, if there is one: the approval the runtime resumed this step under.
+func (s *Session) UnexercisedGrant(ctx context.Context, stepID string) (*proposal.UnexercisedApproval, error) {
+	if !s.AskUnexercised {
+		return nil, nil
+	}
+	approvals, err := s.Runtime.ListApprovals(ctx, s.RunID)
+	if err != nil {
+		return nil, err
+	}
+	var grant *proposal.UnexercisedApproval
+	for _, a := range approvals {
+		if a.StepID != stepID || a.Kind != names.KindUnexercisedRepair || a.Status != agentrt.ApprovalApproved {
+			continue
+		}
+		var c struct {
+			Tree string `json:"tree"`
+		}
+		if err := json.Unmarshal(a.Capability, &c); err != nil || c.Tree == "" {
+			continue
+		}
+		grant = &proposal.UnexercisedApproval{ID: a.ID, Tree: c.Tree, DecidedBy: a.DecidedBy, Note: a.Note}
+	}
+	return grant, nil
 }
 
 // StepDone reports whether the runtime recorded the step as done, which

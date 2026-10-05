@@ -47,7 +47,10 @@ type Readiness struct {
 	// Vulnerabilities is the scan evidence, present only when the run
 	// selected its upgrade to fix advisories.
 	Vulnerabilities *ScanEvidence `json:"vulnerabilities,omitempty"`
-	EvaluatedAt     time.Time     `json:"evaluated_at"`
+	// Coverage is the test coverage of the changed source, present only
+	// when the change touches anything beyond the manifests.
+	Coverage    *CoverageEvidence `json:"coverage,omitempty"`
+	EvaluatedAt time.Time         `json:"evaluated_at"`
 }
 
 // ScopeLimits bound the source diff. Manifests are exempt; the manifest
@@ -80,6 +83,12 @@ type Inputs struct {
 	StepDone func(ctx context.Context, stepID string) bool
 	// Vuln, when set, adds the vulnerability rules (CheckScans).
 	Vuln *VulnCheck
+	// ModulePath is the main module's path, which names its files in a
+	// coverage profile.
+	ModulePath string
+	// Unexercised, when set, is an operator's approval of a repair no test
+	// exercises. It lets the coverage rule pass only for the tree it names.
+	Unexercised *UnexercisedApproval
 }
 
 // Failure codes.
@@ -106,23 +115,11 @@ func Evaluate(ctx context.Context, in Inputs) (*Readiness, error) {
 	r.TreeHash = tree
 
 	// 1. Bound, accepted, conclusive validation with no introduced findings.
-	records, err := in.Store.ListValidations(ctx, in.RunID)
+	post, postID, err := BoundPost(ctx, in.Store, in.RunID, tree, in.ConfigHash, in.ToolchainDigest, in.StepDone)
 	if err != nil {
 		return nil, err
 	}
-	var post *validate.Run
-	for _, rec := range records {
-		accepted := rec.Accepted || (in.StepDone != nil && rec.StepID != "" && in.StepDone(ctx, rec.StepID))
-		if rec.Kind == "post" && accepted && rec.TreeHash == tree && rec.ConfigHash == in.ConfigHash && rec.ToolchainDigest == in.ToolchainDigest {
-			var run validate.Run
-			if err := json.Unmarshal(rec.Run, &run); err != nil {
-				return nil, err
-			}
-			post = &run
-			r.ValidationID = rec.ID
-			break
-		}
-	}
+	r.ValidationID = postID
 	switch {
 	case post == nil:
 		fail(CodeValidationMissing, "no accepted validation of tree %s under the current configuration", tree)
@@ -208,7 +205,25 @@ func Evaluate(ctx context.Context, in Inputs) (*Readiness, error) {
 		fail(CodeScope, "%d lines changed, limit %d", lines, in.Scope.MaxLines)
 	}
 
-	// 4. Vulnerability evidence, when the upgrade was chosen to fix advisories.
+	// 4. Test coverage of changed source: every changed line that needs a
+	// test to execute it was executed by the repository's tests on this
+	// tree, or an operator approved this exact tree without it.
+	if SourceChanged(cs) {
+		v, err := CheckCoverage(ctx, in.Workspace, cs, in.ModulePath, post)
+		if err != nil {
+			return nil, err
+		}
+		r.Coverage = &CoverageEvidence{Verdict: v, ValidationID: postID}
+		if !v.Verified {
+			if a := in.Unexercised; a != nil && a.Tree == tree {
+				r.Coverage.Approval = a
+			} else {
+				fail(CodeNotExercised, "the repository's tests do not verifiably execute this change: %s", strings.Join(Unexercised(v), "; "))
+			}
+		}
+	}
+
+	// 5. Vulnerability evidence, when the upgrade was chosen to fix advisories.
 	if in.Vuln != nil {
 		scans, err := in.Store.ListScans(ctx, in.RunID)
 		if err != nil {
@@ -220,6 +235,28 @@ func Evaluate(ctx context.Context, in Inputs) (*Readiness, error) {
 	}
 	r.Ready = len(r.Failures) == 0
 	return r, nil
+}
+
+// BoundPost returns the accepted post validation of tree under the
+// configuration and toolchain, with its record id, or nil when there is
+// none. A record is accepted when it was flagged so or the runtime step
+// that produced it completed.
+func BoundPost(ctx context.Context, store *task.Store, runID, tree, configHash, toolchainDigest string, stepDone func(context.Context, string) bool) (*validate.Run, string, error) {
+	records, err := store.ListValidations(ctx, runID)
+	if err != nil {
+		return nil, "", err
+	}
+	for _, rec := range records {
+		accepted := rec.Accepted || (stepDone != nil && rec.StepID != "" && stepDone(ctx, rec.StepID))
+		if rec.Kind == "post" && accepted && rec.TreeHash == tree && rec.ConfigHash == configHash && rec.ToolchainDigest == toolchainDigest {
+			var run validate.Run
+			if err := json.Unmarshal(rec.Run, &run); err != nil {
+				return nil, "", err
+			}
+			return &run, rec.ID, nil
+		}
+	}
+	return nil, "", nil
 }
 
 // Introduced returns post findings absent from the baseline, keyed by
