@@ -213,7 +213,7 @@ on demand and weekly.
 |---|---|---|
 | Every validation (baseline, post, each `run_validation`, `inspect`) and every readiness or tool command in the execute profile runs against a new, empty, randomly named build cache; the execute profile refuses to run without one; acquire and mutate use a separate cache execute never mounts; end-of-run cleanup removes them all | Verified (integration) | `sandbox.WithFreshBuildCache`, `TestFreshBuildCache_IsolatesValidations`, `TestExecute_BuildCacheFreshPerValidation`, `TestBaseline_BuildCacheFreshPerValidation`, `TestScripted_BuildCacheFreshPerValidation` |
 | Data directory created 0700; one that group or others can only read or enter is tightened to 0700; one they can write, or that another account owns, is refused naming the path, its mode, and the fix; build cache and staging roots, and new parents of the module cache, created owner-only | Verified | `lock.Private`, `TestPrivate_CreatesTightensOrRefuses`, `TestFreshBuildCache_IsolatesValidations`; mode after a run in `TestBaseline_BuildCacheFreshPerValidation` (integration) |
-| Containers still write world-writable caches below an owner-only parent | Verified (integration) on colima with virtiofs; native Linux Docker by CI's integration job, not yet run on this change | `TestExecute_BuildCacheFreshPerValidation` |
+| Containers still write world-writable caches below an owner-only parent | Verified (integration) on colima with virtiofs and on native Linux Docker by CI's integration job | `TestExecute_BuildCacheFreshPerValidation` |
 | A `go get` or `go mod tidy` that fails because the module proxy or checksum database is unreachable (DNS, connection, timeout, TLS) or answers 5xx ends `acquisition_failed` with the toolchain's message, not `admission_refused` or `normalization_refused`; `apply_upgrade` aborts the run with the same outcome; `maintain` exits 6; anything not matched keeps its outcome | Verified | `OpError.AcquisitionFailed`, `TestOpError_AcquisitionFailed` (stderr captured from go 1.22 in the toolchain image), `TestStageOutcome_AcquisitionFailureIsNotARefusal`; not exercised by a full run against an unreachable proxy |
 
 The fresh build caches cost time, because a later validation no longer
@@ -226,9 +226,9 @@ median 9.3).
 ## Vulnerability report (VA-2)
 
 This batch wires the vulnerability groundwork into the sandbox and adds a
-report. It only reports: nothing selects, prioritizes, or fixes an upgrade
-by advisory, no scan evidence is stored in the task store, and no pull
-request text mentions advisories yet.
+report. The `vulns` command only reports; selecting and fixing an upgrade
+by advisory, stored scan evidence, and the advisory text in a proposal came
+with the next batch, below.
 
 | Control or capability | Status | Reference |
 |---|---|---|
@@ -243,7 +243,7 @@ request text mentions advisories yet.
 | Exit codes: 0 conclusive with no third-party findings, 2 unsupported, 3 inconclusive, 4 third-party findings, 1 errors | Verified | `TestVulnReport_ExitCodes`, `TestVulnReport_InconclusiveExits3`, `TestVulns_UnsupportedStopsBeforeDatabaseAndSandbox`; `TestVulns_InconclusiveExits3` (integration) |
 | An unsupported repository or a malformed `-vulndb` is refused before any container or download | Verified | `TestVulns_UnsupportedStopsBeforeDatabaseAndSandbox`, `TestVulns_BadDatabaseRefusedBeforeSandbox` |
 | `fixture vulndb -dest DIR` writes the synthetic database | Implemented, run in CI | `cmd/repo-steward`, CI "quick start smoke" |
-| On native Linux Docker the binary `go install` writes as the container user is readable by the host, so it can be inspected and copied; files the tool build leaves in its caches are removed through a container | Verified on colima (virtiofs) only; CI's integration job on native Linux is the proof and has not yet run this change | `TestVulns_FixtureAdvisoryThenUpgradeRemovesIt`, `TestTool_IsolatedProfile` (integration) |
+| On native Linux Docker the binary `go install` writes as the container user is readable by the host, so it can be inspected and copied; files the tool build leaves in its caches are removed through a container | Verified (integration) on colima and on native Linux Docker by CI's integration job | `TestVulns_FixtureAdvisoryThenUpgradeRemovesIt`, `TestTool_IsolatedProfile` (integration) |
 
 Measured on 2026-10-04 on colima: a cold `vulns` run on patch-safe with the
 fixture database took 11.9 seconds, 10.6 of them building the scanner; a
@@ -278,7 +278,7 @@ changed. Standard-library findings are reported and never fixed.
 | A real advisory on a real repository: labstack/echo v4.15.4, GO-2026-5970 in `golang.org/x/text` v0.38.0 (indirect, symbol level) found at base and cleared by v0.39.0 with nothing introduced, against the live database | Verified (smoke, network) | `TestSmokeVulnerable` (`internal/smoke/testdata/vulnerable/echo-x-text.json`) |
 | Version cooldown `-min-age` on `maintain` and `inspect`, 72 hours by default, 0 off: a too-new version, or one with no publish time, is ineligible with a reason naming its age; times read from `go list -m -json module@version` only for otherwise eligible versions and only when the cooldown is on; candidate JSON for versions old enough unchanged | Verified | `TestCooldownReason`, `TestDiscover_Cooldown`, `TestDiscover_CooldownLeavesOldVersionsByteIdentical`; `TestModelMode_ReplaysRecordedRuns` (integration) replays the committed recordings with the default cooldown on |
 | Cooldown waived in vulnerable selection for the version that clears the advisories, recorded as `cooldown_waived` and stated in the proposal; the default selection under the same clock finds nothing eligible | Verified (integration, injected clock) | `TestCooldown_WaivedOnlyForTheAdvisoryFix` |
-| Native Linux Docker: the scan, the build-list listing from a staging copy, and the stored scan output behave as on colima | Not yet run; CI's integration job is the proof | the `internal/steward` integration tests above |
+| Native Linux Docker: the scan, the build-list listing from a staging copy, and the stored scan output behave as on colima | Verified (integration) by CI's integration job | the `internal/steward` integration tests above |
 
 The agent path does not select by vulnerability. Doing so needs a tool
 result the model can see that lists findings and targets (a new tool, or a
