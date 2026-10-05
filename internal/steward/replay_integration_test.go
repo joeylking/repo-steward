@@ -37,7 +37,11 @@ func TestModelMode_ReplaysRecordedRuns(t *testing.T) {
 			if _, err := modproxy.Build(filepath.Join(root, "proxy")); err != nil {
 				t.Fatal(err)
 			}
-			res, err := steward.RunModel(ctx, steward.Options{SourcePath: r.Path, DataDir: filepath.Join(root, "data"), FixtureProxyDir: filepath.Join(root, "proxy"), Policy: deps.DefaultPolicy(), Author: author},
+			// The command line's default cooldown is on: the candidates the
+			// model sees must be what they were when the runs were recorded.
+			pol := deps.DefaultPolicy()
+			pol.MinAge = deps.DefaultMinAge
+			res, err := steward.RunModel(ctx, steward.Options{SourcePath: r.Path, DataDir: filepath.Join(root, "data"), FixtureProxyDir: filepath.Join(root, "proxy"), Policy: pol, Author: author},
 				steward.ModelSpec{Provider: "ollama", Name: "qwen3:30b-a3b", ReplayDir: filepath.Join(recordings, fx)})
 			if err != nil {
 				t.Fatalf("%v (run %+v)", err, res.Run)
