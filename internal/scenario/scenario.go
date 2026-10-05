@@ -9,7 +9,12 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
+	gotypes "go/types"
 	"io/fs"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -59,6 +64,98 @@ type Oracle struct {
 	File           string   `json:"file"`
 	MustContain    []string `json:"must_contain,omitempty"`
 	MustNotContain []string `json:"must_not_contain,omitempty"`
+	// MustMatch and MustNotMatch are regular expressions (RE2 syntax) that
+	// must each match, or must not match, the file.
+	MustMatch    []string `json:"must_match,omitempty"`
+	MustNotMatch []string `json:"must_not_match,omitempty"`
+	// NoUncheckedAssertion lists types, written as gofmt prints them, that
+	// the Go file must never assert to in the single-value form, which
+	// panics when the value has another type. The comma-ok form and type
+	// switches pass.
+	NoUncheckedAssertion []string `json:"no_unchecked_assertion,omitempty"`
+}
+
+// Check applies the oracle to the file's content and returns one line per
+// failure; an invalid expression is a failure too.
+func (o Oracle) Check(content []byte) []string {
+	var out []string
+	for _, m := range o.MustContain {
+		if !strings.Contains(string(content), m) {
+			out = append(out, fmt.Sprintf("missing %q", m))
+		}
+	}
+	for _, m := range o.MustNotContain {
+		if strings.Contains(string(content), m) {
+			out = append(out, fmt.Sprintf("contains %q", m))
+		}
+	}
+	for _, expr := range o.MustMatch {
+		re, err := regexp.Compile(expr)
+		if err != nil {
+			out = append(out, fmt.Sprintf("invalid expression %q: %v", expr, err))
+		} else if !re.Match(content) {
+			out = append(out, fmt.Sprintf("does not match %q", expr))
+		}
+	}
+	for _, expr := range o.MustNotMatch {
+		re, err := regexp.Compile(expr)
+		if err != nil {
+			out = append(out, fmt.Sprintf("invalid expression %q: %v", expr, err))
+		} else if loc := re.Find(content); loc != nil {
+			out = append(out, fmt.Sprintf("matches %q at %q", expr, loc))
+		}
+	}
+	if len(o.NoUncheckedAssertion) > 0 {
+		out = append(out, uncheckedAssertions(content, o.NoUncheckedAssertion)...)
+	}
+	return out
+}
+
+// uncheckedAssertions finds single-value type assertions to any of types.
+func uncheckedAssertions(src []byte, types []string) []string {
+	norm := func(s string) string { return strings.Join(strings.Fields(s), "") }
+	want := map[string]bool{}
+	for _, t := range types {
+		want[norm(t)] = true
+	}
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, "", src, parser.SkipObjectResolution)
+	if err != nil {
+		return []string{"does not parse as Go: " + err.Error()}
+	}
+	var out []string
+	var stack []ast.Node
+	ast.Inspect(f, func(n ast.Node) bool {
+		if n == nil {
+			stack = stack[:len(stack)-1]
+			return true
+		}
+		if ta, ok := n.(*ast.TypeAssertExpr); ok && ta.Type != nil && want[norm(gotypes.ExprString(ta.Type))] && !commaOK(stack, ta) {
+			out = append(out, fmt.Sprintf("unchecked type assertion to %s at line %d", gotypes.ExprString(ta.Type), fset.Position(ta.Pos()).Line))
+		}
+		stack = append(stack, n)
+		return true
+	})
+	return out
+}
+
+// commaOK reports whether the assertion, under any parentheses, is the one
+// value assigned to two names.
+func commaOK(stack []ast.Node, ta *ast.TypeAssertExpr) bool {
+	var child ast.Expr = ta
+	for i := len(stack) - 1; i >= 0; i-- {
+		switch p := stack[i].(type) {
+		case *ast.ParenExpr:
+			child = p
+			continue
+		case *ast.AssignStmt:
+			return len(p.Lhs) == 2 && len(p.Rhs) == 1 && p.Rhs[0] == child
+		case *ast.ValueSpec:
+			return len(p.Names) == 2 && len(p.Values) == 1 && p.Values[0] == child
+		}
+		return false
+	}
+	return false
 }
 
 // ScopeOverride sets scope limits for the run.

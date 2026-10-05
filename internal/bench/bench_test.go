@@ -31,6 +31,9 @@ func TestScore_ClassesAreSeparate(t *testing.T) {
 		{"limit when proposal expected", Run{Expected: proposal, Outcome: steward.OutcomeLimitExhausted}, "failed"},
 		{"regressed when proposal expected", Run{Expected: proposal, Outcome: steward.OutcomeRegressed}, "safe_nonresult"},
 		{"normalization refused when proposal expected", Run{Expected: proposal, Outcome: steward.OutcomeNormalizationRefused}, "safe_nonresult"},
+		// Readiness refused a repair no test exercises: no claim was made.
+		{"repair not exercised when proposal expected", Run{Expected: proposal, Outcome: steward.OutcomeRepairNotExercised}, "safe_nonresult"},
+		{"repair not exercised when refusal expected", Run{Expected: refusal, Outcome: steward.OutcomeRepairNotExercised}, "safe_nonresult"},
 		{"blocked when blocked expected", Run{Expected: refusal, Outcome: steward.OutcomeBlocked}, "correct_refusal"},
 		{"proposal when refusal expected", Run{Expected: refusal, Outcome: steward.OutcomeProposalPrepared, Files: []string{"go.mod"}}, "false_success"},
 		{"regressed when refusal expected", Run{Expected: refusal, Outcome: steward.OutcomeRegressed}, "safe_nonresult"},
