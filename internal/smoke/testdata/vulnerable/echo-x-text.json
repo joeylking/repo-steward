@@ -1,0 +1,15 @@
+{
+  "name": "echo-x-text-advisory",
+  "description": "Vulnerable selection on a real repository: echo v4.15.4 requires golang.org/x/text v0.38.0 only indirectly, and GO-2026-5970 in it is reachable at symbol level. v0.39.0 fixes it and declares go 1.25.0, the repository's own directive, so the lowest fixing version is a minor upgrade of an indirect dependency with no source change. The live database changes over time, so the scenario checks this advisory and that nothing is introduced, not totals.",
+  "repository": "https://github.com/labstack/echo.git",
+  "tag": "v4.15.4",
+  "commit": "ec79b584025d300acc9cb0a2b127a7209c902fd2",
+  "dependency": "golang.org/x/text",
+  "version": "v0.39.0",
+  "expected": "proposal_prepared",
+  "expected_advisory": "GO-2026-5970",
+  "files": [
+    "go.mod",
+    "go.sum"
+  ]
+}
