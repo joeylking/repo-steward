@@ -308,6 +308,13 @@ func Resume(ctx context.Context, ro ResumeOptions) (*Result, error) {
 		}
 		ro.DataDir = filepath.Join(home, ".local", "share", "repo-steward")
 	}
+	// The run directory and its snapshots are mounted into containers,
+	// which need absolute paths, as maintain's applyDefaults makes them.
+	abs, err := filepath.Abs(ro.DataDir)
+	if err != nil {
+		return nil, err
+	}
+	ro.DataDir = abs
 	if err := lock.CheckLocal(ro.DataDir); err != nil {
 		return nil, err
 	}
