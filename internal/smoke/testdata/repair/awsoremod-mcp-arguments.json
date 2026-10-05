@@ -1,11 +1,13 @@
 {
   "name": "awsoremod-mcp-arguments",
-  "description": "The same mcp-go v0.29.0 change, one minor version up from v0.28.0, in a repository with tests. Twelve lines in pkg/aw/server.go index r.Params.Arguments inside generic parameter helpers, which breaks the build of three packages; the tests do not index the arguments and need no change.",
+  "description": "The same mcp-go v0.29.0 change, one minor version up from v0.28.0, in a repository with test files. Twelve lines in pkg/aw/server.go index r.Params.Arguments inside generic parameter helpers, which breaks the build of three packages; the tests do not index the arguments and need no change. A repair reads them through r.GetArguments() or a checked (comma-ok) type assertion; an unchecked .(map[string]any) fails the oracles.",
   "repository": "https://github.com/awsoremod/mcp.git",
   "commit": "eda957c9bff78494028f23d609327df39b1427b3",
   "dependency": "github.com/mark3labs/mcp-go",
   "version": "v0.29.0",
   "expected": "regressed",
+  "repair_outcome": "repair_not_exercised",
+  "repair_evidence": "pkg/aw's test files are commented out and pkg/toolsets' tests do not reach pkg/aw: with server.go repaired through GetArguments, go test -coverpkg=./... in golang:1.24 executed none of server.go's 48 blocks (observed 2026-10-05)",
   "allowed_files": [
     "go.mod",
     "go.sum",
@@ -30,6 +32,13 @@
       "file": "pkg/aw/server.go",
       "must_not_contain": [
         "Params.Arguments["
+      ],
+      "must_match": [
+        "GetArguments\\(\\)|,\\s*\\w+\\s*:?=\\s*[\\w.]+\\.Params\\.Arguments\\.\\(map\\[string\\](any|interface\\{\\})\\)|\\.(Require|Get)String\\("
+      ],
+      "no_unchecked_assertion": [
+        "map[string]any",
+        "map[string]interface{}"
       ]
     }
   ]

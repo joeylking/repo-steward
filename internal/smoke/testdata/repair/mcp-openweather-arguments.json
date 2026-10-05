@@ -1,11 +1,13 @@
 {
   "name": "mcp-openweather-arguments",
-  "description": "mcp-go v0.29.0 changed CallToolRequest.Params.Arguments from map[string]any to any, so indexing it no longer compiles. Three reads in main.go break; the repository has no tests. A repair reads the arguments through request.GetArguments() or a checked type assertion.",
+  "description": "mcp-go v0.29.0 changed CallToolRequest.Params.Arguments from map[string]any to any, so indexing it no longer compiles. Three reads in main.go break; the repository has no tests. A repair reads the arguments through request.GetArguments(), a checked (comma-ok) type assertion, or the request's GetString and RequireString helpers. An unchecked .(map[string]any) compiles and passes validation but panics on a call whose arguments are absent or not an object; the oracles fail it.",
   "repository": "https://github.com/mschneider82/mcp-openweather.git",
   "commit": "e032683574a0723591445462ef7104d360ad0889",
   "dependency": "github.com/mark3labs/mcp-go",
   "version": "v0.29.0",
   "expected": "regressed",
+  "repair_outcome": "repair_not_exercised",
+  "repair_evidence": "the repository has no test files, so no test executes main.go",
   "allowed_files": [
     "go.mod",
     "go.sum",
@@ -19,8 +21,20 @@
   "oracles": [
     {
       "file": "main.go",
+      "must_contain": [
+        "\"city\"",
+        "\"units\"",
+        "\"lang\""
+      ],
       "must_not_contain": [
         "Params.Arguments["
+      ],
+      "must_match": [
+        "GetArguments\\(\\)|,\\s*\\w+\\s*:?=\\s*[\\w.]+\\.Params\\.Arguments\\.\\(map\\[string\\](any|interface\\{\\})\\)|\\.(Require|Get)String\\("
+      ],
+      "no_unchecked_assertion": [
+        "map[string]any",
+        "map[string]interface{}"
       ]
     }
   ]

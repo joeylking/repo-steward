@@ -6,6 +6,8 @@
   "dependency": "github.com/ollama/ollama",
   "version": "v0.5.0",
   "expected": "regressed",
+  "repair_outcome": "repair_not_exercised",
+  "repair_evidence": "the repository has no test files, so no test executes cmd/translate/main.go",
   "allowed_files": [
     "go.mod",
     "go.sum",
@@ -22,6 +24,9 @@
       "must_not_contain": [
         "json.RawMessage(\"json\")",
         "[]byte(\"json\")"
+      ],
+      "must_match": [
+        "Format:\\s*(json\\.RawMessage|\\[\\]byte)\\(\\s*(`\"json\"`|\"\\\\\"json\\\\\"\")\\s*\\)"
       ]
     }
   ]

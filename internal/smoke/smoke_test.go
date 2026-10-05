@@ -3,7 +3,6 @@
 package smoke
 
 import (
-	"context"
 	"embed"
 	"encoding/json"
 	"os"
@@ -15,7 +14,6 @@ import (
 
 	"github.com/joeylking/repo-steward/internal/deps"
 	"github.com/joeylking/repo-steward/internal/gitx"
-	"github.com/joeylking/repo-steward/internal/scenario"
 	"github.com/joeylking/repo-steward/internal/steward"
 	"github.com/joeylking/repo-steward/internal/testtmp"
 )
@@ -23,61 +21,9 @@ import (
 //go:embed testdata/*.json
 var declarations embed.FS
 
-// Scenario pins one upgrade on one public repository.
-type Scenario struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Repository  string `json:"repository"`
-	Tag         string `json:"tag"`
-	Commit      string `json:"commit"`
-	Dependency  string `json:"dependency"`
-	Version     string `json:"version"`
-	Expected    string `json:"expected"`
-	// ExpectedFinding names a baseline finding that must be present when
-	// the expected outcome is baseline_failing.
-	ExpectedFinding string   `json:"expected_finding,omitempty"`
-	Files           []string `json:"files,omitempty"`
-	// The fields below are used only by the repair scenarios under
-	// testdata/repair, which a model runs (see repair_test.go).
-	//
-	// AllowedFiles bounds a model's proposal; RequiredFiles must all be in
-	// it. Oracles are checked against the proposal tree and never shown to
-	// the model. MaxModelCalls caps the run (default: the model mode's).
-	AllowedFiles  []string          `json:"allowed_files,omitempty"`
-	RequiredFiles []string          `json:"required_files,omitempty"`
-	Oracles       []scenario.Oracle `json:"oracles,omitempty"`
-	MaxModelCalls int               `json:"max_model_calls,omitempty"`
-}
-
-var ctx = context.Background()
-
 func load(t *testing.T) []Scenario {
 	t.Helper()
 	return loadFrom(t, declarations, "testdata")
-}
-
-func loadFrom(t *testing.T, fsys embed.FS, dir string) []Scenario {
-	t.Helper()
-	entries, err := fsys.ReadDir(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var out []Scenario
-	for _, e := range entries {
-		if e.IsDir() {
-			continue
-		}
-		b, _ := fsys.ReadFile(dir + "/" + e.Name())
-		var sc Scenario
-		if err := json.Unmarshal(b, &sc); err != nil {
-			t.Fatalf("%s: %v", e.Name(), err)
-		}
-		if sc.Name == "" || sc.Commit == "" || sc.Dependency == "" || sc.Version == "" || sc.Expected == "" {
-			t.Fatalf("%s: incomplete declaration %+v", e.Name(), sc)
-		}
-		out = append(out, sc)
-	}
-	return out
 }
 
 // clone fetches the repository once per (repository, commit) and returns a

@@ -3,7 +3,6 @@
 package smoke
 
 import (
-	"embed"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -15,12 +14,13 @@ import (
 
 	"github.com/joeylking/repo-steward/internal/deps"
 	"github.com/joeylking/repo-steward/internal/gitx"
+	"github.com/joeylking/repo-steward/internal/proposal"
 	"github.com/joeylking/repo-steward/internal/steward"
+	"github.com/joeylking/repo-steward/internal/task"
 	"github.com/joeylking/repo-steward/internal/testtmp"
+	"github.com/joeylking/repo-steward/internal/validate"
+	"github.com/joeylking/repo-steward/internal/workspace"
 )
-
-//go:embed testdata/repair/*.json
-var repairDeclarations embed.FS
 
 // ModelEnv names the model the repair scenarios run with, as provider:name.
 // They are skipped when it is unset, so neither TestSmoke nor the smoke
@@ -38,11 +38,14 @@ const OutEnv = "REPO_STEWARD_SMOKE_OUT"
 //
 // The model's result is reported, not required: a run that ends without a
 // proposal passes and is logged with its outcome, because a model failing
-// to repair is a result. A proposal is held to every check a correct one
-// must pass, and failing any of them fails the test: files within the
-// declared set, the required files present, the hidden oracles, clean and
-// conclusive post-validation bound to the proposal tree, the proposal on
-// the pinned commit, and the operator's checkout untouched.
+// to repair is a result; the tree it left is judged by the oracles and its
+// diff kept. A proposal is held to every check a correct one must pass,
+// and failing any of them fails the test: the scenario's declared
+// repair_outcome is proposal_prepared, files within the declared set, the
+// required files present, the hidden oracles, clean and conclusive post
+// validation bound to the proposal tree, verified coverage of the changed
+// source, the proposal on the pinned commit, and the operator's checkout
+// untouched.
 //
 //	REPO_STEWARD_SMOKE_MODEL=ollama:qwen3:30b-a3b \
 //	  go test -tags smoke -count=1 -p 1 -v -timeout 2h -run TestRepair ./internal/smoke/
@@ -110,17 +113,51 @@ func TestRepair(t *testing.T) {
 			if res.Run != nil {
 				steps = res.Run.Steps
 			}
-			if res.Proposal == nil {
-				if res.Outcome == steward.OutcomeProposalPrepared {
-					t.Fatal("proposal_prepared without a proposal")
+			dir := filepath.Join(keep, sc.Name+"-"+stamp)
+			switch {
+			case res.Proposal != nil:
+				if sc.RepairOutcome != steward.OutcomeProposalPrepared {
+					t.Fatalf("%s: proposal %s, but a correct repair here ends %s: the repository's tests do not execute the lines a repair changes (%s)", sc.Name, res.Proposal.HeadCommit, sc.RepairOutcome, sc.RepairEvidence)
 				}
-				t.Logf("%s: not repaired: outcome %s after %d model calls, %d steps", sc.Name, res.Outcome, res.ModelCalls, steps)
-				return
+				checkRepair(t, sc, res, opts.DataDir)
+				t.Logf("%s: repaired: proposal %s changing %v after %d model calls, %d steps", sc.Name, res.Proposal.HeadCommit[:12], proposalFiles(res), res.ModelCalls, steps)
+			case res.Outcome == steward.OutcomeProposalPrepared:
+				t.Fatal("proposal_prepared without a proposal")
+			case res.Outcome == steward.OutcomeRepairNotExercised:
+				// The coverage rule stopped a repair that builds, vets, and
+				// passes the tests. Whether the repair was right is recorded,
+				// not required: the oracles judge the tree it left.
+				t.Logf("%s: repair_not_exercised after %d model calls, %d steps (runtime outcome %v); the unexercised repair %s", sc.Name, res.ModelCalls, steps, res.Detail["run_outcome"], judgeTree(t, sc, res, dir))
+			default:
+				t.Logf("%s: not repaired: outcome %s after %d model calls, %d steps; the tree it left %s", sc.Name, res.Outcome, res.ModelCalls, steps, judgeTree(t, sc, res, dir))
 			}
-			checkRepair(t, sc, res)
-			t.Logf("%s: repaired: proposal %s changing %v after %d model calls, %d steps", sc.Name, res.Proposal.HeadCommit[:12], proposalFiles(res), res.ModelCalls, steps)
 		})
 	}
+}
+
+// judgeTree applies the oracles to the candidate tree a run left, writes
+// its diff from the base next to the result, and says what it found.
+func judgeTree(t *testing.T, sc Scenario, res *steward.Result, dir string) string {
+	t.Helper()
+	ws, err := workspace.Open(ctx, res.Workspace.Dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tree, err := ws.CandidateTree(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tree == ws.BaseTree {
+		return "is the base tree"
+	}
+	if diff, err := ws.Git().Run(ctx, "diff-tree", "-p", "--no-color", ws.BaseTree, tree, "--", ".", ":(exclude)go.sum"); err == nil {
+		os.WriteFile(filepath.Join(dir, "candidate.diff"), diff, 0o644)
+	}
+	fails := checkOracles(sc.Oracles, func(file string) ([]byte, error) { return ws.Git().Run(ctx, "show", tree+":"+file) })
+	if len(fails) == 0 {
+		return "passes the oracles (tree " + tree + ")"
+	}
+	return "fails the oracles (tree " + tree + "): " + strings.Join(fails, "; ")
 }
 
 func untouched(t *testing.T, src string) {
@@ -140,8 +177,12 @@ func proposalFiles(res *steward.Result) []string {
 }
 
 // checkRepair holds a proposal to everything a correct repair must satisfy.
-// Any failure is a false success.
-func checkRepair(t *testing.T, sc Scenario, res *steward.Result) {
+// Any failure is a false success. The validation evidence is read from the
+// run's task store, where every mode records it: the post validation
+// readiness bound (its id is in the proposal) must be on the proposal tree
+// under the proposal's configuration, conclusive, clean, and introduce
+// nothing over the baseline the proposal names.
+func checkRepair(t *testing.T, sc Scenario, res *steward.Result, dataDir string) {
 	t.Helper()
 	if res.Outcome != steward.OutcomeProposalPrepared {
 		t.Fatalf("a proposal with outcome %s", res.Outcome)
@@ -160,11 +201,15 @@ func checkRepair(t *testing.T, sc Scenario, res *steward.Result) {
 			t.Errorf("proposal does not change required file %s (changes %v)", f, files)
 		}
 	}
-	if res.Post == nil || !res.Post.Conclusive || !res.Post.Clean || len(res.Introduced) != 0 {
-		t.Fatalf("post validation %+v introduced %v", res.Post, res.Introduced)
-	}
 	if res.Readiness == nil || !res.Readiness.Ready {
 		t.Fatalf("readiness %+v", res.Readiness)
+	}
+	if c := res.Readiness.Coverage; c == nil || !c.Verified || c.Approval != nil {
+		t.Fatalf("coverage evidence %+v: a repair proposal needs the changed source executed by the tests", c)
+	}
+	post, base := validations(t, dataDir, res)
+	if !post.Conclusive || !post.Clean || len(proposal.Introduced(base, post)) != 0 {
+		t.Fatalf("post validation conclusive=%v clean=%v introduced %v", post.Conclusive, post.Clean, proposal.Introduced(base, post))
 	}
 	g := res.Workspace.Git()
 	if at, err := g.RevParse(ctx, res.Proposal.ProposalRef); err != nil || at != res.Proposal.HeadCommit {
@@ -173,24 +218,48 @@ func checkRepair(t *testing.T, sc Scenario, res *steward.Result) {
 	if parent, err := g.RevParse(ctx, res.Proposal.HeadCommit+"^"); err != nil || parent != sc.Commit {
 		t.Fatalf("proposal parent %s, want %s (%v)", parent, sc.Commit, err)
 	}
-	if tree, err := g.RevParse(ctx, res.Proposal.HeadCommit+"^{tree}"); err != nil || tree != res.Post.TreeHash {
-		t.Fatalf("proposal tree %s, validated tree %s (%v)", tree, res.Post.TreeHash, err)
+	if tree, err := g.RevParse(ctx, res.Proposal.HeadCommit+"^{tree}"); err != nil || tree != post.TreeHash || tree != res.Proposal.TreeHash {
+		t.Fatalf("proposal tree %s, validated tree %s (%v)", tree, post.TreeHash, err)
 	}
-	for _, o := range sc.Oracles {
-		content, err := g.Run(ctx, "show", res.Proposal.HeadCommit+":"+o.File)
-		if err != nil {
-			t.Errorf("oracle %s: file missing from the proposal tree", o.File)
-			continue
+	for _, f := range checkOracles(sc.Oracles, func(file string) ([]byte, error) { return g.Run(ctx, "show", res.Proposal.HeadCommit+":"+file) }) {
+		t.Error(f)
+	}
+}
+
+// validations reads the proposal's post validation and its baseline from
+// the task store and checks their bindings.
+func validations(t *testing.T, dataDir string, res *steward.Result) (post, base *validate.Run) {
+	t.Helper()
+	ts, err := task.Open(filepath.Join(dataDir, "steward.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ts.Close()
+	recs, err := ts.ListValidations(ctx, res.RunID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := res.Proposal
+	for _, rec := range recs {
+		var run validate.Run
+		if err := json.Unmarshal(rec.Run, &run); err != nil {
+			t.Fatal(err)
 		}
-		for _, m := range o.MustContain {
-			if !strings.Contains(string(content), m) {
-				t.Errorf("oracle %s: missing %q", o.File, m)
+		switch rec.ID {
+		case p.ValidationID:
+			if rec.Kind != "post" || rec.TreeHash != p.TreeHash || rec.ConfigHash != p.ConfigHash || rec.ToolchainDigest != p.ToolchainDigest {
+				t.Fatalf("post validation %s is %s of tree %s, want post of %s under the proposal's configuration", rec.ID, rec.Kind, rec.TreeHash, p.TreeHash)
 			}
-		}
-		for _, m := range o.MustNotContain {
-			if strings.Contains(string(content), m) {
-				t.Errorf("oracle %s: contains %q", o.File, m)
+			post = &run
+		case p.BaselineID:
+			if rec.Kind != "baseline" || rec.TreeHash != res.Workspace.BaseTree {
+				t.Fatalf("baseline validation %s is %s of tree %s", rec.ID, rec.Kind, rec.TreeHash)
 			}
+			base = &run
 		}
 	}
+	if post == nil || base == nil {
+		t.Fatalf("validation records %s and %s not found", p.ValidationID, p.BaselineID)
+	}
+	return post, base
 }
