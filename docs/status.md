@@ -251,6 +251,42 @@ warm run took 1.0 second. Fetching the public database added about 1.2
 seconds per run; on the public database of 2026-10-01, patch-safe has no
 third-party findings and 52 standard-library findings for go1.22.12.
 
+## Vulnerable selection (VB)
+
+`maintain -mode baseline -select vulnerable` fixes a known vulnerability
+end to end in the deterministic pipeline. Only baseline mode does this: the
+scripted and model modes refuse the flag, and nothing the model sees has
+changed. Standard-library findings are reported and never fixed.
+
+| Control or capability | Status | Reference |
+|---|---|---|
+| `-select smallest` (default) and `vulnerable`; scripted and model modes refuse `vulnerable` with one line before creating anything; an unknown value is an error | Verified | `TestSelectVulnerable_RefusedInAgentModes`; `runMaintain` refuses it on the command line before resolving the author |
+| The default selection's configuration hash, result JSON, readiness, and proposal body are what they were: every new field is omitted when empty and the selection enters the hash only when it is `vulnerable` | Verified | `TestConfigHash_SelectOnlyWhenVulnerable`; the existing baseline, scripted, replay, and CLI integration tests pass unchanged |
+| Base scan after a clean, conclusive baseline, with a fresh build cache and the scanner and database verified first; inconclusive ends `scan_inconclusive` with the reason, never "no vulnerabilities" | Verified (integration) | `TestVulnerable_BaseScanInconclusive` |
+| No third-party findings end `no_vulnerabilities`, standard-library findings listed with the reason they are not acted on | Verified (integration) | `TestVulnerable_NoVulnerabilities` |
+| Target computation: highest fixed version per module, lowest eligible published version at or above it, policy (pre-release, pseudo-version, patch/minor/major, deny list, `-dependency` pin naming the module and clearing the findings), findings with no fix leaving the module targetable for the others, order by level then direct then path, indirect modules included, a reason per finding when nothing is eligible | Verified | `TestPlanVulnFixes`, `TestPlanVulnFixes_TargetDetail`, `TestPublishedVersions` |
+| Nothing eligible ends `no_fix_available` with the reasons and no manifest change | Verified (integration) | `TestVulnerable_NoFixAvailable` (moved-package, GO-TEST-0003 has no fix) |
+| patch-safe with GO-TEST-0001: lib v1.2.4, the lowest fixing version and not v1.3.0, proposed with the advisory section; both scans bound to the base and candidate trees; the proposal verifies; the checkout is untouched | Verified (integration) | `TestVulnerable_PatchSafeFixesAdvisory` |
+| An indirect target: inner, required only as `// indirect` and reached through wrap.Run, upgraded to v1.0.1 (not v1.1.0); go.mod keeps it indirect at that version; the body says indirect | Verified (integration) | `TestVulnerable_IndirectTarget` (fixture `indirect-fix`) |
+| closure-regression with GO-TEST-0005: util is a direct requirement, the fix v0.2.0 renames Trim, which core v1.0.0 still calls, so the post build fails in core and the run ends `regressed` with nothing scanned or proposed | Verified (integration) | `TestVulnerable_ClosureRegressionIsRegressed` |
+| Build-list rules at Gate B: target selected at exactly its version after tidy, nothing entering or moving up outside the closure, nothing moving down; a tidy that drops an indirect requirement and reselects the old version is refused | Verified; the drop observed on the real toolchain at the gates | `TestVerifyBuildList`, `TestParseBuildList`; `TestBuildListGate_TidyDroppingAnIndirectTargetIsRefused` (integration, fixture `indirect-dropped`) |
+| Vulnerable selection reaching that drop through a scan | Not reachable today: govulncheck v1.1.4 and v1.8.0 report only modules whose packages they load, and go 1.17+ tidy keeps the requirement of every such module, so the module that tidy drops is never a finding (observed 2026-10-04) | `TestVulnerable_NoVulnerabilities` shows inner unreported in `indirect-dropped` |
+| Scan records in the task store: tree, configuration hash, image digest, scanner version and sha256, database snapshot id and modified time, Go version, parsed scan, raw output gzip-compressed with its sha256 checked on read; an existing data directory opens and gains the table | Verified | `TestScanRecordRoundTrip`, `TestOpen_MigratesAnOlderDatabase` |
+| Readiness rules with their own codes, all evaluated: conclusive post scan bound to the candidate tree and the base scan's configuration, image, scanner, database, and Go version (`scan_not_bound`, `scan_inconclusive`); targeted findings gone at every level and found version (`advisory_not_resolved`); nothing introduced or escalated, standard library included (`advisory_introduced`); an unusable post scan fails all three | Verified | `TestCheckScans` (resolved; persisting at another version or a lower level; introduced; escalated; inconclusive post; missing post; other tree, configuration, scanner, database, image; inconclusive base; a target the base never reported; a record that disagrees with its scan) |
+| An upgrade that clears its target but introduces another advisory is not ready and freezes nothing | Verified (integration) | `TestVulnerable_IntroducedAdvisoryIsNotReady` |
+| Advisory section in the proposal body: fixed advisories with aliases, summary, level and call path at base, found and fixed versions; direct or indirect; remaining third-party findings with why; standard-library count and why; scanner version, database snapshot and modified time; database text sanitized, bounded, and kept on one line in a code span | Verified | `TestAdvisorySection`, `TestUntrusted`; `TestVulnerable_PatchSafeFixesAdvisory` (integration) |
+| A real advisory on a real repository: labstack/echo v4.15.4, GO-2026-5970 in `golang.org/x/text` v0.38.0 (indirect, symbol level) found at base and cleared by v0.39.0 with nothing introduced, against the live database | Verified (smoke, network) | `TestSmokeVulnerable` (`internal/smoke/testdata/vulnerable/echo-x-text.json`) |
+| Version cooldown `-min-age` on `maintain` and `inspect`, 72 hours by default, 0 off: a too-new version, or one with no publish time, is ineligible with a reason naming its age; times read from `go list -m -json module@version` only for otherwise eligible versions and only when the cooldown is on; candidate JSON for versions old enough unchanged | Verified | `TestCooldownReason`, `TestDiscover_Cooldown`, `TestDiscover_CooldownLeavesOldVersionsByteIdentical`; `TestModelMode_ReplaysRecordedRuns` (integration) replays the committed recordings with the default cooldown on |
+| Cooldown waived in vulnerable selection for the version that clears the advisories, recorded as `cooldown_waived` and stated in the proposal; the default selection under the same clock finds nothing eligible | Verified (integration, injected clock) | `TestCooldown_WaivedOnlyForTheAdvisoryFix` |
+| Native Linux Docker: the scan, the build-list listing from a staging copy, and the stored scan output behave as on colima | Not yet run; CI's integration job is the proof | the `internal/steward` integration tests above |
+
+The agent path does not select by vulnerability. Doing so needs a tool
+result the model can see that lists findings and targets (a new tool, or a
+new field in `list_candidates`), readiness failures with the new codes in
+`prepare_proposal`'s error, and the advisory section in
+`deterministicBody`; each changes what the model sees, so the committed
+recordings would have to be re-recorded.
+
 ## Not claimed
 
 The sandbox reduces risk from untrusted build behaviour on operator-selected

@@ -34,7 +34,7 @@ table and never-assertions for the policy, and schema fuzzing for the tools.
 | Profile the base tree; refuse unsupported layouts | deterministic | `repo`, `snapshot` |
 | Baseline validation in the sandbox | deterministic | `validate`, `sandbox` |
 | Discover candidates with per-version eligibility | deterministic facts, operator policy | `deps` |
-| Select a candidate | baseline: smallest delta; agent: the model, within eligibility | `steward`, `agent` |
+| Select a candidate | baseline: smallest delta, or with `-select vulnerable` the lowest eligible upgrade that clears a scanned module's advisories; agent: the model, within eligibility | `steward`, `agent`, `deps` |
 | Apply the upgrade through manifest staging and Gate A | deterministic | `manifest` |
 | Repair source within scope | agent, policed | `tools`, `policy` |
 | Normalize manifests through Gate B | deterministic | `manifest` |
@@ -49,6 +49,10 @@ written from a temporary index seeded from the base tree and materialized
 from raw objects with every blob verified. Validation records carry the
 tree hash, a configuration hash, and the toolchain image digest, and are
 admissible only when the runtime step that produced them completed.
+Vulnerability scans are stored the same way, with the scanner's sha256 and
+version, the database snapshot and its modified time, and the raw output,
+and readiness admits a post scan only when it is bound to the candidate
+tree and to the base scan's scanner and database.
 Manifest changes are journaled with before and after hashes and recovered
 from the journal alone. A proposal is a commit built from a persisted
 recipe under its own ref; its record carries a hash over the whole body.
@@ -79,6 +83,18 @@ the pinned scanner, verifies both on the host, scans in execute, and reports
 findings split into third-party and standard library. It only reports;
 `internal/vuln` holds the pins, the parser, and the database handling and
 runs nothing.
+
+`maintain -mode baseline -select vulnerable` acts on the same scan. The
+baseline pipeline scans the base tree after a clean baseline, computes
+targets with `deps.PlanVulnFixes` (a pure function of the findings, the
+published versions, and the policy), and applies the first through the
+unchanged gates, with Gate B also comparing the build lists the toolchain
+selects (`manifest.VerifyBuildList`). After the post validation the
+candidate is scanned with the same scanner and database, and readiness adds
+`proposal.CheckScans`. The version cooldown (`Policy.MinAge`) is applied in
+discovery from the toolchain's publish times and waived in this selection
+for the version that clears an advisory. The agent modes do not select by
+vulnerability.
 
 ## Runs and recovery
 

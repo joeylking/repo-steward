@@ -95,6 +95,16 @@ such as a flaw in the container engine itself.
 7. **Publish, if asked.** With `-publish` the run pauses. After a person
    approves, it pushes one branch and opens one pull request.
 
+A run can also start from a known security hole instead of from whatever is
+outdated. With `-select vulnerable`, step 3 becomes: scan the project with
+Go's own vulnerability checker against a verified copy of the Go
+vulnerability database, and pick the smallest upgrade that removes the
+reported holes in one dependency. After step 5 the upgraded code is scanned
+again, and the proposal is made only if those holes are gone and no new one
+appeared. Only the no-model mode does this so far, and holes in Go's
+standard library are reported but not fixed, because fixing them means
+changing the Go version itself.
+
 ## Three ways to run it
 
 | Mode | Who decides | What it is for |
@@ -131,8 +141,8 @@ model's decisions. They do not show how well any model repairs real
 projects. [benchmarks/README.md](benchmarks/README.md) has the scoring
 rules, the dates, and the per-scenario results.
 
-Five further scenarios run the no-model pipeline against real public
-projects, see
+Six further scenarios run the no-model pipeline against real public
+projects, one of them fixing a real advisory, see
 [Smoke scenarios](#smoke-scenarios-against-public-modules). Three more ask
 the local model to repair a real break in a real project; in its first
 nine runs it repaired none, see
@@ -173,13 +183,18 @@ its benchmarks with agent-runtime's `bench` module. The whole path described abo
 - **Publication:** an approval bound to the proposal's hash, and a push and
   a pull request that are journaled, so an interrupted run is reconciled
   against GitHub and nothing is sent twice.
-- **Evidence:** committed benchmark results over eleven scenarios, five
+- **Evidence:** committed benchmark results over eleven scenarios, six
   smoke scenarios against real public modules, and three repair scenarios
   on real repositories, which the local model has not yet repaired.
-- **Vulnerability report:** `vulns` scans a repository with a pinned
+- **Vulnerabilities:** `vulns` scans a repository with a pinned
   govulncheck against a verified snapshot of the Go vulnerability database
-  and reports what it finds. It only reports: nothing yet selects or fixes
-  an upgrade by advisory. See [What vulns does](#what-vulns-does).
+  and reports what it finds. `maintain -mode baseline -select vulnerable`
+  acts on a third-party finding: it picks the lowest eligible upgrade that
+  clears it, direct or indirect, and proposes it only when a second scan
+  shows it gone and nothing new. Only baseline mode does this; the agent
+  modes refuse the flag, and standard-library findings are not fixable yet.
+  See [What vulns does](#what-vulns-does) and
+  [Vulnerable selection](#what-maintain-does-with--select-vulnerable).
 
 No development, test, or CI path makes a paid model call. The one paid
 provider exists for explicit measurements under a spending cap, see
@@ -211,10 +226,10 @@ Where to read more:
   OrbStack, Colima, or Rancher Desktop) for every command that builds or
   tests code: `inspect`, `vulns`, `maintain`, `resume`, and `bench run`.
   `fixture` and `snapshot` commands need no engine.
-- For `vulns`, network access to proxy.golang.org and sum.golang.org the
-  first time each toolchain image is used, to build the scanner, and to
-  https://vuln.go.dev on every run unless `-vulndb` names a database
-  directory.
+- For `vulns` and `maintain -select vulnerable`, network access to
+  proxy.golang.org and sum.golang.org the first time each toolchain image
+  is used, to build the scanner, and to https://vuln.go.dev on every run
+  unless `-vulndb` names a database directory.
 - With a VM-backed engine on macOS, the data directory and the repository
   must be under a shared path. Colima shares `$HOME` by default; the default
   data directory, `~/.local/share/repo-steward`, is under `$HOME` for that
@@ -274,6 +289,15 @@ go run ./cmd/repo-steward maintain ~/tmp/patch-safe -mode baseline \
 ```
 
 ```sh
+# Vulnerable selection: scan patch-safe against the fixture database, pick
+# lib v1.2.4, the lowest version that clears GO-TEST-0001, and propose it
+# only if a scan of the upgraded tree shows the advisory gone and nothing
+# new. The proposal body names the advisory.
+~/tmp/repo-steward maintain ~/tmp/patch-safe -mode baseline -select vulnerable \
+  -vulndb ~/tmp/vulndb -author "Your Name <you@example.com>" -fixture-proxy ~/tmp/proxy
+```
+
+```sh
 # Scripted agent mode: replay an embedded scenario through the runtime,
 # the full tool set, and the policy. -trace prints every runtime event.
 go run ./cmd/repo-steward maintain ~/tmp/breaking-minor -mode scripted -scenario S2 \
@@ -286,8 +310,19 @@ unsupported, 3 on baseline problems, 5 when the run paused for an approval,
 database was unreachable or failed (outcome `acquisition_failed`, with the
 toolchain's message in the detail; a later run may succeed), and 4 for any
 other explained non-result such as a regression introduced by the upgrade
-or a run that reported itself blocked. Every command exits 1 on an error,
-such as a bad flag or an unreachable engine.
+or a run that reported itself blocked. The outcomes of vulnerable
+selection, `scan_inconclusive`, `no_vulnerabilities`, and
+`no_fix_available`, are explained non-results and exit 4 too. Every command
+exits 1 on an error, such as a bad flag, an unreachable engine, or
+`-select vulnerable` with `-mode scripted` or `-mode model`.
+
+`maintain` and `inspect` apply a version cooldown, `-min-age`, 72 hours by
+default: a version published less than that long ago, or whose publish time
+the module proxy does not give, is not eligible, and its candidate entry
+says why. This is a change in behaviour from releases before it; `-min-age
+0` turns it off. The fixtures' versions are all from 2023, so no fixture
+outcome changes. In vulnerable selection the cooldown is waived for the
+version that clears an advisory, and the result and the proposal say so.
 
 ```sh
 # A paused run is decided and continued in separate processes. approve and
@@ -358,7 +393,8 @@ than the current one are ever candidates, so a pin cannot downgrade.
 
 Everything a run needs to be inspected or resumed lives under the data
 directory: `steward.db` holds the runtime's runs, steps, approvals, and
-events alongside the tasks, promotions, validation records, and proposals;
+events alongside the tasks, promotions, validation records, vulnerability
+scans, and proposals;
 `runs/<id>/` holds the scratch clone, snapshots, and staging; `cache/mod/`
 holds the module cache per module path; `tools/` holds the scanner built
 for each toolchain image, and `vulndb/` the fetched vulnerability database
@@ -386,8 +422,8 @@ what could be upgraded, and whether the unchanged code passes its checks.
 ## What vulns does
 
 `vulns` changes nothing. It reports the known vulnerabilities that affect a
-repository at HEAD, and stops there: this release only reports, and nothing
-in repo-steward selects, prioritizes, or fixes an upgrade by advisory yet.
+repository at HEAD, and stops there. Acting on them is `maintain -select
+vulnerable`, below.
 
 1. Snapshots and profiles HEAD exactly as `inspect` does; an unsupported
    repository is refused before any network or container use.
@@ -437,7 +473,9 @@ to the manifests must pass before it is admitted.
 2. Profiles and validates the base tree exactly as `inspect` does.
 3. Selects the smallest eligible upgrade: patch before minor before major,
    then the first module in alphabetical order that has a target in that
-   class, then the highest version of that module in that class.
+   class, then the highest version of that module in that class. Eligible
+   means allowed by the policy and, unless `-min-age 0`, published at least
+   `-min-age` ago (72 hours by default) with a known publish time.
 4. Runs `go get` against a staging copy of the manifests through `-modfile`
    in the mutate profile, checks Gate A (exact target, no reversions, no
    replace, exclude, go, or toolchain changes, transitive increases only
@@ -451,6 +489,66 @@ to the manifests must pass before it is admitted.
    verification and target resolution, protected paths, scope limits.
 8. Freezes the proposal from a persisted commit recipe and points a
    proposal ref at it.
+
+## What maintain does with -select vulnerable
+
+`-select vulnerable` replaces step 3 of baseline mode and adds a scan after
+step 6. Everything else, the gates, validation, readiness, and the frozen
+proposal, is the same pipeline. Flags: `-vulndb DIR` uses a database
+directory instead of fetching https://vuln.go.dev, and `-scan-timeout`
+bounds each scan (10 minutes by default). Baseline mode is never resumed,
+so nothing about the selection is persisted for `resume`; the selection is
+part of the run's configuration hash, so its evidence cannot be mistaken
+for a default run's.
+
+1. Before any container starts, the database is identified or fetched as
+   for `vulns`.
+2. After the baseline validation is clean and conclusive, the scanner is
+   provisioned and the base tree is scanned in the execute profile with a
+   fresh build cache, the scanner and the database verified on the host
+   first. The scan is stored in the task store with the tree, configuration
+   hash, image digest, scanner version and sha256, database snapshot id and
+   modified time, Go version, the parsed scan, and the raw output
+   compressed with its sha256.
+3. An inconclusive scan ends the run `scan_inconclusive` with the reason;
+   it is never read as "no vulnerabilities". A conclusive scan with no
+   third-party findings ends it `no_vulnerabilities`; standard-library
+   findings are listed in the result but not acted on, because
+   repo-steward never changes the go directive.
+4. Targets are computed from the findings: per module, the needed version
+   is the highest fixed version among its findings, and the target is the
+   lowest published version at or above it that the policy allows (no
+   pre-release or pseudo-version, the patch, minor, and major allowances,
+   the deny list, and a `-dependency` pin, which must name that module and
+   clear the findings). A finding with no fix leaves the module targetable
+   for the others. Modules are ordered by the highest reachability level
+   among their fixable findings (symbol, package, module), then direct
+   before indirect, then path; the first is applied and the rest are listed
+   as remaining. A module the main module requires only indirectly is a
+   candidate here, unlike in the default selection. When nothing is
+   eligible the run ends `no_fix_available` with a reason per finding.
+5. Gate B also checks the build list the toolchain selects after tidy: the
+   target at exactly its version, and every module that enters or moves up
+   in the target's closure. A tidy that drops an indirect requirement and
+   so reselects the vulnerable version is refused.
+6. After the post validation is clean, the candidate tree is scanned with
+   the same scanner and database and stored the same way.
+7. Readiness adds three rules, each with its own failure code: a
+   conclusive post scan bound to the candidate tree and to the base scan's
+   configuration, image, scanner, database snapshot, and Go version
+   (`scan_not_bound`, `scan_inconclusive`); every targeted finding gone at
+   every level and found version (`advisory_not_resolved`); and nothing
+   introduced or escalated, standard library included
+   (`advisory_introduced`). Without a usable post scan all three fail.
+8. The proposal body gains a section naming each fixed advisory with its
+   aliases, summary, reachability and call path at base, and found and
+   fixed versions; whether the dependency is direct or indirect; the
+   third-party findings that remain and why; the count of
+   standard-library findings and why they are not acted on; the scanner
+   version; and the database snapshot and its modified time. Text from the
+   database is untrusted: it is sanitized, cut to a fixed length, and kept
+   on one line inside a code span, so it cannot pose as a line of the body,
+   a commit trailer, or a mention or link in the pull request.
 
 ## Benchmarks
 
@@ -545,9 +643,10 @@ go test -tags faultinject ./internal/manifest/ ./internal/proposal/
 
 Integration tests need the engine and the pinned image and never pull.
 Packages run serially because `inspect` reaps every container carrying the
-sandbox label. The `internal/vulnscan` tests also need the network: they
-build govulncheck once per test binary through proxy.golang.org and
-sum.golang.org, and one of them fetches https://vuln.go.dev. Without the
+sandbox label. The `internal/vulnscan` and `internal/steward` tests also
+need the network: they build govulncheck once per test binary through
+proxy.golang.org and sum.golang.org, and one of them fetches
+https://vuln.go.dev. Without the
 network they fail with a message saying so. The fault-injection tests crash a child process at each
 journaled point and recover in the parent; they need no engine.
 
@@ -560,7 +659,12 @@ outcome: two proposals (a patch upgrade in go-playground/validator, a minor
 upgrade in labstack/echo), a pin to an older version that yields no candidate, a
 target whose go directive exceeds the repository's pinned toolchain, and a
 repository whose test suite reaches the network and therefore fails its
-baseline in the sandbox. All five run the baseline pipeline, with no model,
+baseline in the sandbox. A sixth, `TestSmokeVulnerable`, runs vulnerable
+selection on labstack/echo v4.15.4 against the live database: it must find
+GO-2026-5970 in `golang.org/x/text` v0.38.0, an indirect dependency, at
+base, and propose v0.39.0, the lowest version that fixes it, with the
+advisory gone and nothing introduced. It checks that advisory, not totals,
+because the live database changes. All six run the baseline pipeline, with no model,
 so they exercise the sandbox, the gates, and validation on real code and
 say nothing about repair; the repair scenarios below do. They need the network and the toolchain images
 the targets declare, so they run under their own tag and in a separate
