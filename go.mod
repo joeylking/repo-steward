@@ -3,7 +3,7 @@ module github.com/joeylking/repo-steward
 go 1.27
 
 require (
-	github.com/joeylking/agent-runtime v0.3.2
+	github.com/joeylking/agent-runtime v0.4.0
 	github.com/joeylking/agent-runtime/bench v0.1.1
 	github.com/joeylking/agent-runtime/providers/anthropic v0.2.0
 	github.com/joeylking/agent-runtime/providers/ollama v0.2.0

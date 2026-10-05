@@ -182,7 +182,7 @@ project outside these limits is refused at the start with the reason.
 
 ## Status
 
-The current release is v0.2.0. It runs on agent-runtime v0.3.2 and scores
+The current release is v0.2.0. It runs on agent-runtime v0.4.0 and scores
 its benchmarks with agent-runtime's `bench` module. The whole path described above exists and is tested.
 
 - **Deterministic parts:** exact snapshots, the container sandbox,
@@ -232,7 +232,7 @@ Where to read more:
 
 - Go 1.27 or later and Git.
 - The runtime is pinned in `go.mod` at released versions: `agent-runtime
-  v0.3.2`, the benchmark vocabulary at its nested module tag `bench/v0.1.1`,
+  v0.4.0`, the benchmark vocabulary at its nested module tag `bench/v0.1.1`,
   and the provider adapters at theirs, `providers/ollama/v0.2.0` and
   `providers/anthropic/v0.2.0`.
 - A Docker-compatible engine reachable over a unix socket (Docker Desktop,
