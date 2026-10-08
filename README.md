@@ -182,7 +182,7 @@ project outside these limits is refused at the start with the reason.
 
 ## Status
 
-The current release is v0.2.0. It runs on agent-runtime v0.4.0 and scores
+The current release is v0.2.0. It runs on agent-runtime v0.5.0 and scores
 its benchmarks with agent-runtime's `bench` module. The whole path described above exists and is tested.
 
 - **Deterministic parts:** exact snapshots, the container sandbox,
@@ -232,7 +232,7 @@ Where to read more:
 
 - Go 1.27 or later and Git.
 - The runtime is pinned in `go.mod` at released versions: `agent-runtime
-  v0.4.0`, the benchmark vocabulary at its nested module tag `bench/v0.1.1`,
+  v0.5.0`, the benchmark vocabulary at its nested module tag `bench/v0.1.1`,
   and the provider adapters at theirs, `providers/ollama/v0.2.0` and
   `providers/anthropic/v0.2.0`.
 - A Docker-compatible engine reachable over a unix socket (Docker Desktop,
@@ -422,6 +422,12 @@ snapshots, each in a directory named by its content. A run's options and candida
 facts are persisted at start so `resume` reconstructs the session under
 the same configuration. Directories are never deleted and recreated at the
 same path within a run, because VM-backed engines cache path lookups.
+
+Upgrading across agent-runtime v0.5.0 migrates `steward.db` on its first open
+(the runtime's migration 6 chains the audit events). Stop every older
+`repo-steward` process and `agentrt` binary before that first open: an older
+binary's events would carry no hash, and a v0.4.0 binary refuses a migrated
+database.
 
 ## What inspect does
 
