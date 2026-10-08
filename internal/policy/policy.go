@@ -86,6 +86,14 @@ type Steward struct {
 	base  agentrt.SideEffectPolicy
 }
 
+// ID is the identity this policy records on each decision it makes.
+// Change the version when the rules change, so a recorded decision says
+// which rules decided it.
+const ID = "repo-steward/policy/v1"
+
+// PolicyID implements agentrt.IdentifiedPolicy.
+func (p *Steward) PolicyID() string { return ID }
+
 // New returns the policy over the facts.
 func New(f Facts) *Steward {
 	return &Steward{Facts: f, base: agentrt.DefaultPolicy()}
